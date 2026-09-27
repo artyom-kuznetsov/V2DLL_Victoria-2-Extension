@@ -1,0 +1,60 @@
+maxioten_test_jmp_8a9428 - снятый (отложенный) патч, v3.30 -> откачен в v3.31.
+
+Что делает: байтовый патч Ghidra 0x008A9428 (rva 0x4A9428, 6 байт):
+  0F 84 3A 01 00 00  (JZ  0x008A9568)  ->  E9 3B 01 00 00 90  (JMP 0x008A9568)
+Что проверяет ветка - не исследовалось. В таблицу EXE_PATCHES добавлялась
+запись "maxioten_test_jmp_8a9428" (по умолчанию выключена), в ini - отдельный
+самый нижний блок "; maxioten_test" с ключом PATCH_MAXIOTEN_TEST_JMP_8A9428.
+Сигнатуру в v2game.exe (обе копии) проверял: 0F 84 3A 01 00 00 на месте.
+
+Восстановить (из корня репозитория, файл V2TechButton.cpp без этой правки):
+  git apply Patches/maxioten_test_jmp_8a9428.patch
+Затем поднять MOD_VERSION (в патч версия намеренно не входит) и собрать.
+Если git apply не ложится из-за сдвинутого контекста: git apply --3way или
+вручную перенести два блока ниже (запись в EXE_PATCHES и fprintf в конце
+WriteDefaultSettings).
+
+diff --git a/Source/V2/V2/V2TechButton.cpp b/Source/V2/V2/V2TechButton.cpp
+--- a/Source/V2/V2/V2TechButton.cpp
++++ b/Source/V2/V2/V2TechButton.cpp
+@@ -2432,6 +2432,18 @@
+     { "aristocrat_income_share_patch_5", 0, 0xEEA3C, 6,
+         { 0x81, 0xE7, 0x00, 0x80, 0xFF, 0xFF },
+         { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, false },
++
++    // Тестовый патч maxioten (ini-секция maxioten_test, самая нижняя).
++    // Ghidra 0x008A9428 (rva 0x4A9428): JZ 0x008A9568 -> безусловный JMP
++    // на тот же адрес. Условный jz rel32 (0F 84 3A 01 00 00) заменяется на
++    // jmp rel32 (E9 3B 01 00 00) + NOP: смещение на 1 больше, потому что
++    // jmp короче на байт (5 против 6), а цель та же:
++    //   0x8A9428 + 6 + 0x13A == 0x8A9428 + 5 + 0x13B == 0x8A9568.
++    // Что именно проверяет ветка, не исследовалось - патч экспериментальный,
++    // поэтому по умолчанию выключен.
++    { "maxioten_test_jmp_8a9428", 0, 0x4A9428, 6,
++        { 0x0F, 0x84, 0x3A, 0x01, 0x00, 0x00 },
++        { 0xE9, 0x3B, 0x01, 0x00, 0x00, 0x90 }, false },
+ };
+ 
+ // Патч "checksum_drift_fix" (RVA 0x1F8268, снимал лишний INC EAX,
+@@ -2743,7 +2755,8 @@
+         "ENABLE_OOS_LOG=%d\n"
+         "ENABLE_CRASH_LOG=%d\n"
+         "ENABLE_CRASH_DUMP=%d\n"
+-        "HIDE_NO_SUPPLY_DRY_RUN=%d\n",
++        "HIDE_NO_SUPPLY_DRY_RUN=%d\n"
++        "\n",
+         (int)g_settings.log,
+         (int)g_settings.patchFactoryDumpScan,
+         (int)g_settings.enableOosLog,
+@@ -2751,6 +2764,11 @@
+         (int)g_settings.enableCrashDump,
+         (int)g_settings.hideNoSupplyDryRun);
+ 
++    fprintf(f,
++        "; maxioten_test\n"
++        "PATCH_MAXIOTEN_TEST_JMP_8A9428=%d\n",
++        (int)FindExePatchEnabled("maxioten_test_jmp_8a9428"));
++
+     fclose(f);
+ }
+ 

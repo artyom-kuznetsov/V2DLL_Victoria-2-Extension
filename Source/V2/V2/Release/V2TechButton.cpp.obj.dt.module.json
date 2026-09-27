@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Release\\V2TechButton.obj",
+            "outputs": [
+                "Release\\V2TechButton.cpp.obj.dt.module.json",
+                "Release\\V2TechButton.cpp.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

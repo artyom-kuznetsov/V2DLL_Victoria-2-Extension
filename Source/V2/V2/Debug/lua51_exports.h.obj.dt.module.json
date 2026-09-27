@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\lua51_exports.obj",
+            "outputs": [
+                "Debug\\lua51_exports.h.obj.dt.module.json",
+                "Debug\\lua51_exports.h.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

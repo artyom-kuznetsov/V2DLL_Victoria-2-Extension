@@ -1,0 +1,8 @@
+﻿C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(551,5): warning MSB8028: промежуточный каталог (Release\) содержит файлы, которые используются совместно с другим проектом (V2.vcxproj).  Это может привести к ошибкам очистки и перестроения.
+  V2TechButton.cpp
+     Создается библиотека I:\Vic2_Dev\V2BDSM\_Utility\V2DLL\V2\Release\lua51.lib и объект I:\Vic2_Dev\V2BDSM\_Utility\V2DLL\V2\Release\lua51.exp
+  Создание кода
+  Previous IPDB not found, fall back to full compilation.
+  All 72 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Создание кода завершено
+  V2.vcxproj -> I:\Vic2_Dev\V2BDSM\_Utility\V2DLL\V2\Release\lua51.dll

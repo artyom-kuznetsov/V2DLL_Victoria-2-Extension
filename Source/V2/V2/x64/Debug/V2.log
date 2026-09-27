@@ -1,0 +1,13 @@
+﻿  V2TechButton.cpp
+F:\Downloads\V2TechButton.cpp(17,18): error C3872: "U+b1": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,30): error C3872: "U+b0": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,38): error C3872: "U+201a": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,56): error C3872: "U+b0": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,79): error C3872: "U+b6": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,87): error C3872: "U+b0": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,96): error C3872: "U+bb": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,100): error C3872: "U+b0": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,104): error C3872: "U+201a": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,109): error C3872: "U+201e": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,126): error C3872: "U+b0": этот символ недопустим в идентификаторе
+F:\Downloads\V2TechButton.cpp(17,1): error C1189: #error:  РЎРѕР±РёСЂР°РµС‚СЃСЏ РєР°Рє x64 - РЅСѓР¶РЅР° РїР»Р°С‚С„РѕСЂРјР° Win32

@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "I:\\Vic2_DLL\\balticsprott_V2DLL\\Source\\V2\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{C4029D16-8E05-48E2-9A72-708A5FA913E7}|V2\\V2.vcxproj|I:\\Vic2_DLL\\balticsprott_V2DLL\\Source\\V2\\V2\\V2TechButton.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{C4029D16-8E05-48E2-9A72-708A5FA913E7}|V2\\V2.vcxproj|solutionrelative:V2\\V2TechButton.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "V2TechButton.cpp",
+              "DocumentMoniker": "I:\\Vic2_DLL\\balticsprott_V2DLL\\Source\\V2\\V2\\V2TechButton.cpp",
+              "RelativeDocumentMoniker": "V2\\V2TechButton.cpp",
+              "ToolTip": "I:\\Vic2_DLL\\balticsprott_V2DLL\\Source\\V2\\V2\\V2TechButton.cpp",
+              "RelativeToolTip": "V2\\V2TechButton.cpp",
+              "ViewState": "AgIAAFIAAAAAAAAAAAAAAEYAAAAmAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2026-08-18T07:50:53.545Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

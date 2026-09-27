@@ -1,0 +1,14 @@
+---- Install ---- версия 1.0
+base   = 000E0000
+onMake = 003BCE10
+patch CTechnologyView: слот 11 = 1, orig = 0048BD70
+patch CBudgetView: слот 10 = 1, orig = 002E6780
+patch CProductionView: слот 10 = 1, orig = 003E10A0
+patch CBuildFactoryWindow: слот 0 = 1, orig = 003D9860
+patch decision = 1, orig = 00711490  (ожидаем 00711490)
+Patch 'always_add_wargoals': файл 137EFF -> rva 138AFF, было 00 
+Patch 'land_reinforce': файл 1C809B -> rva 1C8C9B, было 89 4C 24 20 
+Patch 'naval_reinforce': файл 1C7F1C -> rva 1C8B1C, было 89 
+PriceDelta: 25 сотых процента, множитель 163, пещера 01BA0000, 50 байт
+Install: done
+DllMain: attach, Install = 1
