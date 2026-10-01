@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>I:\Vic2_DLL\balticsprott_V2DLL\Source\V2\V2\Release\lua51.dll</FullPath>
+      <FullPath>I:\Vic2_DLL\V2DLL - Victoria 2 Extension\Source\V2\V2\Release\lua51.dll</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

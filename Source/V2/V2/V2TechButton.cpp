@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "4.29"
+#define MOD_VERSION "4.61"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -65,6 +65,17 @@ struct Settings
     // таблицу (каждый - отдельная функция со своим хуком).
     bool patchOccupiedReinforceSplit = true;
     bool patchAllyOwnerCheck         = true;
+    // Посадка своей армии на флот постоянного союзника (не только свой
+    // флот) - и в пути, и кликом на клетку, где армия уже стоит. Проверено
+    // только статически (не в игре) - выключено по умолчанию, см.
+    // InstallAllyEmbark.
+    bool patchAllyEmbark             = false;
+    // Подсказка над "Высадить" у флота: если на борту есть чужие войска,
+    // дописывает их теги владельцев. Не зависит технически от
+    // patchAllyEmbark (данные читаются, не пишутся), но без него на
+    // борту просто не может оказаться чужой армии - смысла нет отдельно
+    // включать один без другого.
+    bool showAllyEmbarkedTooltip     = true;
     bool patchCivilizeNullCheck      = true;
     bool patchSupplySourceNullCheck  = true;
     // Два краша окна технологий на пустом "статусе" (сортировка списка и
@@ -4066,6 +4077,8 @@ static void ApplySetting(const char* key, const char* value)
 
     if (_stricmp(key, "PATCH_OCCUPIED_REINFORCE_SPLIT") == 0) { g_settings.patchOccupiedReinforceSplit = v; return; }
     if (_stricmp(key, "PATCH_ALLY_OWNER_CHECK") == 0)          { g_settings.patchAllyOwnerCheck         = v; return; }
+    if (_stricmp(key, "PATCH_ALLY_EMBARK") == 0)                { g_settings.patchAllyEmbark             = v; return; }
+    if (_stricmp(key, "SHOW_ALLY_EMBARKED_TOOLTIP") == 0)       { g_settings.showAllyEmbarkedTooltip     = v; return; }
     if (_stricmp(key, "PATCH_CIVILIZE_NULL_CHECK") == 0)       { g_settings.patchCivilizeNullCheck      = v; return; }
     if (_stricmp(key, "PATCH_SUPPLY_SOURCE_NULL_CHECK") == 0)  { g_settings.patchSupplySourceNullCheck  = v; return; }
     if (_stricmp(key, "PATCH_TECH_NULL_CHECK_FIXES") == 0)     { g_settings.patchTechNullCheckFixes     = v; return; }
@@ -4207,6 +4220,8 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_ALLIED_REINFORCE_150=%d\n"
         "PATCH_OCCUPIED_REINFORCE_SPLIT=%d\n"
         "PATCH_ALLY_OWNER_CHECK=%d\n"
+        "PATCH_ALLY_EMBARK=%d\n"
+        "SHOW_ALLY_EMBARKED_TOOLTIP=%d\n"
         "PATCH_COMBAT_ROLL=%d\n"
         "COMBAT_ROLL_MIN=%d\n"
         "COMBAT_ROLL_MAX=%d\n"
@@ -4218,6 +4233,8 @@ static void WriteDefaultSettings(const char* path)
         (int)FindExePatchEnabled("allied_reinforce_150"),
         (int)g_settings.patchOccupiedReinforceSplit,
         (int)g_settings.patchAllyOwnerCheck,
+        (int)g_settings.patchAllyEmbark,
+        (int)g_settings.showAllyEmbarkedTooltip,
         (int)g_settings.patchCombatRoll,
         g_settings.combatRollMin,
         g_settings.combatRollMax,
@@ -4776,6 +4793,940 @@ static bool InstallAllyOwnerCheck()
     Log("AllyOwnerCheck: owned-by-ally=150%%, occupied-by-ally=%d.%d%%, пещера %08X, ok=%d",
         OCCUPIED_REINFORCE_RATE / 10, OCCUPIED_REINFORCE_RATE % 10, target, (int)ok);
     return ok;
+}
+
+
+// ---------------------------------------------------------------
+// PATCH_ALLY_EMBARK - посадка своей армии на флот постоянного союзника
+// (не только свой флот), как при подходе к морской клетке по маршруту,
+// так и кликом на клетку, где армия уже стоит.
+//
+// Единственная проверка владельца, общая для ВСЕХ мест посадки
+// (посуточный ход армии FUN_005D25C0 - 2 её собственных вызова, клик
+// "сесть на этой же клетке" FUN_005CCEC0, подсказки кнопок и другие
+// места - 8 xref всего) - FUN_005D77A0(ECX=флот, EDI=наша армия):
+//
+//   mov eax,[ecx+0xc4]   ; индекс страны-владельца флота
+//   cmp eax,[edi+0xc4]   ; индекс страны-владельца нашей армии (общее
+//   jz  ok                 поле CUnit, не CArmy/CNavy - те же байты и
+//   -> false                у флота, и у армии)
+//   ok: ...дальше проверка вместимости (бой/маршрут/место, [ecx+0x74],
+//        [ecx+0xec], [ecx+0x104], [ecx+0xa4]) - НЕ трогаем: она вся
+//        про сам флот, а не про его владельца, и вместимость там уже
+//        общая НА ФЛОТ (один счётчик, не по каждой стране отдельно) -
+//        поэтому после ослабления владельца лимит бригад сам станет
+//        общим, ровно как просил пользователь.
+//
+// "Союзник" определяем так же, как это делает игра для скриптового
+// триггера alliance_with (FUN_008d9f20, class CAllianceWithTrigger,
+// найден через RTTI по строке ".?AVCAllianceWithTrigger@@") - не своя
+// реализация, воспроизводим ванильную: у каждой страны по смещению
+// +0xBE8 лежит база массива указателей "отношения[индекс_страны]" (тот
+// же country-индекс, что и в +0xc4 выше), а в самой записи отношений
+// по +0x20 - признак действующего союза (!=0 = союзники). Таблица
+// стран - глобал DAT_012587e4 (+4 = данные vector<CCountry*>), которым
+// уже пользуется ванильный FUN_005D7420 (подкрепление на союзной
+// территории, см. InstallAllyOwnerCheck выше) - тот же country-индекс,
+// тот же +0xBE8, но там смещение в записи другое (+0x34 - "доступ на
+// территорию", более широкое понятие, чем сам союз).
+//
+// v4.35: alliance_with - не единственное "мы не чужие". Пользователь
+// показал, что посадка армии сателлита (субъекта) на флот работает,
+// только если между сторонами ЕЩЁ И отдельный договорной союз, а
+// голого отношения вассал-сюзерен (playing as сателлит) недостаточно -
+// ожидаемо, это разные поля в движке. Добавили симметричную проверку
+// is_our_vassal/vassal_of (CIsOurVassalTrigger/CVassalOfTrigger,
+// 0x8D9800/0x8D90B0, тот же RTTI-приём) - у страны есть свой индекс
+// сюзерена (+0xCFC, валиден если хоть один из флагов +0xCF4/+0xCF5 не
+// ноль). Проверяем в обе стороны (A - субъект B, или B - субъект A) -
+// см. IsSubjectOf/IsOwnerAllied ниже.
+//
+// Второе место патча: FUN_005CCEC0 (обработчик приказа движения) -
+// отдельная, более ранняя проверка ПЕРЕД вызовом того же FUN_005D77A0,
+// именно на случай "приказ на клетку, где армия уже стоит" (посадка
+// без похода):
+//
+//   mov eax,[edi+0xcc]        ; тот же индекс владельца нашей армии,
+//   cmp [esi+0xcc],eax        ; но взят с "сырого" CUnit кандидата,
+//   jne skip_candidate          без геттера vtable+0x2c/+0x30
+//
+// Без этого второго патча посадка сработала бы только "в пути" (по
+// маршруту в несколько провинций), а прямой клик на свою же клетку с
+// союзным флотом - нет. Патчим оба места одним и тем же хелпером
+// (IsOwnerAllied) - оба сравнения используют один и тот же
+// country-индекс, просто по разным путям к нему.
+//
+// ЭКСПЕРИМЕНТАЛЬНО: проверено только статически (Ghidra + сверка byte
+// в byte с диском), вживую посадка на чужой флот не тестировалась -
+// выключено по умолчанию (PATCH_ALLY_EMBARK=0), до подтверждения в игре.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_EMBARK_OWNER_HOOK      = 0x1D77A0;  // FUN_005d77a0: mov eax,[ecx+0xc4]; cmp eax,[edi+0xc4]
+static const DWORD RVA_EMBARK_OWNER_RESUME_OK = 0x1D77B1;  // cmp dword ptr[ecx+0x74],0 (проверка вместимости/боя дальше)
+
+static const DWORD RVA_EMBARK_CLICK_HOOK        = 0x1CD058;  // FUN_005ccec0: mov eax,[edi+0xcc]; cmp [esi+0xcc],eax; jne
+static const DWORD RVA_EMBARK_CLICK_RESUME_SAME = 0x1CD066;  // владелец совпал/союзник - mov eax,[esi] (дальше как в оригинале)
+static const DWORD RVA_EMBARK_CLICK_RESUME_SKIP = 0x1CD07A;  // не подошёл - следующий кандидат в списке клетки
+
+// v4.31: третье место, найденное после того, как пользователь сообщил,
+// что армия вообще не отправляется на союзный флот (ни маршрутом, ни
+// кликом на свою же клетку) - FUN_005D77A0/FUN_005CCEC0 сами по себе не
+// объясняли такой полный отказ. Оказалось, что ПРИКАЗ на дальнюю морскую
+// клетку (в отличие от посадки "тут же") принимается только если игра
+// заранее сочтёт его вообще осмысленным - слот виртуальной функции +0x84
+// у CArmy (FUN_005D5E30, вызывается из +0x88 - FUN_005CD3D0, "приказ
+// допустим?") складывает суммарную вместимость СВОИХ ЖЕ флотов в целевой
+// клетке и сравнивает с суммарным размером СВОИХ ЖЕ армий, которым нужно
+// сесть - ДО того, как FUN_005D77A0 вообще получает шанс сработать. Если
+// в клетке стоит только союзный флот (наших - 0), эта проверка возвращает
+// "вместимости нет", и игра просто не принимает приказ - маршрут не
+// создаётся, посуточная посадка (уже пропатченная выше) никогда не
+// запускается. Патчим ровно накопление вместимости флота (вторая из двух
+// одинаковых проверок владельца в этой функции - первая считает СВОИ ЖЕ
+// армии, уже стоящие в клетке, в требуемый объём, и её трогать не нужно).
+static const DWORD RVA_EMBARK_CAPACITY_HOOK        = 0x1D5E97;  // FUN_005d5e30: mov ecx,[esi+0xc4]; cmp ecx,[ebx+0xc4]; jne
+static const DWORD RVA_EMBARK_CAPACITY_RESUME_SAME = 0x1D5EA5;  // владелец совпал/союзник - mov eax,esi (дальше как в оригинале)
+static const DWORD RVA_EMBARK_CAPACITY_RESUME_SKIP = 0x1D5EAF;  // не подошёл - следующий кандидат в списке клетки
+
+static const DWORD RVA_COUNTRIES_VECTOR  = 0xE587E4;  // DAT_012587e4; +4 = vector<CCountry*>.data()
+static const int   OFF_COUNTRY_RELATIONS = 0xBE8;     // CCountry: база массива указателей "отношения[индекс_другой_страны]"
+static const int   OFF_RELATION_ALLIANCE = 0x20;      // CRelation: !=0 - действующий союз (то же поле, что у alliance_with)
+
+// v4.35: пользователь показал, что армия сателлита (субъекта), которой
+// командует сюзерен, садится нормально (там ещё и отдельный договорной
+// союз был - отрабатывает выше), а вот попытка сесть, играя САМИМ
+// сателлитом (без отдельного союза, чисто на отношении вассал-сюзерен),
+// не проходит - что и ожидалось: alliance_with и is_our_vassal/vassal_of
+// в игре - РАЗНЫЕ отношения, разные поля. Нашли поля второго через RTTI
+// класс триггеров CIsOurVassalTrigger/CVassalOfTrigger (Evaluate по
+// 0x8D9800/0x8D90B0) - оба симметрично читают у СТРАНЫ (не у пары):
+//   +0xCF4, +0xCF5 - два флаговых байта; оба нулевые = независима, нет
+//   надсубъектных отношений вообще (сюзерена нет)
+//   +0xCFC - индекс страны-сюзерена (если хоть один из флагов выше не 0)
+// Проверяем в обе стороны: A - субъект B, или B - субъект A.
+static const int OFF_COUNTRY_SUBJECT_FLAG1  = 0xCF4;
+static const int OFF_COUNTRY_SUBJECT_FLAG2  = 0xCF5;
+static const int OFF_COUNTRY_OVERLORD_INDEX = 0xCFC;
+
+static const unsigned char EMBARK_OWNER_SIG[12] =
+{ 0x8B, 0x81, 0xC4, 0x00, 0x00, 0x00, 0x3B, 0x87, 0xC4, 0x00, 0x00, 0x00 };
+
+static const unsigned char EMBARK_CLICK_SIG[14] =
+{
+    0x8B, 0x87, 0xCC, 0x00, 0x00, 0x00,   // mov eax,[edi+0xcc]
+    0x39, 0x86, 0xCC, 0x00, 0x00, 0x00,   // cmp [esi+0xcc],eax
+    0x75, 0x14                            // jne +0x14
+};
+
+static const unsigned char EMBARK_CAPACITY_SIG[14] =
+{
+    0x8B, 0x8E, 0xC4, 0x00, 0x00, 0x00,   // mov ecx,[esi+0xc4]
+    0x3B, 0x8B, 0xC4, 0x00, 0x00, 0x00,   // cmp ecx,[ebx+0xc4]
+    0x75, 0x0A                            // jne +0xA
+};
+
+static DWORD g_embarkOwnerResumeOk      = 0;
+static DWORD g_embarkClickResumeSame    = 0;
+static DWORD g_embarkClickResumeSkip    = 0;
+static DWORD g_embarkCapacityResumeSame = 0;
+static DWORD g_embarkCapacityResumeSkip = 0;
+
+// Диагностика (v4.31+): считаем и логируем каждую проверку двух РАЗНЫХ
+// владельцев (при равных индексах IsOwnerAllied выходит раньше, без
+// лога - этот случай не интересен, он и так работал). Если после
+// попытки посадки на союзный флот в логе вообще нет строк "AllyEmbark:"
+// - оба наших хука не были достигнуты вовсе, и дело не в самой проверке
+// союза, а в более раннем гейте (например, у самого приказа движения на
+// дальнюю морскую клетку - см. память проекта).
+static LONG g_embarkAlliedLogged = 0;
+
+// world -> vector<CCountry*>.data() -> countries[idx]. -1/-2 читались
+// неверно в v4.30-4.33 (см. память проекта, разбор DAT_012587e4);
+// здесь и далее - уже исправленная, дважды разыменованная формула.
+static void* GetCountryPtr(int idx)
+{
+    if (idx < 0)
+        return 0;
+    __try
+    {
+        void* world = *(void**)(g_base + RVA_COUNTRIES_VECTOR);
+        void** countries = world ? *(void***)((char*)world + 4) : 0;
+        if (!countries || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(countries + idx, 4)))
+            return 0;
+        return countries[idx];
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+// countryA - объект (см. GetCountryPtr), countryIdxB - индекс второй
+// страны. 1 - действующий союз (то же поле, что читает alliance_with),
+// 0 - прочитали, союза нет, -1 - не смогли прочитать (плохой указатель).
+static int IsAllianceRelation(void* countryA, int countryIdxB)
+{
+    __try
+    {
+        if (!countryA || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)countryA + OFF_COUNTRY_RELATIONS, 4)))
+            return -1;
+        void** relations = *(void***)((char*)countryA + OFF_COUNTRY_RELATIONS);
+        if (!relations || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(relations + countryIdxB, 4)))
+            return -1;
+        void* relation = relations[countryIdxB];
+        if (!relation || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)relation + OFF_RELATION_ALLIANCE, 4)))
+            return -1;
+        return (*(int*)((char*)relation + OFF_RELATION_ALLIANCE) != 0) ? 1 : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+// v4.35: пользователь показал, что посадка на флот сателлита, которым
+// он командует НЕ как сюзерен (сам играет за сателлита, отдельного
+// договорного союза нет - только вассалитет), срывается - ожидаемо,
+// alliance_with и is_our_vassal/vassal_of читают разные поля. countryX
+// - проверяемая сторона, overlordIdx - индекс её предполагаемого
+// сюзерена. 1 - countryX действительно субъект (вассал/сателлит/etc.)
+// именно этой страны, 0 - прочитали, не подчинена (или независима),
+// -1 - не смогли прочитать.
+static int IsSubjectOf(void* countryX, int overlordIdx)
+{
+    __try
+    {
+        if (!countryX || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)countryX + OFF_COUNTRY_SUBJECT_FLAG1, 2)))
+            return -1;
+        char f1 = *((char*)countryX + OFF_COUNTRY_SUBJECT_FLAG1);
+        char f2 = *((char*)countryX + OFF_COUNTRY_SUBJECT_FLAG2);
+        if (f1 == 0 && f2 == 0)
+            return 0;   // полностью независима - сюзерена нет вовсе
+        if (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)countryX + OFF_COUNTRY_OVERLORD_INDEX, 4))
+            return -1;
+        return (*(int*)((char*)countryX + OFF_COUNTRY_OVERLORD_INDEX) == overlordIdx) ? 1 : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+static const char* TriStr(int v) { return v > 0 ? "да" : v == 0 ? "нет" : "?"; }
+
+// Возвращает !=0, если countryIdxA==countryIdxB, страны состоят в
+// действующем союзе, либо одна - субъект (вассал/сателлит/etc.) другой
+// в любую сторону. Индекс вне таблицы стран/нулевые указатели где-то по
+// пути - тихо 0 (посадка ведёт себя как раньше, только свои).
+static int __cdecl IsOwnerAllied(int countryIdxA, int countryIdxB)
+{
+    int result = 0;
+    int allied = -2, subAB = -2, subBA = -2;   // -2 = не проверяли (индекс<0)
+
+    if (countryIdxA == countryIdxB)
+        return 1;
+
+    if (countryIdxA >= 0 && countryIdxB >= 0)
+    {
+        void* countryA = GetCountryPtr(countryIdxA);
+
+        allied = IsAllianceRelation(countryA, countryIdxB);
+        if (allied == 1)
+            result = 1;
+
+        if (!result)
+        {
+            subAB = IsSubjectOf(countryA, countryIdxB);
+            if (subAB == 1)
+                result = 1;
+        }
+
+        if (!result)
+        {
+            void* countryB = GetCountryPtr(countryIdxB);
+            subBA = IsSubjectOf(countryB, countryIdxA);
+            if (subBA == 1)
+                result = 1;
+        }
+    }
+
+    if (InterlockedIncrement(&g_embarkAlliedLogged) <= 60)
+        Log("AllyEmbark: %d/%d союз=%s суб(A/B)=%s суб(B/A)=%s -> %s",
+            countryIdxA, countryIdxB, TriStr(allied), TriStr(subAB), TriStr(subBA),
+            result ? "союзники" : "не союзники");
+    return result;
+}
+
+static const DWORD RVA_FLEET_COUNT_EMBARKED = 0x1DC560;  // FUN_005dc560(fleet+0x1A4) - сколько бригад уже на борту (любых наций)
+static const DWORD RVA_ARMY_COUNT_BRIGADES  = 0x1D0650;  // FUN_005d0650(armySpecialObj) - бригад в нашей армии
+
+typedef int(__fastcall* tCountEmbarkedBrigades)(void* fleetSlackPtr);
+typedef int(__fastcall* tCountArmyBrigades)(void* armySpecialObj);
+
+// Диагностика (v4.33): пользователь подтвердил, что приказ теперь
+// принимается (третий патч выше сработал), но в день прихода посадка
+// срывается. Сама проверка владельца в FUN_005D77A0 (эта функция) -
+// не единственное условие: следом идут бой/маршрут флота/флаг104/
+// вместимость, которые мы НЕ трогаем и не проверяли вживую. Логируем
+// их все, когда владелец прошёл (свой или союзник), чтобы понять,
+// какое из НЕ владельческих условий рвёт посадку, если рвёт.
+// v4.55: кэш для индикатора посаженных войск. Заполняется ЗДЕСЬ, в уже
+// проверенном коде посадки, который получает fleetObj гарантированно
+// правильным способом (ECX от самой ванили, без единой догадки) - а
+// не в UI-тултипе, где все попытки вычислить тот же указатель заново
+// (через thisObj+0x258 и разные vtable-слоты) были либо неверны, либо
+// роняли игру. Тултип теперь только ЧИТАЕТ этот кэш, не трогая
+// thisObj/unit вообще.
+static char g_cachedEmbarkedTags[192] = { 0 };
+static LONG g_embarkCacheLogCount = 0;  // v4.57: ограничивает диагностику обхода списка 20 строками
+
+static void __cdecl LogEmbarkFleetState(void* fleetObj, void* armyObj)
+{
+    __try
+    {
+        int ownerFleet = *(int*)((char*)fleetObj + 0xC4);
+        int ownerArmy = *(int*)((char*)armyObj + 0xC4);
+        int combat = *(int*)((char*)fleetObj + 0x74);
+        int routeCount = *(int*)((char*)fleetObj + 0xEC);
+        char flag104 = *(char*)((char*)fleetObj + 0x104);
+        void* leader = *(void**)((char*)fleetObj + 0xA4);
+        int rawCap = leader ? *(int*)((char*)leader + 0x258) : -1;
+        int capacity = rawCap / 100;
+
+        tCountEmbarkedBrigades countEmbarked = (tCountEmbarkedBrigades)(g_base + RVA_FLEET_COUNT_EMBARKED);
+        tCountArmyBrigades countArmy = (tCountArmyBrigades)(g_base + RVA_ARMY_COUNT_BRIGADES);
+        int already = countEmbarked((char*)fleetObj + 0x1A4);
+        int mine = countArmy(armyObj);
+
+        bool ok = combat == 0 && routeCount <= 0 && flag104 == 0 && (already + mine) <= capacity;
+
+        Log("AllyEmbark: владелец флота/армии %d/%d бой=%d маршрут_флота=%d флаг104=%d "
+            "вместимость=%d занято=%d+%d -> %s",
+            ownerFleet, ownerArmy, combat, routeCount, (int)flag104,
+            capacity, already, mine, ok ? "должна пройти" : "ОСТАЛЬНОЕ УСЛОВИЕ НЕ ПРОШЛО");
+
+        // v4.58: +0x1A4 у ЭТОГО fleetObj пуст (узлов=0), хотя армия точно
+        // посажена и панель корректно показывает занято 19/26 - похоже,
+        // это другой объект, чем тот, что видит UI. Вместо догадок о
+        // новом офсете - безопасный, только читающий скан: ищем в памяти
+        // armyObj (ограниченный диапазон, под SEH) DWORD, РАВНЫЙ самому
+        // указателю fleetObj. Если у армии есть поле "мой текущий
+        // носитель", оно будет хранить именно это значение.
+        if (InterlockedIncrement(&g_embarkCacheLogCount) <= 10)
+        {
+            DWORD_PTR needle = (DWORD_PTR)fleetObj;
+            char found[256];
+            found[0] = 0;
+            int hits = 0;
+            for (int off = 0; off < 0x300 && hits < 6; off += 4)
+            {
+                void* p = (char*)armyObj + off;
+                if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(p, 4))
+                    continue;
+                __try
+                {
+                    DWORD_PTR val = *(DWORD_PTR*)p;
+                    if (val == needle)
+                    {
+                        char piece[16];
+                        _snprintf_s(piece, sizeof(piece), _TRUNCATE, "%s+0x%X", hits ? "," : "", off);
+                        strcat_s(found, sizeof(found), piece);
+                        ++hits;
+                    }
+                }
+                __except (EXCEPTION_EXECUTE_HANDLER) { }
+            }
+            Log("AllyEmbark: скан armyObj=%p на совпадение с fleetObj=%p -> смещения:%s (найдено %d)",
+                armyObj, fleetObj, found[0] ? found : " нет", hits);
+        }
+
+        // v4.57 здесь раньше ТОЖЕ писал в g_cachedEmbarkedTags, обходя
+        // +0x1A4 у ЭТОГО fleetObj - но v4.57/4.58 логи подтвердили: этот
+        // fleetObj (из FUN_005D77A0) не тот объект, что видит панель, и
+        // его +0x1A4 всегда пуст. Запись отсюда УДАЛЕНА в v4.61 - она
+        // периодически затирала ПРАВИЛЬНЫЕ данные от
+        // UpdateEmbarkedTagsCacheFromCapturedFleet (см. ниже, v4.60)
+        // пустой строкой, создавая гонку. Кэш тултипа теперь пишет
+        // только тот, проверенно верный источник.
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("AllyEmbark: исключение при диагностике состояния флота");
+    }
+}
+
+// ---------------------------------------------------------------
+// v4.60: источник fleetObj в LogEmbarkFleetState (из FUN_005D77A0)
+// оказался НЕ тем объектом, что видит панель - у него пустой +0x1A4
+// (подтверждено логом v4.57) и армия нигде не хранит на него прямой
+// указатель (скан v4.58). Дизассемблировали FUN_0078E820 (та самая
+// функция, что каждый кадр корректно считает "Место: X (Y)" для
+// ЛЮБОЙ открытой панели юнита) и нашли ТОЧНОЕ место, где вычисляется
+// правильный "особый объект" флота:
+//
+//   0078F554: MOV EDX, dword ptr [EAX+0x30]   ; слот 0x30 из vtable
+//   0078F557: CALL EDX                         ; -> EAX = особый объект флота
+//   0078F559: LEA ECX, [EAX+0x1A4]             ; <- ЗДЕСЬ патчим
+//   0078F55F: CALL FUN_005dc560                ; подсчёт бригад (тот же, что и в embark-коде)
+//
+// Патчим РОВНО одну инструкцию (6 байт, LEA - не CALL), по
+// установленному в проекте безопасному правилу "только читаем,
+// воспроизводим оригинальную инструкцию и прыгаем назад" - никакой
+// реконструкции сигнатуры вызова, никаких тронутых регистров кроме
+// записи EAX в свою же глобальную переменную (сам EAX не меняется).
+// Срабатывает каждый кадр для ЛЮБОЙ панели юнита с грузом на борту -
+// то есть кэш обновляется, когда открыта панель именно ФЛОТА (не
+// армии, как было с LogEmbarkFleetState/unload_button), от уже
+// доказанно верного источника данных.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_FLEET_CAPTURE_HOOK   = 0x38F559;  // LEA ECX,[EAX+0x1A4]
+static const DWORD RVA_FLEET_CAPTURE_RESUME = 0x38F55F;  // CALL FUN_005dc560 (сразу после патча)
+
+static const unsigned char FLEET_CAPTURE_SIG[6] =
+{ 0x8D, 0x88, 0xA4, 0x01, 0x00, 0x00 };  // LEA ECX,[EAX+0x1A4]
+
+static void* g_fleetCaptureResumeAddr = 0;
+static void* g_capturedFleetSpecial = 0;
+static LONG  g_fleetCaptureCount = 0;
+
+// Опережающее объявление - зовётся из naked-asm заглушки ниже,
+// определена сразу после неё.
+static void __cdecl UpdateEmbarkedTagsCacheFromCapturedFleet();
+
+__declspec(naked) static void FleetCaptureThunk()
+{
+    __asm mov g_capturedFleetSpecial, eax
+    __asm push eax
+    __asm push ecx
+    __asm push edx
+    __asm call UpdateEmbarkedTagsCacheFromCapturedFleet
+    __asm pop edx
+    __asm pop ecx
+    __asm pop eax
+    __asm lea ecx, [eax + 0x1A4]
+    __asm jmp dword ptr [g_fleetCaptureResumeAddr]
+}
+
+// Читает g_capturedFleetSpecial (уже проверенно верный указатель,
+// только что сохранённый заглушкой выше) и собирает теги чужих
+// посаженных армий тем же безопасным обходом, что и в
+// LogEmbarkFleetState. cdecl без аргументов - вызов из naked-заглушки
+// безопасен (регистры сохранены/восстановлены вокруг call).
+static void __cdecl UpdateEmbarkedTagsCacheFromCapturedFleet()
+{
+    void* fleetSpecial = g_capturedFleetSpecial;
+    if (!fleetSpecial)
+        return;
+
+    __try
+    {
+        int ownerFleet = *(int*)((char*)fleetSpecial + 0xC4);
+        char fresh[192];
+        fresh[0] = 0;
+        int shown = 0;
+        void** node = *(void***)((char*)fleetSpecial + 0x1A4);
+        int guard = 0;
+        while (node && shown < 8 && guard < 64)
+        {
+            ++guard;
+            if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(node, 12))
+                break;
+            void* army = node[0];
+            void** next = (void**)node[2];
+            if (army &&
+                !(g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)army + 0xC0, 3)) &&
+                !(g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)army + 0xC4, 4)))
+            {
+                int ownerIdx = *(int*)((char*)army + 0xC4);
+                if (ownerIdx != ownerFleet)
+                {
+                    char tag[4];
+                    tag[0] = *((char*)army + 0xC0 + 0);
+                    tag[1] = *((char*)army + 0xC0 + 1);
+                    tag[2] = *((char*)army + 0xC0 + 2);
+                    tag[3] = 0;
+                    if (tag[0] >= 'A' && tag[0] <= 'Z')
+                    {
+                        // v4.61: без ведущего " | " - теперь это не
+                        // довесок к ванильному тексту, а готовое
+                        // самостоятельное сообщение (см. тултип ниже).
+                        strcat_s(fresh, sizeof(fresh), shown ? ", " : "ALLY: ");
+                        strcat_s(fresh, sizeof(fresh), tag);
+                        ++shown;
+                    }
+                }
+            }
+            node = next;
+        }
+
+        if (InterlockedIncrement(&g_fleetCaptureCount) <= 20)
+            Log("FleetCapture: fleetSpecial=%p владелец=%d итог='%s'", fleetSpecial, ownerFleet, fresh);
+
+        if (strcmp(g_cachedEmbarkedTags, fresh) != 0)
+            Log("FleetCapture: кэш тултипа обновлён: '%s' -> '%s'", g_cachedEmbarkedTags, fresh);
+        strcpy_s(g_cachedEmbarkedTags, sizeof(g_cachedEmbarkedTags), fresh);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static bool InstallFleetCaptureHook()
+{
+    BYTE* hook = (BYTE*)(g_base + RVA_FLEET_CAPTURE_HOOK);
+
+    if (memcmp(hook, FLEET_CAPTURE_SIG, sizeof(FLEET_CAPTURE_SIG)) != 0)
+    {
+        Log("FleetCapture: сигнатура не совпала - не патчим");
+        return false;
+    }
+
+    g_fleetCaptureResumeAddr = (void*)(g_base + RVA_FLEET_CAPTURE_RESUME);
+
+    BYTE patch[6];
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&FleetCaptureThunk - ((DWORD)hook + 5);
+    patch[5] = 0x90;
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hook, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+
+    memcpy(hook, patch, sizeof(patch));
+    VirtualProtect(hook, sizeof(patch), oldProtect, &oldProtect);
+
+    Log("FleetCapture: установлен (rva %06X)", RVA_FLEET_CAPTURE_HOOK);
+    return true;
+}
+
+// FUN_005d77a0(ECX=флот, EDI=наша армия) - единственная проверка
+// владельца на пути посуточной посадки (FUN_005D25C0). "Иначе false"
+// заменяем на "иначе - проверить союз"; вместимость/бой/маршрут флота
+// дальше не трогаем - см. комментарий блока выше. Для союзника (не
+// самого себя) дополнительно логируем эти остальные условия.
+__declspec(naked) static void EmbarkOwnerCheckThunk()
+{
+    __asm {
+        mov eax, dword ptr [ecx + 0xC4]
+        mov edx, dword ptr [edi + 0xC4]
+        cmp eax, edx
+        jz resume_ok
+
+        push ecx
+        push edi
+        push edx
+        push eax
+        call IsOwnerAllied
+        add esp, 8
+        pop edi
+        pop ecx
+        test eax, eax
+        jz fail
+
+        push ecx
+        push edi
+        push edi
+        push ecx
+        call LogEmbarkFleetState
+        add esp, 8
+        pop edi
+        pop ecx
+
+    resume_ok:
+        jmp dword ptr [g_embarkOwnerResumeOk]
+
+    fail:
+        xor eax, eax
+        ret
+    }
+}
+
+// FUN_005ccec0 - обработчик приказа движения: отдельная, более ранняя
+// проверка на случай "кликнули на клетку, где армия уже стоит" (без
+// похода). EDI = наша армия (объект CUnit), ESI = кандидат из списка
+// юнитов этой клетки.
+__declspec(naked) static void EmbarkClickFilterThunk()
+{
+    __asm {
+        mov eax, dword ptr [edi + 0xCC]
+        cmp dword ptr [esi + 0xCC], eax
+        jz resume_same
+
+        push ecx
+        push edx
+        mov edx, dword ptr [esi + 0xCC]
+        push edx
+        push eax
+        call IsOwnerAllied
+        add esp, 8
+        pop edx
+        pop ecx
+        test eax, eax
+        jnz resume_same
+        jmp dword ptr [g_embarkClickResumeSkip]
+
+    resume_same:
+        jmp dword ptr [g_embarkClickResumeSame]
+    }
+}
+
+// FUN_005d5e30 (CArmy::vftable[0x84], вызывается из "приказ допустим?"
+// FUN_005CD3D0/vftable[0x88]) - вторая из двух одинаковых проверок
+// владельца в этой функции: накопление вместимости своих флотов,
+// стоящих в целевой морской клетке. EBX = наша армия, ESI = кандидат
+// (уже подтверждён как флот по vtable+0x3c до этого хука).
+__declspec(naked) static void EmbarkCapacityFilterThunk()
+{
+    __asm {
+        mov ecx, dword ptr [esi + 0xC4]
+        cmp dword ptr [ebx + 0xC4], ecx
+        jz resume_same
+
+        push eax
+        push edx
+        push ecx
+        mov edx, dword ptr [ebx + 0xC4]
+        push edx
+        call IsOwnerAllied
+        add esp, 8
+        pop edx
+        pop eax
+        test eax, eax
+        jnz resume_same
+        jmp dword ptr [g_embarkCapacityResumeSkip]
+
+    resume_same:
+        jmp dword ptr [g_embarkCapacityResumeSame]
+    }
+}
+
+static bool InstallAllyEmbark()
+{
+    unsigned char* hookOwner    = (unsigned char*)(g_base + RVA_EMBARK_OWNER_HOOK);
+    unsigned char* hookClick    = (unsigned char*)(g_base + RVA_EMBARK_CLICK_HOOK);
+    unsigned char* hookCapacity = (unsigned char*)(g_base + RVA_EMBARK_CAPACITY_HOOK);
+
+    if (memcmp(hookOwner, EMBARK_OWNER_SIG, sizeof(EMBARK_OWNER_SIG)) != 0)
+    {
+        Log("AllyEmbark: сигнатура владельца флота не совпала - не патчим");
+        return false;
+    }
+    if (memcmp(hookClick, EMBARK_CLICK_SIG, sizeof(EMBARK_CLICK_SIG)) != 0)
+    {
+        Log("AllyEmbark: сигнатура клика по своей клетке не совпала - не патчим");
+        return false;
+    }
+    if (memcmp(hookCapacity, EMBARK_CAPACITY_SIG, sizeof(EMBARK_CAPACITY_SIG)) != 0)
+    {
+        Log("AllyEmbark: сигнатура вместимости (приказ допустим?) не совпала - не патчим");
+        return false;
+    }
+
+    g_fnIsBadReadPtr = SafeIsBadReadPtr;
+
+    g_embarkOwnerResumeOk      = g_base + RVA_EMBARK_OWNER_RESUME_OK;
+    g_embarkClickResumeSame    = g_base + RVA_EMBARK_CLICK_RESUME_SAME;
+    g_embarkClickResumeSkip    = g_base + RVA_EMBARK_CLICK_RESUME_SKIP;
+    g_embarkCapacityResumeSame = g_base + RVA_EMBARK_CAPACITY_RESUME_SAME;
+    g_embarkCapacityResumeSkip = g_base + RVA_EMBARK_CAPACITY_RESUME_SKIP;
+
+    unsigned char patchOwner[12];
+    patchOwner[0] = 0xE9;
+    *(DWORD*)(patchOwner + 1) = (DWORD)(DWORD_PTR)&EmbarkOwnerCheckThunk - ((DWORD)hookOwner + 5);
+    for (int i = 5; i < 12; ++i)
+        patchOwner[i] = 0x90;
+
+    unsigned char patchClick[14];
+    patchClick[0] = 0xE9;
+    *(DWORD*)(patchClick + 1) = (DWORD)(DWORD_PTR)&EmbarkClickFilterThunk - ((DWORD)hookClick + 5);
+    for (int i = 5; i < 14; ++i)
+        patchClick[i] = 0x90;
+
+    unsigned char patchCapacity[14];
+    patchCapacity[0] = 0xE9;
+    *(DWORD*)(patchCapacity + 1) = (DWORD)(DWORD_PTR)&EmbarkCapacityFilterThunk - ((DWORD)hookCapacity + 5);
+    for (int i = 5; i < 14; ++i)
+        patchCapacity[i] = 0x90;
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hookOwner, sizeof(patchOwner), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    memcpy(hookOwner, patchOwner, sizeof(patchOwner));
+    VirtualProtect(hookOwner, sizeof(patchOwner), oldProtect, &oldProtect);
+
+    if (!VirtualProtect(hookClick, sizeof(patchClick), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    memcpy(hookClick, patchClick, sizeof(patchClick));
+    VirtualProtect(hookClick, sizeof(patchClick), oldProtect, &oldProtect);
+
+    if (!VirtualProtect(hookCapacity, sizeof(patchCapacity), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    memcpy(hookCapacity, patchCapacity, sizeof(patchCapacity));
+    VirtualProtect(hookCapacity, sizeof(patchCapacity), oldProtect, &oldProtect);
+
+    Log("AllyEmbark: установлен (владелец rva %06X, клик rva %06X, вместимость rva %06X)",
+        RVA_EMBARK_OWNER_HOOK, RVA_EMBARK_CLICK_HOOK, RVA_EMBARK_CAPACITY_HOOK);
+    return true;
+}
+
+
+// ---------------------------------------------------------------
+// SHOW_ALLY_EMBARKED_TOOLTIP - подсказка над кнопкой "Высадить" у
+// флота: если на борту есть чужие (союзные) войска, дописывает к
+// ванильному тексту тег их владельца ("| ALLY: FRA, ENG").
+//
+// Сознательно НЕ трогаем byte-в-byte хрупкий диспетчер тултипов кнопок
+// (FUN_0078F980, VA 0x78F980 - там же лежат load/unload/attach/detach
+// и решения по текстам, живьём собранные из полутора десятков вызовов
+// с нестандартной "умной строкой" - именно в этом районе раньше уже
+// дважды падала игра при работе над HIDE_RAW_GOODS_FILTER). Вместо
+// патча байтов - перехват ЦЕЛОГО СЛОТА виртуальной таблицы, тем же
+// приёмом, что уже используется для тултипов VIEWS (см. TOOLTIP_THUNKS/
+// OnTooltip выше): подменяем указатель, зовём оригинал ПЕРВЫМ (никакой
+// внутренней логики не трогаем и не повторяем), и уже ПОСЛЕ, над готовым
+// результатом, дописываем свой текст. Класс - CSingleUnitButtons (RTTI
+// по строке ".?AVCSingleUnitButtons@@"), слот 12 - как раз FUN_0078F980.
+//
+// this(=CSingleUnitButtons)+0x258 - выбранный юнит (тот же raw CUnit*,
+// что диспетчер сам читает по этому смещению); +0xCC на нём - индекс
+// страны-владельца (как в EmbarkClickFilterThunk). vtable+0x2C у этого
+// юнита -> "особый объект" флота; на нём +0x1A4 - голова списка
+// посаженных армий (тот же список, что считает FUN_005DC560 для
+// вместимости), каждый узел - {армия, ?, next}; на самой армии (тоже
+// "особый объект") +0xC0..+0xC2 - тег страны, +0xC4 - её индекс
+// (сравниваем с индексом владельца флота - если не совпал, значит
+// пассажир не свой).
+//
+// Дописываем текст через уже готовый GStrSet - он пишет строго В
+// ПРЕДЕЛАХ существующей ёмкости std::string, ничего не аллоцирует и не
+// зовёт сторонние функции с угадываемым соглашением (тот самый урок из
+// project_hide_raw_goods_filter) - в худшем случае наш хвост обрежется
+// по ёмкости, крашнуться тут нечему.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_UNIT_BUTTONS_TOOLTIP_VTABLE = 0xA16BD0;  // CSingleUnitButtons::vftable
+static const int   VT_SLOT_UNIT_BUTTONS_TOOLTIP     = 12;       // FUN_0078F980 (тултип load/unload/attach/detach)
+
+static const int OFF_PANEL_SELECTED_UNIT  = 0x258;  // CSingleUnitButtons -> выбранный юнит (raw CUnit*)
+static const int OFF_UNIT_OWNER_RAW       = 0xCC;   // raw CUnit: индекс страны-владельца
+// v4.43: FUN_0078e820 (тот же класс CSingleUnitButtons, второй vtable,
+// живьём считает LOAD_CAPACITY_LABEL для той же панели) декомпилирован
+// заново - объект, который передаётся в уже проверенный FUN_005dc560
+// (подсчёт посаженных войск, используется и в PATCH_ALLY_EMBARK),
+// получается вызовом слота 0x30 у выбранного юнита, а НЕ 0x2C. Слот
+// 0x2C нигде в уже рабочем коде посадки не используется вовсе - это
+// была непроверенная догадка, вот и причина пустого списка. Заменено.
+static const int VT_GET_SPECIAL_OBJECT    = 0x30;   // CUnit: получить объект для FUN_005dc560 (капасити/список посадки)
+static const int OFF_SPECIAL_OWNER_INDEX  = 0xC4;   // особый объект: тот же индекс страны
+static const int OFF_SPECIAL_TAG          = 0xC0;   // особый объект: 3-буквенный тег страны
+static const int OFF_FLEET_EMBARKED_LIST  = 0x1A4;  // особый объект флота: голова списка посаженных армий
+
+static void* g_origUnitButtonsTooltipSlot = 0;
+
+// Диагностика (v4.37, уточнена v4.38): в первом прогоне слот дёргался
+// 81 раз - и все 81 раз с ОДНИМ И ТЕМ ЖЕ элементом "select_land",
+// "unload_button" не встретился ни разу. Похоже, это не общий
+// диспетчер "что сейчас под курсором", а что-то более узкое (может,
+// периодическое обновление именно чекбокса select_land). Логируем
+// теперь только ПЕРВОЕ появление КАЖДОГО РАЗЛИЧНОГО имени элемента
+// (до 24 разных имён) - иначе один повторяющийся элемент съедает весь
+// лимит строк и мы не видим остальные.
+// v4.55: ПОЛНОСТЬЮ переписано на безопасный минимум после трёх крашей
+// за сессию. Весь предыдущий код (поиск thisObj+0x258 "выбранного
+// юнита", вызовы vtable-слотов 0x24-0x3C, +-8 и т.д.) удалён - он
+// либо давал неверные данные, либо (в сочетании с конкретной
+// последовательностью "выбрать армию -> навести на кнопку") ронял
+// игру по неясной причине. Теперь хук НЕ трогает thisObj вообще (кроме
+// проверки на null) - только дописывает уже готовый кэш
+// g_cachedEmbarkedTags, который заполняется в LogEmbarkFleetState
+// (см. выше) - в уже проверенном коде посадки, получающем fleetObj
+// гарантированно правильным способом.
+static LONG g_tooltipHookLogCount = 0;  // v4.56: диагностика - первые 20 срабатываний хука
+
+static void OnUnitButtonsTooltip(void* thisObj, void* retBuf, void* element)
+{
+    if (!g_settings.showAllyEmbarkedTooltip || !thisObj || !retBuf || !element)
+        return;
+
+    __try
+    {
+        const char* name = GStrText(VCall0(element, VT_GET_NAME));
+
+        // v4.59: "select_land" срабатывает каждый кадр и съедает весь
+        // лимит лога раньше, чем до́ходит до реальных кнопок - исключаем
+        // его из логирования, лимит для остальных поднят.
+        if (strcmp(name, "select_land") != 0 && InterlockedIncrement(&g_tooltipHookLogCount) <= 100)
+            Log("FleetPassengerTooltip: элемент='%s' кэш='%s'", name, g_cachedEmbarkedTags);
+
+        // v4.59: пробуем ещё и "load_button" - есть версия, что именно
+        // он на панели ФЛОТА (а не посаженной армии, как unload_button),
+        // и там thisObj+0x258 корректно указывает на флот (ровно там,
+        // где пользователь видел верную цифру вместимости 19/26).
+        // v4.61: дописывание к оригинальному ванильному тексту почти
+        // всегда обрезалось (GStrSet не растягивает буфер) - "| ALLY:
+        // EIC" показывалось как "| ALLY: E". Заменяем текст целиком
+        // коротким сообщением - без длинного ванильного текста в начале
+        // освобождается вся имеющаяся ёмкость под наше сообщение.
+        if ((strcmp(name, "unload_button") == 0 || strcmp(name, "load_button") == 0) && g_cachedEmbarkedTags[0] != 0)
+        {
+            GStrSet(retBuf, g_cachedEmbarkedTags);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static void* __fastcall UnitButtonsTooltipThunk(void* thisObj, void* edx, void* retBuf, void* element)
+{
+    void* result = g_origUnitButtonsTooltipSlot
+        ? ((tTooltip)g_origUnitButtonsTooltipSlot)(thisObj, 0, retBuf, element)
+        : retBuf;
+    OnUnitButtonsTooltip(thisObj, result, element);
+    return result;
+}
+
+// Определена ниже по файлу (используется и для VIEWS/CDecision) -
+// нужно опережающее объявление, раз пользуемся ей раньше её тела.
+static bool PatchSlot(DWORD rvaVtable, int slotIndex, void* replacement, void** outOriginal);
+
+static bool InstallFleetPassengerTooltip()
+{
+    g_fnIsBadReadPtr = SafeIsBadReadPtr;
+
+    bool ok = PatchSlot(RVA_UNIT_BUTTONS_TOOLTIP_VTABLE, VT_SLOT_UNIT_BUTTONS_TOOLTIP,
+        (void*)&UnitButtonsTooltipThunk, &g_origUnitButtonsTooltipSlot);
+    Log("FleetPassengerTooltip: установлен (vtable rva %06X слот %d) = %d",
+        RVA_UNIT_BUTTONS_TOOLTIP_VTABLE, VT_SLOT_UNIT_BUTTONS_TOOLTIP, (int)ok);
+    return ok;
+}
+
+// ---------------------------------------------------------------
+// v4.45: разведка тултипа при наведении на флот прямо на карте
+// (отдельная, ещё не начатая задача - индикатор в текущем виде
+// работает только при открытой панели флота). Иконка юнита на
+// карте - CUnitsStackMapIcon (найден через RTTI: строка
+// ".?AVCUnitsStackMapIcon@@" -> COL -> vtable VA 0xE4B174+4=
+// 0xDF8678). Какой именно слот отвечает за тултип - неизвестно;
+// декомпиляция не дала прямого ответа (искали строку
+// "LOAD_CAPACITY_LABEL"/"CMapIcon" - вели либо в конструктор,
+// либо в несвязанный AI-код). Вместо ещё одной догадки - широкий,
+// но БЕЗОПАСНЫЙ по сигнатуре зонд: каждый слот подменяется чистой
+// asm-заглушкой, которая логирует (this, номер слота), НЕ трогает
+// регистры/стек сверх своих же push/pop и уходит в оригинал через
+// jmp (не call) - поэтому не нужно знать реальную сигнатуру слота
+// (сколько у него аргументов), опасность появляется только если
+// промахнуться мимо границы самой таблицы.
+//
+// Ограничили размер зонда до 8 слотов (0-7): по соседству в .rdata
+// сразу за этой vtable начинается vtable НЕСВЯЗАННОГО класса
+// CButtonObserverGlue<CUnitsStackMapIcon> (VA 0xDF8698, ровно +8
+// слотов) - это может быть и совпадением раскладки линкера, но раз
+// есть чёткий ориентир, разумнее не переходить его: эта таблица
+// используется для ЛЮБОЙ отрисовки/клика по юниту на карте каждый
+// кадр, ошибка здесь будет куда заметнее прежних.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_MAPICON_VTABLE = 0x9F8678;  // CUnitsStackMapIcon::vftable (VA 0xDF8678 - 0x400000)
+// v4.47: 8 слотов (0-7) отработали без единого сбоя (проверено логом
+// v2dll_crash.log - новых крашей после теста нет) и все оказались
+// частыми покадровыми вызовами, ни один не похож на тултип по
+// наведению. Соседняя vtable на границе +8 могла быть совпадением
+// раскладки линкера - расширяем до 16 слотов.
+static const int   MAPICON_PROBE_SLOTS = 16;
+
+// v4.45: массива в naked asm сознательно избегаем - во всём файле для
+// jmp через сохранённый оригинал используется ОТДЕЛЬНАЯ скалярная
+// переменная на каждый переход (риск неоднозначного масштабирования
+// индекса в inline asm иначе), поэтому здесь тоже свои глобали на
+// каждый слот.
+static void* g_mapIconOrig0 = 0;
+static void* g_mapIconOrig1 = 0;
+static void* g_mapIconOrig2 = 0;
+static void* g_mapIconOrig3 = 0;
+static void* g_mapIconOrig4 = 0;
+static void* g_mapIconOrig5 = 0;
+static void* g_mapIconOrig6 = 0;
+static void* g_mapIconOrig7 = 0;
+static void* g_mapIconOrig8 = 0;
+static void* g_mapIconOrig9 = 0;
+static void* g_mapIconOrig10 = 0;
+static void* g_mapIconOrig11 = 0;
+static void* g_mapIconOrig12 = 0;
+static void* g_mapIconOrig13 = 0;
+static void* g_mapIconOrig14 = 0;
+static void* g_mapIconOrig15 = 0;
+// v4.46: общий счётчик на все 8 слотов сразу исчерпался частыми
+// (каждый кадр) слотами 2/3/4, не дав шанса редким слотам попасть в
+// лог - у каждого слота теперь свой лимит.
+static LONG g_mapIconProbeLogCount[MAPICON_PROBE_SLOTS] = { 0 };
+static const int MAPICON_PROBE_LOG_CAP = 40;
+
+// v4.48: слоты 9/10/12/13 - все один и тот же generic-паттерн
+// "наблюдателя", каждый проверяет СВОЁ поле объекта (0x20/0x8/0xC/0x10
+// соответственно) и зовёт колбэк, если он назначен. Слот 12 (тултип по
+// корреляции с наведением) на практике оказался с нулевым колбэком.
+// v4.49: при срабатывании любого из этих четырёх слотов читаем ВСЕ
+// четыре поля разом (под SEH, только чтение) - вдруг для этого же
+// объекта назначен один из ТРЁХ ОСТАЛЬНЫХ, а не именно 0xC.
+static void __cdecl LogMapIconProbeHit(void* thisPtr, int slotIndex)
+{
+    if (slotIndex >= 0 && slotIndex < MAPICON_PROBE_SLOTS &&
+        InterlockedIncrement(&g_mapIconProbeLogCount[slotIndex]) <= MAPICON_PROBE_LOG_CAP)
+    {
+        if (slotIndex == 9 || slotIndex == 10 || slotIndex == 12 || slotIndex == 13)
+        {
+            void* cb8 = 0; void* cbC = 0; void* cb10 = 0; void* cb20 = 0;
+            __try { cb8  = *(void**)((char*)thisPtr + 0x8); }  __except (EXCEPTION_EXECUTE_HANDLER) { cb8  = (void*)(DWORD_PTR)-1; }
+            __try { cbC  = *(void**)((char*)thisPtr + 0xC); }  __except (EXCEPTION_EXECUTE_HANDLER) { cbC  = (void*)(DWORD_PTR)-1; }
+            __try { cb10 = *(void**)((char*)thisPtr + 0x10); } __except (EXCEPTION_EXECUTE_HANDLER) { cb10 = (void*)(DWORD_PTR)-1; }
+            __try { cb20 = *(void**)((char*)thisPtr + 0x20); } __except (EXCEPTION_EXECUTE_HANDLER) { cb20 = (void*)(DWORD_PTR)-1; }
+            Log("MapIconProbe: слот=%d this=%p cb(+8)=%p cb(+C)=%p cb(+10)=%p cb(+20)=%p",
+                slotIndex, thisPtr, cb8, cbC, cb10, cb20);
+        }
+        else
+        {
+            Log("MapIconProbe: слот=%d this=%p", slotIndex, thisPtr);
+        }
+    }
+}
+
+// Раскладка через \-продолжение строк схлопывает переносы в ОДНУ
+// логическую строку - единый __asm { ... } блок так не парсится
+// (MASM разделяет инструкции реальными переводами строк). Поэтому
+// каждая инструкция - со своим отдельным __asm.
+#define MAPICON_PROBE_STUB(n)                                          \
+    __declspec(naked) static void MapIconProbe##n()                    \
+    {                                                                   \
+        __asm push eax                                                  \
+        __asm push ecx                                                  \
+        __asm push edx                                                  \
+        __asm push n                                                    \
+        __asm push ecx                                                  \
+        __asm call LogMapIconProbeHit                                   \
+        __asm add esp, 8                                                \
+        __asm pop edx                                                   \
+        __asm pop ecx                                                   \
+        __asm pop eax                                                   \
+        __asm jmp dword ptr [g_mapIconOrig##n]                          \
+    }
+
+MAPICON_PROBE_STUB(0) MAPICON_PROBE_STUB(1) MAPICON_PROBE_STUB(2) MAPICON_PROBE_STUB(3)
+MAPICON_PROBE_STUB(4) MAPICON_PROBE_STUB(5) MAPICON_PROBE_STUB(6) MAPICON_PROBE_STUB(7)
+MAPICON_PROBE_STUB(8) MAPICON_PROBE_STUB(9) MAPICON_PROBE_STUB(10) MAPICON_PROBE_STUB(11)
+MAPICON_PROBE_STUB(12) MAPICON_PROBE_STUB(13) MAPICON_PROBE_STUB(14) MAPICON_PROBE_STUB(15)
+
+// v4.52: после краша (v4.49, widths sweep) решили тестировать 3
+// непроверенных слота (8/11/15) ПООДИНОЧКЕ, а не все разом. Начинаем
+// с одного только слота 8 - остальные НЕ трогаем в этом раунде.
+static bool InstallMapIconProbe()
+{
+    bool allOk = true;
+    allOk = PatchSlot(RVA_MAPICON_VTABLE, 8, (void*)&MapIconProbe8, &g_mapIconOrig8) && allOk;
+    Log("MapIconProbe: установлен (vtable rva %06X, слот 8 ТОЛЬКО) = %d",
+        RVA_MAPICON_VTABLE, (int)allOk);
+    return allOk;
 }
 
 
@@ -13017,6 +13968,24 @@ static bool Install()
 
     if (g_settings.patchAllyOwnerCheck)
         InstallAllyOwnerCheck();
+
+    if (g_settings.patchAllyEmbark)
+        InstallAllyEmbark();
+
+    // v4.55: включена заново, но ПЕРЕПИСАНА на безопасный минимум -
+    // OnUnitButtonsTooltip больше не трогает thisObj/unit/vtable-слоты
+    // CSingleUnitButtons вообще (это и роняло игру трижды за сессию,
+    // последний раз даже при полностью отключённом картном зонде).
+    // v4.60: кэш теперь заполняется НАДЁЖНЫМ источником - точечным
+    // однострочным патчем в FUN_0078E820 (см. комментарий у
+    // InstallFleetCaptureHook) вместо LogEmbarkFleetState, чей
+    // fleetObj оказался не тем объектом, что видит панель. См. память
+    // project_ally_embark_tooltip.
+    if (g_settings.showAllyEmbarkedTooltip)
+    {
+        InstallFleetPassengerTooltip();
+        InstallFleetCaptureHook();
+    }
 
     if (g_settings.patchCivilizeNullCheck)
         InstallCivilizeNullCheck();

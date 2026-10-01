@@ -1,0 +1,6 @@
+LIBRARY KERNEL32.dll
+EXPORTS
+VirtualProtect=NTDLL.RtlGetVersion
+FlushInstructionCache=NTDLL.RtlGetVersion
+GetCurrentProcess=NTDLL.RtlGetVersion
+GetModuleHandleA=NTDLL.RtlGetVersion
