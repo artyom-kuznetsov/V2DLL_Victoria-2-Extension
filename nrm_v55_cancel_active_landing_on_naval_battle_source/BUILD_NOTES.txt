@@ -1,4 +1,0 @@
-Target: i686-pc-windows-msvc, freestanding/no CRT.
-C flags used: -O2 -ffreestanding -fno-builtin -fno-stack-protector -fno-exceptions -fno-rtti
-Assembly: clang -target i686-pc-windows-msvc -c hooks_x86.S
-Link: lld-link /dll /machine:x86 /entry:DllMain@12 /nodefaultlib /safeseh:no /def:lua51.def plus kernel32_import.lib and lua5_import.lib.
