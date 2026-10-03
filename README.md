@@ -42,7 +42,7 @@ reinforce rate will still be 150% in ally-occupied provinces, not just owned.
 Splits reinforce rates on allied land into allied-owned and allied-occupied land. Allied-occupied reinforce rate is 100%, the same as if you occupy it yourself.  
 Needs to be used with "PATCH_ALLIED_REINFORCE_150" to achieve a total effect of just increasing reinforce rate in allied-owned land.
 #### 5. PATCH_ALLY_EMBARK / SHOW_ALLY_EMBARKED_TOOLTIP
-Allows sending armies to allied transport navies in adjacent sea tile.
+Allows sending armies to allied transport navies in adjacent sea tile. Untested in Multiplayer.
 #### 6. PATCH_COMBAT_ROLL
 Enables patch for dice rolls in battle.
 #### 7. COMBAT_ROLL_MIN / COMBAT_ROLL_MAX
