@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "4.61"
+#define MOD_VERSION "4.81"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -1236,9 +1236,12 @@ static void MirrorOptionsToSlider(const char* who)
         Log("PlayerVolume: настройки -> ползунок topbar %.1f (%s)", vol, who);
 }
 
+static void RestoreEmbarkMarksIfDue();   // v4.77: определена в блоке SAVE_EMBARKED_ALLY_ARMIES
+
 // Зовётся каждый кадр (перед FUN_009df2b0).
 static void __cdecl OnFramePump()
 {
+    RestoreEmbarkMarksIfDue();
     LONG calls = InterlockedIncrement(&g_volPumpCalls);
     void* slider = g_volSlider;
 
@@ -5014,6 +5017,63 @@ static int IsSubjectOf(void* countryX, int overlordIdx)
 
 static const char* TriStr(int v) { return v > 0 ? "да" : v == 0 ? "нет" : "?"; }
 
+// v4.74: однократная чисто читающая диагностика таблицы провинций
+// (DAT_0125870c = RVA 0xE5870C, +0x2238 -> массив province*, индекс =
+// ID провинции, подтверждено по FUN_004FB6F0/FUN_005D1570: ID берётся из
+// узлов пути и сверяется с province+0x58). Размер массива не известен -
+// у v4.72 граница 4000 была взята наугад; здесь читаем std::vector-подобные
+// begin/end (+0x2238/+0x223C) и несколько образцов, чтобы узнать реальный
+// размер ДО повторной попытки сканирования.
+static void MaybeDumpAfterLoad();   // v4.76: определена ниже (блок SAVE_EMBARKED_ALLY_ARMIES)
+static LONG g_provTableLogged = 0;
+static void LogProvinceTableOnce()
+{
+    if (InterlockedCompareExchange(&g_provTableLogged, 1, 0) != 0)
+        return;
+    __try
+    {
+        char* owner = *(char**)(g_base + 0xE5870C);
+        if (!owner)
+        {
+            Log("ProvTable: владелец таблицы = null");
+            return;
+        }
+        if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(owner + 0x2238, 12))
+        {
+            Log("ProvTable: владелец %p нечитаем", owner);
+            return;
+        }
+        DWORD begin = *(DWORD*)(owner + 0x2238);
+        DWORD end   = *(DWORD*)(owner + 0x223C);
+        DWORD cap   = *(DWORD*)(owner + 0x2240);
+        int count   = (end >= begin) ? (int)((end - begin) / 4) : -1;
+        Log("ProvTable: владелец=%p begin=%08X end=%08X cap=%08X count(end-begin)=%d",
+            owner, begin, end, cap, count);
+
+        int probe[8] = { 0, 1, 2, 100, count - 1, count, count + 1, count + 50 };
+        for (int k = 0; k < 8; ++k)
+        {
+            int i = probe[k];
+            if (i < 0 || !begin) continue;
+            DWORD slot = begin + (DWORD)i * 4;
+            if (g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)slot, 4))
+            {
+                Log("ProvTable: [%d] слот %08X нечитаем", i, slot);
+                continue;
+            }
+            DWORD prov = *(DWORD*)slot;
+            int id = -1;
+            if (prov && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)(prov + 0x58), 4)))
+                id = *(int*)(prov + 0x58);
+            Log("ProvTable: [%d] province*=%08X +0x58=%d", i, prov, id);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("ProvTable: исключение при чтении");
+    }
+}
+
 // Возвращает !=0, если countryIdxA==countryIdxB, страны состоят в
 // действующем союзе, либо одна - субъект (вассал/сателлит/etc.) другой
 // в любую сторону. Индекс вне таблицы стран/нулевые указатели где-то по
@@ -5022,6 +5082,9 @@ static int __cdecl IsOwnerAllied(int countryIdxA, int countryIdxB)
 {
     int result = 0;
     int allied = -2, subAB = -2, subBA = -2;   // -2 = не проверяли (индекс<0)
+
+    LogProvinceTableOnce();
+    MaybeDumpAfterLoad();
 
     if (countryIdxA == countryIdxB)
         return 1;
@@ -5063,6 +5126,901 @@ static const DWORD RVA_ARMY_COUNT_BRIGADES  = 0x1D0650;  // FUN_005d0650(armySpe
 typedef int(__fastcall* tCountEmbarkedBrigades)(void* fleetSlackPtr);
 typedef int(__fastcall* tCountArmyBrigades)(void* armySpecialObj);
 
+// ---------------------------------------------------------------
+// v4.72 - SAVE_EMBARKED_ALLY_ARMIES. Пользователь подтвердил: после
+// загрузки сейва армия, посаженная на СОЮЗНЫЙ (не свой) флот,
+// перестаёт быть по-настоящему посаженной - список +0x1A4 флота её
+// не содержит, хотя сама армия физически остаётся на клетке флота в
+// море (не видна в списке армий/бригад страны, но выбирается и может
+// получить обычный приказ). Через день срабатывает уже пропатченная
+// проверка союза (FUN_005D77A0 внутри FUN_005D25C0) и ДАЖЕ ПРОХОДИТ
+// (видно в логе AllyEmbark сразу после загрузки), но вызываемая следом
+// FUN_005D3980 лишь переставляет армию на клетку флота - заново В
+// СПИСОК +0x1A4 её не добавляет (просмотрен целиком - такой записи
+// там нет). Итог: ванильный формат сейва, видимо, вообще не хранит
+// для посаженной армии отдельного "я могу быть на чужом флоте" -
+// при загрузке её просто не восстанавливают в списке у флота другой
+// нации. Чинить сериализацию (100+ КБ функция) слишком рискованно -
+// вместо этого сами сохраняем список "кто на чьём союзном флоте" в
+// компаньон-файле рядом с сейвом и (в следующей итерации) чиним
+// список +0x1A4 после загрузки сами.
+//
+// Хук стоит на PHYSFS_openWrite (статически слинкованная функция
+// PhysFS, которой ванильный код открывает ЛЮБОЙ файл на запись,
+// включая сейвы; адрес стабилен, т.к. не импорт, а часть самого exe).
+// Это тонкая обёртка в 6 байт пролога (PUSH EBP; MOV EBP,ESP; MOV
+// EAX,[EBP+8]) - воспроизводим эти 3 инструкции, читаем путь из EAX,
+// и если это файл сейва (".v2"), сканируем живую память (НЕ сам
+// записываемый файл - никакой зависимости от его готовности) и
+// синхронно пишем компаньон-файл обычным WinAPI. Задача считывает
+// ТОЛЬКО существующее состояние игры, никак его не меняет - риск
+// такой же, как у остальных read-only зондов в этом файле.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_PHYSFS_OPENWRITE          = 0x721F00;  // PHYSFS_openWrite(filename) - 6-байтный пролог
+static const DWORD RVA_PHYSFS_GETWRITEDIR        = 0x71FF30;  // PHYSFS_getWriteDir(void) - const char*
+static const DWORD RVA_DAT_PROVINCE_TABLE_OWNER  = 0xE5870C;  // DAT_0125870c: владелец таблицы провинций
+static const int   OFF_PROVINCE_TABLE_PTR        = 0x2238;    // DAT_0125870c+это -> provinceId -> province* таблица
+static const int   OFF_PROVINCE_UNIT_LIST        = 0xEC;      // province -> список ВСЕХ юнитов в ней (армии+флоты)
+static const int   PROVINCE_SCAN_MAX_ID          = 4000;      // консервативная граница (ванильный максимум ~2950)
+// Те же смещения/слот, что VT_GET_SPECIAL_OBJECT/OFF_SPECIAL_*/
+// OFF_FLEET_EMBARKED_LIST ниже по файлу (см. блок SHOW_ALLY_EMBARKED_TOOLTIP) -
+// свои имена здесь только чтобы не зависеть от порядка объявления.
+static const int   SE_VT_GET_SPECIAL_OBJECT      = 0x30;
+static const int   SE_OFF_SPECIAL_OWNER_INDEX    = 0xC4;
+static const int   SE_OFF_SPECIAL_TAG            = 0xC0;
+static const int   SE_OFF_FLEET_EMBARKED_LIST    = 0x1A4;
+
+typedef const char* (__cdecl* tPhysfsGetWriteDir)(void);
+
+static void* g_physfsOpenWriteResumeAddr = 0;
+static LONG  g_saveEmbarkLogCount = 0;
+
+static bool IsV2SavePath(const char* path)
+{
+    if (!path) return false;
+    size_t len = strlen(path);
+    return len > 3 && _stricmp(path + len - 3, ".v2") == 0;
+}
+
+// Перед виртуальным вызовом убеждаемся, что vtable юнита лежит внутри
+// образа exe и нужные слоты (0x30/0x3C) указывают в код exe - иначе это не
+// настоящий CUnit и звать через него нельзя.
+static bool SeUnitVtableOk(void* unit)
+{
+    __try
+    {
+        DWORD vt = *(DWORD*)unit;
+        if (!g_imageSize || vt < g_base || vt + 0x40 >= g_base + g_imageSize)
+            return false;
+        DWORD f30 = *(DWORD*)(vt + 0x30);
+        DWORD f3c = *(DWORD*)(vt + 0x3C);
+        return f30 >= g_base && f30 < g_base + g_imageSize &&
+               f3c >= g_base && f3c < g_base + g_imageSize;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+// ---------------------------------------------------------------
+// v4.77 - носитель настоящего владельца ВНУТРИ сейва (нужно для
+// мультиплеера: побочный файл есть только у сохранявшего). Сейв пишет
+// вложенную в флот армию без каких-либо ключей владельца, а загрузчик
+// (FUN_005D7B90, ключ "army") ставит ей владельца флота. Но у юнита есть
+// поле "expeditionary_owner" (+0x188 тег / +0x18C индекс страны), которое
+// сейв, по таблице ключей, сохраняет и загрузчик восстанавливает ПОСЛЕ
+// SetOwner. Поэтому в момент записи сейва на чужом флоте ставим на
+// посаженных армиях эту метку = их настоящий владелец (а армия при этом
+// ещё имеет правильного владельца), а через несколько секунд (когда
+// синхронная запись точно закончилась) возвращаем прежние значения - чтобы
+// метка не влияла на игру. Пишется ли ключ в файл, проверяется тестом.
+// ---------------------------------------------------------------
+struct EmbarkMark { void* army; DWORD oldTag; int oldIdx; DWORD markTag; int markIdx; };
+static EmbarkMark g_embarkMarks[32];
+static int        g_embarkMarkCount = 0;
+static DWORD      g_embarkMarkRestoreAt = 0;
+static const int  UNIT_OFF_EXPED_TAG = 0x188;
+static const int  UNIT_OFF_EXPED_IDX = 0x18C;
+
+static void RestoreEmbarkMarksNow()
+{
+    for (int i = 0; i < g_embarkMarkCount; ++i)
+    {
+        EmbarkMark& m = g_embarkMarks[i];
+        __try
+        {
+            if (m.army && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)m.army + UNIT_OFF_EXPED_TAG, 8)) &&
+                *(DWORD*)((char*)m.army + UNIT_OFF_EXPED_TAG) == m.markTag &&
+                *(int*)((char*)m.army + UNIT_OFF_EXPED_IDX) == m.markIdx)
+            {
+                *(DWORD*)((char*)m.army + UNIT_OFF_EXPED_TAG) = m.oldTag;
+                *(int*)((char*)m.army + UNIT_OFF_EXPED_IDX) = m.oldIdx;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) { }
+    }
+    if (g_embarkMarkCount)
+        Log("SaveEmbark: метки expeditionary_owner сняты (%d)", g_embarkMarkCount);
+    g_embarkMarkCount = 0;
+}
+
+static void RestoreEmbarkMarksIfDue()
+{
+    if (!g_embarkMarkCount)
+        return;
+    if ((int)(GetTickCount() - g_embarkMarkRestoreAt) < 0)
+        return;
+    RestoreEmbarkMarksNow();
+}
+
+static void DumpArmyRegiments(void* army, int* lines);   // v4.79: определена ниже
+
+static void ScanAndSaveForeignEmbarks(const char* saveFilename)
+{
+    RestoreEmbarkMarksNow();   // метки от предыдущего сохранения, если ещё не сняты
+    __try
+    {
+        void* provinceTableOwner = *(void**)(g_base + RVA_DAT_PROVINCE_TABLE_OWNER);
+        if (!provinceTableOwner ||
+            (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)provinceTableOwner + OFF_PROVINCE_TABLE_PTR, 8)))
+            return;
+
+        // v4.75: точная граница из самого массива (begin/end, подтверждено
+        // логом ProvTable: 3255 записей, ID 0..3254, province+0x58 == индекс;
+        // слоты за концом - куски текста, не указатели). В v4.72 граница 4000
+        // заставляла читать ~745 слотов текста как province*.
+        DWORD arrBegin = *(DWORD*)((char*)provinceTableOwner + OFF_PROVINCE_TABLE_PTR);
+        DWORD arrEnd   = *(DWORD*)((char*)provinceTableOwner + OFF_PROVINCE_TABLE_PTR + 4);
+        if (!arrBegin || arrEnd <= arrBegin)
+            return;
+        int provCount = (int)((arrEnd - arrBegin) / 4);
+        if (provCount < 2 || provCount > PROVINCE_SCAN_MAX_ID)
+            return;
+        void* provinceArrayBase = (void*)arrBegin;
+
+        if (!saveFilename)
+            return;
+
+        // v4.75: файл кладём в Logs\allyembark\, а не рядом с сейвом (чтобы
+        // исключить влияние постороннего файла в папке сейвов) и без вызова
+        // PHYSFS_getWriteDir из хука PhysFS.
+        const char* baseName = saveFilename;
+        for (const char* p = saveFilename; *p; ++p)
+            if (*p == '/' || *p == '\\') baseName = p + 1;
+
+        InitLogDir();
+        wchar_t dirW[MAX_PATH + 32];
+        swprintf_s(dirW, L"%s\\allyembark", g_logsDir);
+        CreateDirectoryW(dirW, NULL);
+
+        wchar_t baseW[260];
+        if (!MultiByteToWideChar(CP_ACP, 0, baseName, -1, baseW, 260))
+            return;
+        wchar_t pathW[MAX_PATH + 300];
+        swprintf_s(pathW, L"%s\\%s.allyembark", dirW, baseW);
+
+        FILE* f = 0;
+        if (_wfopen_s(&f, pathW, L"w") != 0 || !f)
+        {
+            if (InterlockedIncrement(&g_saveEmbarkLogCount) <= 20)
+                Log("SaveEmbark: не удалось открыть компаньон-файл для '%s'", baseName);
+            return;
+        }
+        char companionPath[300];
+        _snprintf_s(companionPath, sizeof(companionPath), _TRUNCATE, "Logs\\allyembark\\%s.allyembark", baseName);
+
+        tCountArmyBrigades countArmy = (tCountArmyBrigades)(g_base + RVA_ARMY_COUNT_BRIGADES);
+        int found = 0;
+
+        for (int provId = 1; provId < provCount; ++provId)
+        {
+            if (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)provinceArrayBase + provId * 4, 4))
+                continue;
+
+            void* province = *(void**)((char*)provinceArrayBase + provId * 4);
+            if (!province ||
+                (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)province + OFF_PROVINCE_UNIT_LIST, 4)) ||
+                (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)province + 0x58, 4)) ||
+                *(int*)((char*)province + 0x58) != provId)
+                continue;
+
+            void** node = *(void***)((char*)province + OFF_PROVINCE_UNIT_LIST);
+            int guard = 0;
+            while (node && guard < 256)
+            {
+                ++guard;
+                if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(node, 12)) break;
+                void* unit = node[0];
+                void* next = node[2];
+
+                if (unit && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(unit, 0x40)) &&
+                    SeUnitVtableOk(unit))
+                {
+                    __try
+                    {
+                        bool isNavy = ((unsigned char)(DWORD_PTR)VCall0(unit, 0x3c)) != 0;   // метод возвращает bool в AL, остальные байты EAX - мусор
+                        if (isNavy)
+                        {
+                            void* fleetSpecial = VCall0(unit, SE_VT_GET_SPECIAL_OBJECT);
+                            if (fleetSpecial &&
+                                !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(fleetSpecial, SE_OFF_FLEET_EMBARKED_LIST + 4)))
+                            {
+                                int fleetOwner = *(int*)((char*)fleetSpecial + SE_OFF_SPECIAL_OWNER_INDEX);
+                                char fleetTag[4] = { 0 };
+                                if (!(g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)fleetSpecial + SE_OFF_SPECIAL_TAG, 3)))
+                                {
+                                    fleetTag[0] = *((char*)fleetSpecial + SE_OFF_SPECIAL_TAG + 0);
+                                    fleetTag[1] = *((char*)fleetSpecial + SE_OFF_SPECIAL_TAG + 1);
+                                    fleetTag[2] = *((char*)fleetSpecial + SE_OFF_SPECIAL_TAG + 2);
+                                }
+
+                                void** armyNode = *(void***)((char*)fleetSpecial + SE_OFF_FLEET_EMBARKED_LIST);
+                                int armyGuard = 0;
+                                while (armyNode && armyGuard < 64)
+                                {
+                                    ++armyGuard;
+                                    if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(armyNode, 12)) break;
+                                    void* army = armyNode[0];
+                                    void* armyNext = armyNode[2];
+
+                                    if (army && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(army, SE_OFF_SPECIAL_OWNER_INDEX + 4)))
+                                    {
+                                        int armyOwner = *(int*)((char*)army + SE_OFF_SPECIAL_OWNER_INDEX);
+                                        if (armyOwner != fleetOwner && fleetTag[0] >= 'A' && fleetTag[0] <= 'Z')
+                                        {
+                                            char armyTag[4] = { 0 };
+                                            armyTag[0] = *((char*)army + SE_OFF_SPECIAL_TAG + 0);
+                                            armyTag[1] = *((char*)army + SE_OFF_SPECIAL_TAG + 1);
+                                            armyTag[2] = *((char*)army + SE_OFF_SPECIAL_TAG + 2);
+
+                                            int brigades = -1;
+                                            __try { brigades = countArmy(army); }
+                                            __except (EXCEPTION_EXECUTE_HANDLER) { brigades = -1; }
+
+                                            fprintf(f, "%d %s %d %d %s %d\n",
+                                                fleetOwner, fleetTag, provId, armyOwner, armyTag, brigades);
+                                            ++found;
+
+                                            // v4.79: те же поля бригад ДО сохранения (владелец ещё верный) -
+                                            // для сравнения с дампом после загрузки.
+                                            if (found <= 3)
+                                            {
+                                                int dl = 0;
+                                                Log("SaveEmbark: бригады армии %p (владелец %d) ПЕРЕД сохранением:", army, armyOwner);
+                                                DumpArmyRegiments(army, &dl);
+                                            }
+
+                                            // v4.78: метки отключены (ключ в сейв не попал, см. InstallEmbarkLoadRepair)
+                                            if (false && g_embarkMarkCount < 32 &&
+                                                !(g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)army + UNIT_OFF_EXPED_TAG, 8)) &&
+                                                !(g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)army + SE_OFF_SPECIAL_TAG, 4)))
+                                            {
+                                                EmbarkMark& m = g_embarkMarks[g_embarkMarkCount++];
+                                                m.army = army;
+                                                m.oldTag = *(DWORD*)((char*)army + UNIT_OFF_EXPED_TAG);
+                                                m.oldIdx = *(int*)((char*)army + UNIT_OFF_EXPED_IDX);
+                                                m.markTag = *(DWORD*)((char*)army + SE_OFF_SPECIAL_TAG);
+                                                m.markIdx = armyOwner;
+                                                *(DWORD*)((char*)army + UNIT_OFF_EXPED_TAG) = m.markTag;
+                                                *(int*)((char*)army + UNIT_OFF_EXPED_IDX) = m.markIdx;
+                                            }
+                                        }
+                                    }
+                                    armyNode = (void**)armyNext;
+                                }
+                            }
+                        }
+                    }
+                    __except (EXCEPTION_EXECUTE_HANDLER) { }
+                }
+                node = (void**)next;
+            }
+        }
+
+        fclose(f);
+        if (g_embarkMarkCount)
+            g_embarkMarkRestoreAt = GetTickCount() + 5000;   // снимем метки через 5 с (синхронная запись сейва к тому времени завершена)
+        if (InterlockedIncrement(&g_saveEmbarkLogCount) <= 20)
+            Log("SaveEmbark: сохранено %d запис(ей) о посаженных союзных армиях в '%s' (меток expeditionary_owner: %d)",
+                found, companionPath, g_embarkMarkCount);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("SaveEmbark: исключение при сканировании провинций");
+    }
+}
+
+static void __cdecl OnPhysfsOpenWriteFilename(const char* filename)
+{
+    __try
+    {
+        if (g_settings.patchAllyEmbark && IsV2SavePath(filename))
+            ScanAndSaveForeignEmbarks(filename);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) { }
+}
+
+__declspec(naked) static void PhysfsOpenWriteThunk()
+{
+    __asm push ebp
+    __asm mov ebp, esp
+    __asm mov eax, dword ptr [ebp + 8]
+    __asm push eax
+    __asm push ecx
+    __asm push edx
+    __asm push eax
+    __asm call OnPhysfsOpenWriteFilename
+    __asm add esp, 4
+    __asm pop edx
+    __asm pop ecx
+    __asm pop eax
+    __asm jmp dword ptr [g_physfsOpenWriteResumeAddr]
+}
+
+static bool InstallSaveEmbarkedAllyArmies()
+{
+    BYTE* hook = (BYTE*)(g_base + RVA_PHYSFS_OPENWRITE);
+    static const unsigned char SIG[6] = { 0x55, 0x8B, 0xEC, 0x8B, 0x45, 0x08 };
+
+    if (memcmp(hook, SIG, sizeof(SIG)) != 0)
+    {
+        Log("SaveEmbark: сигнатура PHYSFS_openWrite не совпала - не патчим");
+        return false;
+    }
+
+    g_physfsOpenWriteResumeAddr = (void*)(g_base + RVA_PHYSFS_OPENWRITE + 6);
+
+    BYTE patch[6];
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&PhysfsOpenWriteThunk - ((DWORD)hook + 5);
+    patch[5] = 0x90;
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hook, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+
+    memcpy(hook, patch, sizeof(patch));
+    VirtualProtect(hook, sizeof(patch), oldProtect, &oldProtect);
+
+    Log("SaveEmbark: установлен (rva %06X)", RVA_PHYSFS_OPENWRITE);
+    return true;
+}
+
+// ---------------------------------------------------------------
+// v4.76 - стадия 2а: ЧИСТО ЧИТАЮЩИЙ дамп состояния после загрузки.
+// Стадия 1 (v4.75) подтверждена: сейв пишет Logs\allyembark\<имя>.allyembark
+// (пример: "106 ENG 2791 46 EIC 19" - флот ENG в провинции 2791 везёт
+// 19 бригад EIC). Прежде чем чинить список +0x1A4 после загрузки, надо
+// увидеть, КАК именно выглядит состояние в этой провинции сразу после
+// загрузки (владелец/тег армии и флота, лежит ли армия в списке флота,
+// сколько бригад). Хук на PHYSFS_openRead (VA 0xB21F40, пролог
+// 55 8B EC 83 EC 10 - это НАСТОЯЩАЯ реализация, не тонкая обёртка, потому
+// хук только запоминает имя .v2 и резюмирует) ставит флаг; при первом
+// вызове IsOwnerAllied (суточный тик уже идёт, мир загружен) читаем
+// компаньон-файл последнего открытого .v2 и логируем юнитов в записанных
+// провинциях. Ничего не меняем. Заметка: игра может открывать .v2 на
+// чтение и ради заголовков в меню загрузки - поэтому имя логируется при
+// каждом открытии (LoadEmbark: открыт на чтение ...).
+// ---------------------------------------------------------------
+static const DWORD RVA_PHYSFS_OPENREAD = 0x721F40;
+static void* g_physfsOpenReadResumeAddr = 0;
+static char  g_lastOpenedV2[260] = { 0 };
+static LONG  g_afterLoadDumpPending = 0;
+static LONG  g_openReadLogCount = 0;
+static LONG  g_embarkRepairApplied = 0;   // v4.81: исправлений в текущей загрузке (сброс при открытии .v2)
+
+static void __cdecl OnPhysfsOpenReadFilename(const char* filename)
+{
+    __try
+    {
+        if (!g_settings.patchAllyEmbark || !IsV2SavePath(filename))
+            return;
+        const char* b = filename;
+        for (const char* p = filename; *p; ++p)
+            if (*p == '/' || *p == '\\') b = p + 1;
+        strncpy_s(g_lastOpenedV2, sizeof(g_lastOpenedV2), b, _TRUNCATE);
+        InterlockedExchange(&g_afterLoadDumpPending, 1);
+        InterlockedExchange(&g_embarkRepairApplied, 0);
+        if (InterlockedIncrement(&g_openReadLogCount) <= 40)
+            Log("LoadEmbark: открыт на чтение '%s'", b);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) { }
+}
+
+__declspec(naked) static void PhysfsOpenReadThunk()
+{
+    __asm push ebp
+    __asm mov ebp, esp
+    __asm sub esp, 0x10
+    __asm push eax
+    __asm push ecx
+    __asm push edx
+    __asm mov eax, dword ptr [ebp + 8]
+    __asm push eax
+    __asm call OnPhysfsOpenReadFilename
+    __asm add esp, 4
+    __asm pop edx
+    __asm pop ecx
+    __asm pop eax
+    __asm jmp dword ptr [g_physfsOpenReadResumeAddr]
+}
+
+static bool InstallPhysfsOpenReadHook()
+{
+    BYTE* hook = (BYTE*)(g_base + RVA_PHYSFS_OPENREAD);
+    static const unsigned char SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10 };
+
+    if (memcmp(hook, SIG, sizeof(SIG)) != 0)
+    {
+        Log("LoadEmbark: сигнатура PHYSFS_openRead не совпала - не патчим");
+        return false;
+    }
+
+    g_physfsOpenReadResumeAddr = (void*)(g_base + RVA_PHYSFS_OPENREAD + 6);
+
+    BYTE patch[6];
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&PhysfsOpenReadThunk - ((DWORD)hook + 5);
+    patch[5] = 0x90;
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hook, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+
+    memcpy(hook, patch, sizeof(patch));
+    VirtualProtect(hook, sizeof(patch), oldProtect, &oldProtect);
+
+    Log("LoadEmbark: установлен (rva %06X)", RVA_PHYSFS_OPENREAD);
+    return true;
+}
+
+// v4.79: пробный прогон (только чтение) - бригады армии, их pop и поля
+// кандидатов на "провинцию набора", чтобы найти надёжный способ вывести
+// настоящего владельца армии без побочных данных. Метка +0x188/+0x18C у
+// обычных армий оказалась =2 (v4.77), поэтому её значение тоже выводим.
+static void DumpArmyRegiments(void* army, int* lines)
+{
+    __try
+    {
+        if (!army || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)army + 0x190, 4)))
+            return;
+        Log("LoadDump:   армия %p +0x188=%08X +0x18C=%d +0xC8=%08X +0xCC=%d",
+            army, *(DWORD*)((char*)army + 0x188), *(int*)((char*)army + 0x18C),
+            *(DWORD*)((char*)army + 0xC8), *(int*)((char*)army + 0xCC));
+        ++*lines;
+        void** node = *(void***)((char*)army + 0x38);
+        int g = 0;
+        while (node && g < 24 && *lines < 200)
+        {
+            ++g;
+            if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(node, 12)) break;
+            char* reg = (char*)node[0];
+            void** next = (void**)node[2];
+            if (reg && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(reg, 0x68)))
+            {
+                DWORD rt = *(DWORD*)(reg + 0x60);
+                char rtag[5] = { (char)rt, (char)(rt >> 8), (char)(rt >> 16), 0, 0 };
+                char* pop = *(char**)(reg + 0x30);
+                Log("LoadDump:     рег %p +60=%s +64=%d pop=%p", reg, rtag, *(int*)(reg + 0x64), pop);
+                ++*lines;
+                if (pop && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pop + 0x58, 0x24)))
+                {
+                    DWORD* d = (DWORD*)(pop + 0x58);
+                    Log("LoadDump:       pop+58..78: %08X %08X %08X %08X %08X %08X %08X %08X %08X",
+                        d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8]);
+                    ++*lines;
+                    char* pv = *(char**)(pop + 0x64);
+                    if (pv && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pv + 0x58, 4)) &&
+                        !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pv + 0x128, 0x10)))
+                    {
+                        Log("LoadDump:       pop+64=%p: +58=%d +128=%08X +12C=%d +130=%08X +134=%d",
+                            pv, *(int*)(pv + 0x58), *(DWORD*)(pv + 0x128), *(int*)(pv + 0x12C),
+                            *(DWORD*)(pv + 0x130), *(int*)(pv + 0x134));
+                        ++*lines;
+                    }
+                }
+            }
+            node = next;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) { }
+}
+
+static void DumpUnitLine(int provId, void* unit, int* lines)
+{
+    if (*lines >= 200) return;
+    if (!unit || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(unit, 0xD0)) || !SeUnitVtableOk(unit))
+        return;
+    __try
+    {
+        bool isNavy = ((unsigned char)(DWORD_PTR)VCall0(unit, 0x3c)) != 0;   // метод возвращает bool в AL, остальные байты EAX - мусор
+        void* special = VCall0(unit, SE_VT_GET_SPECIAL_OBJECT);
+        int rawOwner = *(int*)((char*)unit + 0xCC);
+        if (!special || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(special, SE_OFF_FLEET_EMBARKED_LIST + 4)))
+        {
+            Log("LoadDump: пров=%d unit=%p флот=%d rawOwner=%d special=%p (нечитаем)",
+                provId, unit, (int)isNavy, rawOwner, special);
+            ++*lines;
+            return;
+        }
+        int owner = *(int*)((char*)special + SE_OFF_SPECIAL_OWNER_INDEX);
+        char tag[4] = { ((char*)special)[SE_OFF_SPECIAL_TAG], ((char*)special)[SE_OFF_SPECIAL_TAG + 1],
+                        ((char*)special)[SE_OFF_SPECIAL_TAG + 2], 0 };
+        int brig = -1;
+        if (!isNavy)
+        {
+            tCountArmyBrigades countArmy = (tCountArmyBrigades)(g_base + RVA_ARMY_COUNT_BRIGADES);
+            __try { brig = countArmy(special); } __except (EXCEPTION_EXECUTE_HANDLER) { brig = -2; }
+        }
+        Log("LoadDump: пров=%d unit=%p флот=%d rawOwner(+CC)=%d special=%p owner(+C4)=%d тег=%s бригад=%d",
+            provId, unit, (int)isNavy, rawOwner, special, owner, tag, brig);
+        ++*lines;
+
+        if (isNavy)
+        {
+            void** an = *(void***)((char*)special + SE_OFF_FLEET_EMBARKED_LIST);
+            int g = 0;
+            while (an && g < 32 && *lines < 200)
+            {
+                ++g;
+                if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(an, 12)) break;
+                void* army = an[0];
+                void* nxt = an[2];
+                if (army && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(army, SE_OFF_SPECIAL_OWNER_INDEX + 4)))
+                {
+                    int ao = *(int*)((char*)army + SE_OFF_SPECIAL_OWNER_INDEX);
+                    char at[4] = { ((char*)army)[SE_OFF_SPECIAL_TAG], ((char*)army)[SE_OFF_SPECIAL_TAG + 1],
+                                   ((char*)army)[SE_OFF_SPECIAL_TAG + 2], 0 };
+                    int ab = -1;
+                    tCountArmyBrigades countArmy = (tCountArmyBrigades)(g_base + RVA_ARMY_COUNT_BRIGADES);
+                    __try { ab = countArmy(army); } __except (EXCEPTION_EXECUTE_HANDLER) { ab = -2; }
+                    Log("LoadDump:   на борту: army=%p owner=%d тег=%s бригад=%d", army, ao, at, ab);
+                    ++*lines;
+                    DumpArmyRegiments(army, lines);
+                }
+                an = (void**)nxt;
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) { }
+}
+
+static void MaybeDumpAfterLoad()
+{
+    if (InterlockedCompareExchange(&g_afterLoadDumpPending, 0, 1) != 1)
+        return;
+    __try
+    {
+        if (!g_lastOpenedV2[0]) return;
+        InitLogDir();
+        wchar_t baseW[260];
+        if (!MultiByteToWideChar(CP_ACP, 0, g_lastOpenedV2, -1, baseW, 260)) return;
+        wchar_t pathW[MAX_PATH + 300];
+        swprintf_s(pathW, L"%s\\allyembark\\%s.allyembark", g_logsDir, baseW);
+
+        FILE* f = 0;
+        if (_wfopen_s(&f, pathW, L"r") != 0 || !f)
+        {
+            Log("LoadDump: компаньон-файла для '%s' нет", g_lastOpenedV2);
+            return;
+        }
+
+        void* owner = *(void**)(g_base + 0xE5870C);
+        if (!owner || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)owner + 0x2238, 8))) { fclose(f); return; }
+        DWORD arrBegin = *(DWORD*)((char*)owner + 0x2238);
+        DWORD arrEnd   = *(DWORD*)((char*)owner + 0x223C);
+        int provCount  = (arrEnd > arrBegin) ? (int)((arrEnd - arrBegin) / 4) : 0;
+
+        Log("LoadDump: дамп по компаньон-файлу '%s' (таблица провинций: %d)", g_lastOpenedV2, provCount);
+        int lines = 0;
+        int fo, prov, ao, br;
+        char ft[8], at[8];
+        while (lines < 200 &&
+               fscanf_s(f, "%d %3s %d %d %3s %d", &fo, ft, 8u, &prov, &ao, at, 8u, &br) == 6)
+        {
+            Log("LoadDump: запись: флот %d/%s пров=%d армия %d/%s бригад=%d", fo, ft, prov, ao, at, br);
+            if (prov < 1 || prov >= provCount) continue;
+            if (g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)(arrBegin + prov * 4), 4)) continue;
+            char* province = *(char**)(arrBegin + prov * 4);
+            if (!province || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(province + 0x58, 4)) ||
+                *(int*)(province + 0x58) != prov ||
+                (g_fnIsBadReadPtr && g_fnIsBadReadPtr(province + OFF_PROVINCE_UNIT_LIST, 4)))
+                continue;
+            void** node = *(void***)(province + OFF_PROVINCE_UNIT_LIST);
+            int guard = 0;
+            while (node && guard < 256)
+            {
+                ++guard;
+                if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(node, 12)) break;
+                DumpUnitLine(prov, node[0], &lines);
+                node = (void**)node[2];
+            }
+        }
+        fclose(f);
+        Log("LoadDump: готово (%d строк)", lines);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("LoadDump: исключение");
+    }
+}
+
+// ---------------------------------------------------------------
+// v4.77 - стадия 2б: ремонт владельца ПРЯМО В ЗАГРУЗЧИКЕ флота.
+// FUN_005D7B90, ключ 0x2F3 ("army", вложенная армия):
+//   5D7CA8 SetOwner(тег флота, владелец флота)   ; ESI=армия
+//   5D7CAD загрузка полей армии (в т.ч. expeditionary_owner +0x188/+0x18C)
+//   5D7CBF attach (FUN_005D7810)                  ; ESI=флот, EDI=армия
+//   5D7CC4 MOV EAX,[EBX+0xB8]  <- ХУК (6 байт 8B 83 B8 00 00 00)
+//          MOV ECX,[countries]; MOV EBX,[EBX+0xBC]; MOV EDX,[ECX+4]
+//          MOV [ESP+0x10],EAX; MOV EAX,EDI; MOV EDI,[EDX+EBX*4]
+//   5D7CE2 CALL FUN_00513C80 (Country::AddArmy: EAX=армия, EDI=страна)
+//   5D7CE7 эпилог
+// Если загруженная армия несёт метку expeditionary_owner (пишется нашим
+// сохранением, см. EmbarkMark) и она != владелец флота, то вместо страны
+// флота регистрируем армию в списке НАСТОЯЩЕЙ страны: SetOwner(тег, idx)
+// (проставляет и бригады), восстанавливаем "исходного владельца"
+// +0xC8/+0xCC (SetOwner пишет их только при нуле) и зовём AddArmy с её
+// страной. Метку обнуляем. Никакого побочного файла - решение целиком
+// определяется содержимым сейва, значит одинаково у всех клиентов MP.
+// Нет метки (всё остальное) -> оригинальная последовательность один-в-один.
+// ---------------------------------------------------------------
+static const DWORD RVA_EMBARK_LOAD_HOOK   = 0x1D7CC4;
+static const DWORD RVA_EMBARK_LOAD_RESUME = 0x1D7CE7;
+static const DWORD RVA_UNIT_SET_OWNER     = 0x1C93B0;   // FUN_005C93B0: ESI=юнит, push idx, push tag (callee чистит)
+static const DWORD RVA_COUNTRY_ADD_ARMY   = 0x113C80;   // FUN_00513C80: EAX=армия, EDI=страна
+static const unsigned char EMBARK_LOAD_SIG[8] = { 0x8B, 0x83, 0xB8, 0x00, 0x00, 0x00, 0x8B, 0x0D };
+
+static DWORD g_embarkLoadResumeAddr = 0;
+static DWORD g_countriesGlobalAddr  = 0;
+static DWORD g_addArmyAddr          = 0;
+static DWORD g_setOwnerAddr         = 0;
+static LONG  g_embarkRepairLogCount = 0;
+
+__declspec(naked) static void __cdecl CallUnitSetOwner(void* army, DWORD tag, int idx)
+{
+    __asm
+    {
+        push esi
+        mov esi, dword ptr [esp + 8]
+        mov eax, dword ptr [esp + 0Ch]
+        mov ecx, dword ptr [esp + 10h]
+        push ecx
+        push eax
+        call dword ptr [g_setOwnerAddr]
+        pop esi
+        ret
+    }
+}
+
+// v4.80: владелец выводится из провинций набора бригад. После загрузки
+// владелец армии и её бригад подменён на владельца флота, но у бригады
+// (reg+0x30) остаётся pop, у pop (+0x64) - провинция, у провинции
+// +0x134 = индекс страны-владельца (+0x130 тег). Проверено дампом:
+// все 19 бригад EIC-армии на флоте ENG ведут в провинции с владельцем 46.
+// Принимаем вывод только если ВСЕ бригады дают одну и ту же страну, а
+// каждый указатель провинции подтверждён таблицей провинций (по id).
+static bool ProvincePtrValid(char* pv)
+{
+    __try
+    {
+        char* ownerObj = *(char**)(g_base + RVA_DAT_PROVINCE_TABLE_OWNER);
+        if (!ownerObj || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(ownerObj + OFF_PROVINCE_TABLE_PTR, 8)))
+            return false;
+        DWORD b = *(DWORD*)(ownerObj + OFF_PROVINCE_TABLE_PTR);
+        DWORD e = *(DWORD*)(ownerObj + OFF_PROVINCE_TABLE_PTR + 4);
+        if (!b || e <= b || !pv || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(pv + 0x58, 4)))
+            return false;
+        int id = *(int*)(pv + 0x58);
+        int cnt = (int)((e - b) / 4);
+        if (id < 1 || id >= cnt)
+            return false;
+        return *(DWORD*)(b + (DWORD)id * 4) == (DWORD)pv;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+// Возвращает индекс страны по провинциям бригад или -1 (нет бригад /
+// pop не привязан / указатель не подтверждён / бригады из разных стран).
+static int DeriveArmyTrueOwner(void* army, int* outRegs, int* outBad)
+{
+    *outRegs = 0;
+    *outBad = 0;
+    int result = -1;
+    __try
+    {
+        if (!army || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)army + 0x38, 4)))
+            return -1;
+        void** node = *(void***)((char*)army + 0x38);
+        int g = 0;
+        while (node && g < 64)
+        {
+            ++g;
+            if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(node, 12)) break;
+            char* reg = (char*)node[0];
+            void** next = (void**)node[2];
+            ++*outRegs;
+            int own = -1;
+            if (reg && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(reg + 0x30, 4)))
+            {
+                char* pop = *(char**)(reg + 0x30);
+                if (pop && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pop + 0x64, 4)))
+                {
+                    char* pv = *(char**)(pop + 0x64);
+                    if (ProvincePtrValid(pv) && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pv + 0x134, 4)))
+                        own = *(int*)(pv + 0x134);
+                }
+            }
+            if (own < 0) { ++*outBad; return -1; }
+            if (result == -1) result = own;
+            else if (result != own) { ++*outBad; return -1; }
+            node = next;
+        }
+        if (*outRegs == 0) return -1;
+        return result;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+// v4.80: ПРОБНЫЙ прогон - только лог, ничего не меняем. Когда лог на
+// обычных сейвах подтвердит, что ложных срабатываний нет, поставить true.
+// v4.81: ВКЛЮЧЕНО после пробного прогона v4.80: на TEST2 вывод дал 46 для
+// EIC-армии на флоте ENG, у остальных посаженных армий (ИИ) вывод совпал с
+// владельцем флота, ложных срабатываний нет. Проверку союза убрали: в момент
+// загрузки дипломатия ещё не загружена (показывала 0 даже для настоящих
+// союзников). Защита: все бригады -> одна страна; страна существует; не более
+// 40 исправлений за одну загрузку (g_embarkRepairApplied сбрасывается при
+// каждом открытии .v2 на чтение).
+static const bool EMBARK_REPAIR_APPLY = true;
+static const LONG EMBARK_REPAIR_MAX_PER_LOAD = 40;
+
+// Возвращает индекс настоящей страны (после SetOwner) или -1 - "оставить как есть".
+static int __cdecl RepairEmbarkedArmyOwner(void* army, int navyOwner)
+{
+    __try
+    {
+        if (!g_settings.patchAllyEmbark || !army)
+            return -1;
+
+        int regs = 0, bad = 0;
+        int derived = DeriveArmyTrueOwner(army, &regs, &bad);
+
+        static LONG s_total = 0;
+        LONG total = InterlockedIncrement(&s_total);
+
+        if (derived >= 0 && derived != navyOwner)
+        {
+            char* country = (char*)GetCountryPtr(derived);
+            bool countryOk = country && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(country + 0x1C, 8)) &&
+                             *(int*)(country + 0x20) == derived;
+            int ally = -2;
+            if (countryOk)
+            {
+                ally = IsAllianceRelation(country, navyOwner);
+                if (ally != 1)
+                {
+                    int sub = IsSubjectOf(country, navyOwner);
+                    if (sub == 1) ally = 1;
+                    else
+                    {
+                        void* navyCountry = GetCountryPtr(navyOwner);
+                        if (navyCountry && IsSubjectOf(navyCountry, derived) == 1) ally = 1;
+                    }
+                }
+            }
+            if (InterlockedIncrement(&g_embarkRepairLogCount) <= 80)
+                Log("LoadRepair: [%s] армия %p владелец флота %d, по бригадам (%d) владелец %d, союз/субъект=%d, страна=%d",
+                    EMBARK_REPAIR_APPLY ? "ПРИМЕНЕНО" : "пробный", army, navyOwner, regs, derived, ally, (int)countryOk);
+
+            if (!EMBARK_REPAIR_APPLY || !countryOk)
+                return -1;
+            if (InterlockedIncrement(&g_embarkRepairApplied) > EMBARK_REPAIR_MAX_PER_LOAD)
+            {
+                Log("LoadRepair: превышен лимит исправлений за загрузку (%d) - дальше не трогаем", (int)EMBARK_REPAIR_MAX_PER_LOAD);
+                return -1;
+            }
+
+            DWORD tag = *(DWORD*)(country + 0x1C);
+            CallUnitSetOwner(army, tag, derived);
+            *(DWORD*)((char*)army + 0xC8) = tag;      // "исходный владелец" (SetOwner пишет его только при нуле)
+            *(int*)((char*)army + 0xCC) = derived;
+            return derived;
+        }
+
+        if (derived < 0 && regs > 0 && InterlockedIncrement(&g_embarkRepairLogCount) <= 80)
+            Log("LoadRepair: [вывод не удался] армия %p владелец флота %d, бригад %d, без вывода %d (pop ещё не привязан?)",
+                army, navyOwner, regs, bad);
+        else if (total <= 5)
+            Log("LoadRepair: армия %p владелец флота %d, бригад %d, по бригадам %d (совпало или не отличается)",
+                army, navyOwner, regs, derived);
+        return -1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+__declspec(naked) static void EmbarkLoadOwnerThunk()
+{
+    __asm
+    {
+        push dword ptr [ebx + 0BCh]
+        push edi
+        call RepairEmbarkedArmyOwner
+        add esp, 8
+        cmp eax, -1
+        jne use_fixed
+
+        mov eax, dword ptr [ebx + 0B8h]
+        mov ecx, dword ptr [g_countriesGlobalAddr]
+        mov ecx, dword ptr [ecx]
+        mov ebx, dword ptr [ebx + 0BCh]
+        mov edx, dword ptr [ecx + 4]
+        mov dword ptr [esp + 10h], eax
+        mov eax, edi
+        mov edi, dword ptr [edx + ebx * 4]
+        jmp do_add
+
+    use_fixed:
+        mov ebx, eax
+        mov ecx, dword ptr [g_countriesGlobalAddr]
+        mov ecx, dword ptr [ecx]
+        mov edx, dword ptr [ecx + 4]
+        mov eax, edi
+        mov edi, dword ptr [edx + ebx * 4]
+
+    do_add:
+        call dword ptr [g_addArmyAddr]
+        jmp dword ptr [g_embarkLoadResumeAddr]
+    }
+}
+
+static bool InstallEmbarkLoadRepair()
+{
+    BYTE* hook = (BYTE*)(g_base + RVA_EMBARK_LOAD_HOOK);
+    if (memcmp(hook, EMBARK_LOAD_SIG, sizeof(EMBARK_LOAD_SIG)) != 0)
+    {
+        Log("LoadRepair: сигнатура загрузчика флота не совпала - не патчим");
+        return false;
+    }
+    // CALL FUN_00513C80 на hook+0x1E должен вести ровно в Country::AddArmy
+    BYTE* callSite = hook + 0x1E;
+    if (callSite[0] != 0xE8 ||
+        (DWORD)(callSite + 5 + *(int*)(callSite + 1)) != g_base + RVA_COUNTRY_ADD_ARMY)
+    {
+        Log("LoadRepair: CALL AddArmy не на ожидаемом месте - не патчим");
+        return false;
+    }
+
+    g_embarkLoadResumeAddr = g_base + RVA_EMBARK_LOAD_RESUME;
+    g_countriesGlobalAddr  = g_base + RVA_COUNTRIES_VECTOR;
+    g_addArmyAddr          = g_base + RVA_COUNTRY_ADD_ARMY;
+    g_setOwnerAddr         = g_base + RVA_UNIT_SET_OWNER;
+
+    BYTE patch[6];
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&EmbarkLoadOwnerThunk - ((DWORD)hook + 5);
+    patch[5] = 0x90;
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hook, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    memcpy(hook, patch, sizeof(patch));
+    VirtualProtect(hook, sizeof(patch), oldProtect, &oldProtect);
+
+    Log("LoadRepair: установлен (rva %06X)", RVA_EMBARK_LOAD_HOOK);
+    return true;
+}
+
 // Диагностика (v4.33): пользователь подтвердил, что приказ теперь
 // принимается (третий патч выше сработал), но в день прихода посадка
 // срывается. Сама проверка владельца в FUN_005D77A0 (эта функция) -
@@ -5077,7 +6035,7 @@ typedef int(__fastcall* tCountArmyBrigades)(void* armySpecialObj);
 // (через thisObj+0x258 и разные vtable-слоты) были либо неверны, либо
 // роняли игру. Тултип теперь только ЧИТАЕТ этот кэш, не трогая
 // thisObj/unit вообще.
-static char g_cachedEmbarkedTags[192] = { 0 };
+static char g_cachedEmbarkedTags[512] = { 0 };  // v4.66: многострочный формат, с запасом
 static LONG g_embarkCacheLogCount = 0;  // v4.57: ограничивает диагностику обхода списка 20 строками
 
 static void __cdecl LogEmbarkFleetState(void* fleetObj, void* armyObj)
@@ -5222,11 +6180,16 @@ static void __cdecl UpdateEmbarkedTagsCacheFromCapturedFleet()
     __try
     {
         int ownerFleet = *(int*)((char*)fleetSpecial + 0xC4);
-        char fresh[192];
+        char fresh[512];
         fresh[0] = 0;
         int shown = 0;
         void** node = *(void***)((char*)fleetSpecial + 0x1A4);
         int guard = 0;
+        // v4.63: добавлено число бригад на тег (пользователь попросил
+        // больше информации, чем просто тег) - используем тот же
+        // проверенный countArmy(armySpecialObj), что и в
+        // LogEmbarkFleetState/капасити-патче.
+        tCountArmyBrigades countArmy = (tCountArmyBrigades)(g_base + RVA_ARMY_COUNT_BRIGADES);
         while (node && shown < 8 && guard < 64)
         {
             ++guard;
@@ -5248,11 +6211,30 @@ static void __cdecl UpdateEmbarkedTagsCacheFromCapturedFleet()
                     tag[3] = 0;
                     if (tag[0] >= 'A' && tag[0] <= 'Z')
                     {
-                        // v4.61: без ведущего " | " - теперь это не
-                        // довесок к ванильному тексту, а готовое
-                        // самостоятельное сообщение (см. тултип ниже).
-                        strcat_s(fresh, sizeof(fresh), shown ? ", " : "ALLY: ");
-                        strcat_s(fresh, sizeof(fresh), tag);
+                        int brigades = -1;
+                        __try { brigades = countArmy(army); } __except (EXCEPTION_EXECUTE_HANDLER) { brigades = -1; }
+
+                        // v4.66: формат по запросу пользователя - шапка
+                        // один раз, затем КАЖДЫЙ союзник на своей строке
+                        // как "@TAG - N бригад" ("@TAG" - стандартная
+                        // ванильная подстановка флага страны, та же, что
+                        // видели в собственном тексте ванили на
+                        // attach_unit_button ещё в v4.39). Кириллица -
+                        // CP1251-байтами (см. v4.65): "Армии союзников на
+                        // флоте:" = \xC0\xF0\xEC\xE8\xE8\x20\xF1\xEE\xFE
+                        // \xE7\xED\xE8\xEA\xEE\xE2\x20\xED\xE0\x20\xF4
+                        // \xEB\xEE\xF2\xE5\x3A; " бригад" = \x20\xE1\xF0
+                        // \xE8\xE3\xE0\xE4.
+                        char piece[64];
+                        if (brigades >= 0)
+                            _snprintf_s(piece, sizeof(piece), _TRUNCATE, "\n@%s - %d\x20\xE1\xF0\xE8\xE3\xE0\xE4", tag, brigades);
+                        else
+                            _snprintf_s(piece, sizeof(piece), _TRUNCATE, "\n@%s", tag);
+
+                        if (!shown)
+                            strcat_s(fresh, sizeof(fresh),
+                                "\xC0\xF0\xEC\xE8\xE8\x20\xF1\xEE\xFE\xE7\xED\xE8\xEA\xEE\xE2\x20\xED\xE0\x20\xF4\xEB\xEE\xF2\xE5\x3A");
+                        strcat_s(fresh, sizeof(fresh), piece);
                         ++shown;
                     }
                 }
@@ -5299,6 +6281,13 @@ static bool InstallFleetCaptureHook()
     Log("FleetCapture: установлен (rva %06X)", RVA_FLEET_CAPTURE_HOOK);
     return true;
 }
+
+// v4.67-v4.70: временная разведка "почему клик по союзному флоту не
+// выбирает мою посаженную армию" удалена отсюда - задача решена без
+// патчей движка (обычный игровой список армий/флотов уже позволяет
+// выбрать посаженную армию на чужом флоте, в обход общего клика по
+// карте). Подробности расследования - в памяти
+// project_select_embarked_army.md.
 
 // FUN_005d77a0(ECX=флот, EDI=наша армия) - единственная проверка
 // владельца на пути посуточной посадки (FUN_005D25C0). "Иначе false"
@@ -5559,16 +6548,19 @@ static void OnUnitButtonsTooltip(void* thisObj, void* retBuf, void* element)
         if (strcmp(name, "select_land") != 0 && InterlockedIncrement(&g_tooltipHookLogCount) <= 100)
             Log("FleetPassengerTooltip: элемент='%s' кэш='%s'", name, g_cachedEmbarkedTags);
 
-        // v4.59: пробуем ещё и "load_button" - есть версия, что именно
-        // он на панели ФЛОТА (а не посаженной армии, как unload_button),
-        // и там thisObj+0x258 корректно указывает на флот (ровно там,
-        // где пользователь видел верную цифру вместимости 19/26).
-        // v4.61: дописывание к оригинальному ванильному тексту почти
-        // всегда обрезалось (GStrSet не растягивает буфер) - "| ALLY:
-        // EIC" показывалось как "| ALLY: E". Заменяем текст целиком
-        // коротким сообщением - без длинного ванильного текста в начале
-        // освобождается вся имеющаяся ёмкость под наше сообщение.
-        if ((strcmp(name, "unload_button") == 0 || strcmp(name, "load_button") == 0) && g_cachedEmbarkedTags[0] != 0)
+        // v4.62: пользователь прямо сказал - индикатор на панели АРМИИ
+        // (unload_button/load_button) не нужен, нужен на панели ФЛОТА.
+        // v4.64: пользователь уточнил - кнопка "прикрепить" правее кнопки
+        // вместимости, это РАЗНЫЕ элементы, и подсказка нужна именно на
+        // кнопке вместимости (на ней уже есть своя подсказка от ванили).
+        // Убираем attach_unit_button, пробуем "LOAD_CAPACITY_LABEL" -
+        // тем же именем, которым её ищет сама ваниль (FUN_00409350 с
+        // этой строкой перед VT_FIND_CHILD в FUN_0078E820) элемент,
+        // возможно, называется себя так же. Тот же безопасный хук -
+        // просто другое имя в сравнении.
+        if ((strcmp(name, "unload_button") == 0 || strcmp(name, "load_button") == 0 ||
+             strcmp(name, "LOAD_CAPACITY_LABEL") == 0 || strcmp(name, "detach_unit_button") == 0 ||
+             strcmp(name, "select_land") == 0) && g_cachedEmbarkedTags[0] != 0)
         {
             GStrSet(retBuf, g_cachedEmbarkedTags);
         }
@@ -13972,6 +14964,43 @@ static bool Install()
     if (g_settings.patchAllyEmbark)
         InstallAllyEmbark();
 
+    // v4.73: ОТКЛЮЧЕНО - v4.72 ломал сохранение игры ("Ошибка: плохой
+    // сейв", подтверждено пользователем на ЛЮБОМ имени сейва, включая
+    // новые). Причина: ScanAndSaveForeignEmbarks предполагал, что
+    // DAT_0125870c+0x2238 - простой массив "ID провинции -> указатель",
+    // индексируемый целыми числами 1..4000. Это предположение НЕ было
+    // проверено - единственная опора на него (FUN_005D25C0) на самом
+    // деле индексировала этот массив УКАЗАТЕЛЕМ НА УЗЕЛ СПИСКА
+    // (param_1[0x39], часть отдельного механизма), а не целочисленным
+    // ID. Из-за этого сканер читал посторонние данные как указатели на
+    // юниты и вызывал через них виртуальные функции (VCall0 на "IsNavy"/
+    // "GetSpecialObject") - классическое обращение по мусорному
+    // указателю, которое не обязательно падает сразу, но может
+    // незаметно повредить состояние. InstallSaveEmbarkedAllyArmies() и
+    // сам хук на PHYSFS_openWrite оставлены в коде ОТКЛЮЧЁННЫМИ -
+    // прежде чем включать снова, нужно сначала НАДЁЖНО найти способ
+    // перечислить все провинции/флоты (с проверкой через Ghidra, а не
+    // по аналогии), см. project_embark_save_load_bug.md.
+    // v4.75: ВКЛЮЧЕНО снова после правок: точная граница таблицы (3255,
+    // по логу ProvTable v4.74), сверка province+0x58 == индекс, проверка
+    // vtable юнита внутри exe, файл пишется в Logs\allyembark\, а не в
+    // папку сейвов, PHYSFS_getWriteDir из хука больше не зовётся. Если
+    // сохранение снова даст "плохой сейв" - убирать этот вызов обратно и
+    // искать причину в другом (см. project_embark_save_load_bug.md).
+    if (g_settings.patchAllyEmbark)
+    {
+        InstallSaveEmbarkedAllyArmies();
+        InstallPhysfsOpenReadHook();   // v4.76: только запоминает имя .v2, см. MaybeDumpAfterLoad
+        // v4.78: ОТКЛЮЧЕНО. В v4.77 ремонт срабатывал на обычных армиях:
+        // у них +0x18C по умолчанию = 2 (не 0), и 5 армий на флотах
+        // 39/106/109/198 были переведены в страну idx 2 (GLM) при загрузке.
+        // Плюс сейв вообще не записал expeditionary_owner (метки зря).
+        // v4.80: снова установлен, но в ПРОБНОМ режиме (EMBARK_REPAIR_APPLY=false) -
+        // только лог "что бы сделал", владельцев не меняет. Владелец выводится из
+        // провинций бригад, а не из метки (см. DeriveArmyTrueOwner).
+        InstallEmbarkLoadRepair();
+    }
+
     // v4.55: включена заново, но ПЕРЕПИСАНА на безопасный минимум -
     // OnUnitButtonsTooltip больше не трогает thisObj/unit/vtable-слоты
     // CSingleUnitButtons вообще (это и роняло игру трижды за сессию,
@@ -13985,6 +15014,9 @@ static bool Install()
     {
         InstallFleetPassengerTooltip();
         InstallFleetCaptureHook();
+        // v4.67-v4.70: временные зонды для "выбрать посаженную армию на
+        // союзном флоте" убраны - задача решена без патчей движка, см.
+        // память project_select_embarked_army.md.
     }
 
     if (g_settings.patchCivilizeNullCheck)
