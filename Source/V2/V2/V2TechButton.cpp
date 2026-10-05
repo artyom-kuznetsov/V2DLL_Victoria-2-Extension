@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "4.81"
+#define MOD_VERSION "4.89"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -105,6 +105,9 @@ struct Settings
     // "случайных" чисел из непроинициализированной памяти стека
     // (см. InstallMusicFairRandom).
     bool musicFairRandom             = true;
+    // Ежедневный доход "minting" по формуле из <мод>\common\minting.txt
+    // (см. InstallMinting). Без файла формулы ничего не делает.
+    bool minting                     = true;
 
     // Взаимоисключающе с priceDelta (ENABLE_PRICE_DELTA) - оба
     // патчат один и тот же адрес. Если включены оба, побеждает этот.
@@ -4153,6 +4156,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "FILTER_PRODUCERS_ONLY") == 0)            { g_settings.filterProducersOnly         = v; return; }
     if (_stricmp(key, "PLAYER_BUTTONS") == 0)               { g_settings.playerButtons            = v; return; }
     if (_stricmp(key, "MUSIC_FAIR_RANDOM") == 0)                { g_settings.musicFairRandom             = v; return; }
+    if (_stricmp(key, "ENABLE_MINTING") == 0)                   { g_settings.minting                     = v; return; }
 
     if (_stricmp(key, "COMBAT_ROLL_MIN") == 0) { g_settings.combatRollMin = atoi(value); return; }
     if (_stricmp(key, "COMBAT_ROLL_MAX") == 0) { g_settings.combatRollMax = atoi(value); return; }
@@ -4318,6 +4322,7 @@ static void WriteDefaultSettings(const char* path)
         "MUSIC_FAIR_RANDOM=%d\n"
         "PATCH_TECH_NULL_CHECK_FIXES=%d\n"
         "PATCH_SUPPLY_SOURCE_NULL_CHECK=%d\n"
+        "ENABLE_MINTING=%d\n"
         "\n",
         (int)FindExePatchEnabled("consciousness_plurality_growth"),
         (int)g_settings.patchCivilizeNullCheck,
@@ -4327,7 +4332,8 @@ static void WriteDefaultSettings(const char* path)
         (int)FindExePatchEnabled("aristocrat_income_share_patch_1"),
         (int)g_settings.musicFairRandom,
         (int)g_settings.patchTechNullCheckFixes,
-        (int)g_settings.patchSupplySourceNullCheck);
+        (int)g_settings.patchSupplySourceNullCheck,
+        (int)g_settings.minting);
 
     fprintf(f,
         "; Stability\n"
@@ -8086,6 +8092,1182 @@ static bool InstallVersionLabel()
 
     Log("VersionLabel: '%s' (len=%u), пещера %08X",
         g_versionLabel, len, (DWORD)(DWORD_PTR)cave);
+    return true;
+}
+
+
+// ---------------------------------------------------------------
+// MINTING (ENABLE_MINTING) - новый ежедневный доход каждой страны.
+//
+// Формула лежит в <папка мода>\common\minting.txt (строка
+// "formula = ..."), чтобы у каждого мода была своя и менялась без
+// пересборки DLL. Переменные формулы: industry_score (он же
+// industrial_score) - промышленный рейтинг страны (int64 с 15 дробными
+// битами в +0x198, тот же, что показывает интерфейс и читает триггер
+// industrial_score), total_population - население страны (+0x12E8 как
+// есть). Любое другое имя - переменная СТРАНЫ из скриптов игры
+// (set_variable = { which = ИМЯ ... }): её значение, а если у страны
+// такой переменной нет - 0. Переменные лежат в контейнере country+0x1DC
+// (vtable 0xDFBB60), поиск по имени - слот 1 (как у триггера
+// check_variable, FUN_008DA5C0), значение - int в тысячных на узле+0x1C
+// ("5.000" в сейве = 5000). Операторы + - * / и скобки. Результат -
+// фунты в день.
+//
+// Частота: формула (вместе с поиском переменных страны) считается РАЗ В
+// ИГРОВОЙ МЕСЯЦ на страну - в дневном тике первого дня месяца, результат
+// ("ставка в день") лежит в кэше. Начисление идёт каждый день по кэшу, а
+// интерфейс, подсказки и ИИ только читают кэш (промах - до первого тика
+// после загрузки - считается без записи). Нулевая ставка не считается
+// окончательной и пересчитывается каждый день, пока не станет ненулевой
+// (на старте игры переменные скриптов ещё не заданы). Считать ТОЛЬКО в дневном тике
+// нужно ради мультиплеера: пересчёт из интерфейса шёл бы в произвольный
+// момент и у клиентов расходился бы. Кэш сбрасывается, если время мира
+// ушло не на +24 часа (загрузка/новая игра).
+//
+// Точки в exe:
+//  1. Ежедневное начисление. FUN_006859c0 (дневной тик мира) в
+//     однопоточном цикле зовёт FUN_005091a0(страна); та вызывает
+//     FUN_00538200 (сбор дохода с государственных RGO) через
+//     "push ebx; call" на 0x509F74. Подменяем этот call: прибавляем
+//     minting к казне (+0xE78/+0xE7C, int64 с 15 дробными битами)
+//     тем же способом, что сама FUN_00538200, и прыгаем в оригинал.
+//     (+0xE80 - снимок казны на начало дня, его не трогаем.)
+//  2. Сумма дохода во всём интерфейсе считается двумя функциями, и
+//     minting прибавляется в обеих - тогда он автоматически попадает
+//     в итоги окна бюджета, в график и текст "доход" верхней панели,
+//     в подсказки и в расчёты ИИ:
+//       FUN_0052b510(EAX=out, EDX=страна) - фактический доход за день
+//         (сумма 10 категорий); перед накоплением "out = 0" - пишем
+//         туда minting (вход, 19 байт).
+//       FUN_0052b610(стек: страна, ставки; ESI=out) - расчётный доход
+//         (налоги по ползункам + остальное); перед единственным
+//         эпилогом (EBX = страна) прибавляем minting.
+//  3. Окно бюджета: слот 6 vftable CBudgetView (0xE059F0) - Update
+//     (FUN_005FEDE0, ECX=view, без стековых аргументов). Обёртка
+//     зовёт оригинал и пишет текст в textbox "minting_inc" (находится
+//     vtable+0x3C контейнера view+0x4C, как все textbox'ы в
+//     FUN_00602820; текст - те же два вызова, что у движка:
+//     std::string::assign(box+0xDC) и SetText(ESI=[box+0xA0])).
+//  5. Подсказка над самим textbox "minting_inc": диспетчер подсказок
+//     окна бюджета FUN_00606780 сравнивает элемент под курсором (ESI) с
+//     полями окна цепочкой "cmp [edi+off],esi". Перед сравнением gold_inc
+//     (0x60A0B8) смотрим имя элемента; если это minting_inc - клон
+//     короткой ветки "текст по ключу" (0x607D21) с ключом
+//     BUDGET_MINTING_DESC, иначе исходное сравнение.
+//  4. Подсказка "Общие доходы" (FUN_0052a080, одна на окно бюджета и
+//     верхнюю панель): в начале запоминаем minting страны, а после
+//     последней строки категорий (BUDGET_INTERNALLY_SOLD_STOCKPILE,
+//     блок 0x52AF06..0x52B0A3) выполняем клон этого блока с ключом
+//     BUDGET_MINTING (строка лежит в localisation\TEXT_ALL.csv мода).
+//     Клон идёт в том же кадре стека (ebp-относительные локальные),
+//     отличается только ключ и значение.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_MINT_DAILY_CALL      = 0x109F74;  // call FUN_00538200 внутри FUN_005091a0
+static const DWORD RVA_MINT_DAILY_TARGET    = 0x138200;  // FUN_00538200
+static const DWORD RVA_BUDGET_VTABLE        = 0xA059F0;  // CBudgetView
+static const int   BUDGET_UPDATE_SLOT       = 6;         // 0xE05A08 -> FUN_005FEDE0
+static const DWORD RVA_BUDGET_UPDATE_FN     = 0x1FEDE0;
+static const DWORD RVA_INCOME_ACT_ENTRY     = 0x12B510;  // FUN_0052b510
+static const DWORD RVA_INCOME_ACT_RESUME    = 0x12B523;
+static const DWORD RVA_INCOME_PROJ_EPILOGUE = 0x12B769;  // FUN_0052b610: pop edi; mov eax,esi; pop ebx; mov esp,ebp
+static const DWORD RVA_INCOME_PROJ_RESUME   = 0x12B76F;  // pop ebp; ret 8
+static const DWORD RVA_TIP_STASH_SITE       = 0x12A135;  // FUN_0052a080: mov ecx,[ebp+8]; sub esp,8
+static const DWORD RVA_TIP_STASH_RESUME     = 0x12A13B;
+static const DWORD RVA_TIP_LINE_SITE        = 0x12B0A3;  // FUN_0052a080: lea edi,[ebp-0xAC]
+static const DWORD RVA_TIP_LINE_RESUME      = 0x12B0A9;
+static const DWORD RVA_BOX_TIP_SITE         = 0x20A0B8;  // FUN_00606780: cmp [edi+0x16c],esi (gold_inc)
+static const DWORD RVA_BOX_TIP_RESUME       = 0x20A0BE;  // jnz 0x60A37F
+static const DWORD RVA_BOX_TIP_END          = 0x20B035;  // общий хвост диспетчера подсказок
+static const DWORD RVA_FN_STR_FROM_CSTR     = 0x5885D0;  // 0x9885D0 EDX=const char*, ESI=out string
+static const DWORD RVA_FN_STR_CLEAR         = 0x8AD0;    // 0x408AD0 ECX=string
+static const DWORD RVA_FN_FMT_FREE          = 0x5A9740;  // 0x9A9740 (formatter*), ret 4
+static const DWORD RVA_WORLD_PTR            = 0xE588E8;  // DAT_012588e8; +0xB60 = индекс страны игрока
+
+static const DWORD RVA_STR_ASSIGN           = 0x8ED0;    // std::string::assign(const string&, pos, n), thiscall
+static const DWORD RVA_TEXT_SETTEXT         = 0x65ECC0;  // SetText(const string&, flag): ESI=this, ret 8
+static const DWORD RVA_FN_STR_INIT          = 0x9350;    // 0x409350 string(ptr,len): ECX=this, ret 8
+static const DWORD RVA_FN_FMT_FROM_KEY      = 0x5A8EE0;  // 0x9A8EE0 (out*, key string*)
+static const DWORD RVA_FN_FMT_NUMBER        = 0x588BB0;  // 0x988BB0 (out string*, precision, int64)
+static const DWORD RVA_FN_FMT_REPLACE       = 0x5A9980;  // 0x9A9980 ECX=formatter, ESI=name, stack: value string
+static const DWORD RVA_FN_LOC_SINGLETON     = 0x75500;   // 0x475500
+static const DWORD RVA_FN_FMT_FINISH        = 0x5A9880;  // 0x9A9880 ECX=formatter, ESI=out string, stack: 16 bytes
+static const DWORD RVA_FN_STR_APPEND        = 0x48AA0;   // 0x448AA0 ECX=this, (str*, pos, n)
+static const DWORD RVA_FN_STR_APPEND_CHARS  = 0x48740;   // 0x448740 ECX=this, (ptr, len)
+static const DWORD RVA_FN_LIST_FREE         = 0x5ADB70;  // 0x9ADB70 EDI=list
+static const DWORD RVA_FN_LIST_FREE2        = 0x5E6A80;  // 0x9E6A80
+static const DWORD RVA_FN_FREE              = 0x6AE91B;  // 0xAAE91B
+
+static const int OFF_WORLD_TIME             = 0xB0C;     // часы; (t/24)%365 - день года (см. FUN_006859c0)
+static const DWORD RVA_MONTH_LENGTHS        = 0xB1027C;  // DAT_00F1027C: 31,28,31,30,... (год из 365 дней)
+static const int OFF_COUNTRY_MONEY          = 0xE78;
+static const int OFF_COUNTRY_POPULATION     = 0x12E8;
+static const int OFF_COUNTRY_VARIABLES      = 0x1DC;     // CVariables (vtable RVA_VARIABLES_VTABLE)
+static const DWORD RVA_VARIABLES_VTABLE     = 0x9FBB60;  // VA 0xDFBB60, ставится в конструкторе страны 0x4F6CB5
+static const int OFF_VARIABLE_VALUE         = 0x1C;      // int в тысячных на узле, найденном слотом 1
+static const int OFF_COUNTRY_INDUSTRY_SCORE = 0x198;     // int64, 15 дробных бит (см. FUN_00530980, CIndustrialScoreTrigger)
+static const int OFF_WORLD_PLAYER_INDEX     = 0xB60;
+static const int OFF_VIEW_CONTAINER         = 0x4C;
+static const int VT_FIND_TEXTBOX            = 0x3C;
+static const int OFF_TEXTBOX_STR            = 0xDC;
+static const int OFF_TEXTBOX_INNER          = 0xA0;
+
+enum { MN_NUM, MN_VAR, MN_NEG, MN_ADD, MN_SUB, MN_MUL, MN_DIV, MN_CVAR };
+
+struct MintNode
+{
+    unsigned char op;
+    unsigned char var;
+    short         a, b;
+    double        num;
+};
+
+struct MintVarName { const char* name; int index; };
+static const MintVarName MINT_VARS[] =
+{
+    { "industry_score",   0 },
+    { "industrial_score", 0 },
+    { "total_population", 1 },
+};
+static const int MINT_VAR_NAMES = sizeof(MINT_VARS) / sizeof(MINT_VARS[0]);
+static const int MINT_VAR_COUNT = 2;
+static const int MINT_MAX_NODES = 96;
+static const int MINT_MAX_CVARS = 8;
+
+static char g_mintCVarNames[MINT_MAX_CVARS][64];
+static int  g_mintCVarCount = 0;
+static double MintReadCountryVar(void* country, int cvarIndex);
+
+static MintNode    g_mintNodes[MINT_MAX_NODES];
+static int         g_mintNodeCount = 0;
+static int         g_mintRoot = -1;
+static bool        g_mintReady = false;
+static const char* g_mintCur = 0;
+static bool        g_mintErr = false;
+static char        g_mintFormulaText[256];
+
+static int MintNew(unsigned char op, int a, int b, double num, int var)
+{
+    if (g_mintNodeCount >= MINT_MAX_NODES)
+    {
+        g_mintErr = true;
+        return -1;
+    }
+    MintNode& n = g_mintNodes[g_mintNodeCount];
+    n.op = op;
+    n.var = (unsigned char)var;
+    n.a = (short)a;
+    n.b = (short)b;
+    n.num = num;
+    return g_mintNodeCount++;
+}
+
+static void MintSkipWs()
+{
+    while (*g_mintCur == ' ' || *g_mintCur == '\t')
+        ++g_mintCur;
+}
+
+static int MintParseExpr();
+
+// Число разбираем сами: strtod зависит от локали процесса (запятая).
+static int MintParsePrimary()
+{
+    MintSkipWs();
+    char c = *g_mintCur;
+
+    if (c == '(')
+    {
+        ++g_mintCur;
+        int e = MintParseExpr();
+        MintSkipWs();
+        if (*g_mintCur != ')')
+        {
+            g_mintErr = true;
+            return -1;
+        }
+        ++g_mintCur;
+        return e;
+    }
+
+    if (c == '-')
+    {
+        ++g_mintCur;
+        int e = MintParsePrimary();
+        if (e < 0)
+            return -1;
+        return MintNew(MN_NEG, e, -1, 0.0, 0);
+    }
+
+    if ((c >= '0' && c <= '9') || c == '.')
+    {
+        double v = 0.0;
+        while (*g_mintCur >= '0' && *g_mintCur <= '9')
+            v = v * 10.0 + (*g_mintCur++ - '0');
+        if (*g_mintCur == '.')
+        {
+            ++g_mintCur;
+            double scale = 0.1;
+            while (*g_mintCur >= '0' && *g_mintCur <= '9')
+            {
+                v += (*g_mintCur++ - '0') * scale;
+                scale *= 0.1;
+            }
+        }
+        return MintNew(MN_NUM, -1, -1, v, 0);
+    }
+
+    if (isalpha((unsigned char)c) || c == '_')
+    {
+        char name[64];
+        int n = 0;
+        while (IsIdentChar(*g_mintCur) && n < (int)sizeof(name) - 1)
+            name[n++] = *g_mintCur++;
+        name[n] = 0;
+
+        for (int i = 0; i < MINT_VAR_NAMES; ++i)
+        {
+            if (_stricmp(name, MINT_VARS[i].name) == 0)
+                return MintNew(MN_VAR, -1, -1, 0.0, MINT_VARS[i].index);
+        }
+        for (int i = 0; i < g_mintCVarCount; ++i)
+        {
+            if (_stricmp(name, g_mintCVarNames[i]) == 0)
+                return MintNew(MN_CVAR, -1, -1, 0.0, i);
+        }
+        if (g_mintCVarCount >= MINT_MAX_CVARS)
+        {
+            g_mintErr = true;
+            return -1;
+        }
+        strcpy_s(g_mintCVarNames[g_mintCVarCount], sizeof(g_mintCVarNames[0]), name);
+        return MintNew(MN_CVAR, -1, -1, 0.0, g_mintCVarCount++);
+    }
+
+    g_mintErr = true;
+    return -1;
+}
+
+static int MintParseTerm()
+{
+    int l = MintParsePrimary();
+    for (;;)
+    {
+        MintSkipWs();
+        char c = *g_mintCur;
+        if (l < 0 || (c != '*' && c != '/'))
+            return l;
+        ++g_mintCur;
+        int r = MintParsePrimary();
+        if (r < 0)
+            return -1;
+        l = MintNew(c == '*' ? MN_MUL : MN_DIV, l, r, 0.0, 0);
+    }
+}
+
+static int MintParseExpr()
+{
+    int l = MintParseTerm();
+    for (;;)
+    {
+        MintSkipWs();
+        char c = *g_mintCur;
+        if (l < 0 || (c != '+' && c != '-'))
+            return l;
+        ++g_mintCur;
+        int r = MintParseTerm();
+        if (r < 0)
+            return -1;
+        l = MintNew(c == '+' ? MN_ADD : MN_SUB, l, r, 0.0, 0);
+    }
+}
+
+static double MintEval(int n, const double* vars, void* country)
+{
+    const MintNode& m = g_mintNodes[n];
+    switch (m.op)
+    {
+    case MN_NUM: return m.num;
+    case MN_VAR: return vars[m.var];
+    case MN_CVAR: return MintReadCountryVar(country, m.var);
+    case MN_NEG: return -MintEval(m.a, vars, country);
+    case MN_ADD: return MintEval(m.a, vars, country) + MintEval(m.b, vars, country);
+    case MN_SUB: return MintEval(m.a, vars, country) - MintEval(m.b, vars, country);
+    case MN_MUL: return MintEval(m.a, vars, country) * MintEval(m.b, vars, country);
+    case MN_DIV:
+    {
+        double d = MintEval(m.b, vars, country);
+        return d == 0.0 ? 0.0 : MintEval(m.a, vars, country) / d;
+    }
+    }
+    return 0.0;
+}
+
+// double -> int64 с 15 дробными битами без x87 (fistp/__ftol2): исход
+// одинаков на всех машинах. Предел +-4e15 держит значение в пределах
+// точного целого double (2^52).
+static long long MintToFixed(double v)
+{
+    if (!(v == v))
+        return 0;
+
+    double s = v * 32768.0;
+    if (s > 4.0e15)  s = 4.0e15;
+    if (s < -4.0e15) s = -4.0e15;
+
+    unsigned long long bits;
+    memcpy(&bits, &s, sizeof(bits));
+    int e = (int)((bits >> 52) & 0x7FF) - 1023;
+    if (e < 0)
+        return 0;
+
+    unsigned long long mant = (bits & 0xFFFFFFFFFFFFFULL) | (1ULL << 52);
+    long long r = (long long)(mant >> (52 - e));
+    return (bits >> 63) ? -r : r;
+}
+
+__declspec(noinline) static long long __cdecl MintingComputeFixed(void* country)
+{
+    if (!g_mintReady || !country)
+        return 0;
+
+    __try
+    {
+        double vars[MINT_VAR_COUNT];
+        unsigned scoreLo = *(unsigned*)((char*)country + OFF_COUNTRY_INDUSTRY_SCORE);
+        int      scoreHi = *(int*)((char*)country + OFF_COUNTRY_INDUSTRY_SCORE + 4);
+        vars[0] = ((double)scoreHi * 4294967296.0 + (double)scoreLo) / 32768.0;
+        vars[1] = (double)*(int*)((char*)country + OFF_COUNTRY_POPULATION);
+        return MintToFixed(MintEval(g_mintRoot, vars, country));
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+typedef void* (__fastcall* tFindVariable)(void* self, void* edx, const void* name);
+
+// Кэш ставки: по одной записи на страну (открытая адресация по указателю).
+struct MintSlot { void* country; int month; long long value; };
+static const int MINT_SLOTS = 1024;
+static MintSlot g_mintSlots[MINT_SLOTS];
+static int  g_mintLastHours = 0;
+static bool g_mintTimeKnown = false;
+static LONG g_mintMonthLogged = 0;
+
+static MintSlot* MintFindSlot(void* country, bool create)
+{
+    unsigned h = ((unsigned)(DWORD_PTR)country >> 4) * 2654435761u;
+    for (int i = 0; i < MINT_SLOTS; ++i)
+    {
+        MintSlot& sl = g_mintSlots[(h + i) & (MINT_SLOTS - 1)];
+        if (sl.country == country)
+            return &sl;
+        if (!sl.country)
+        {
+            if (!create)
+                return 0;
+            sl.country = country;
+            sl.month = -2;
+            sl.value = 0;
+            return &sl;
+        }
+    }
+    return 0;
+}
+
+// Часы мира и номер игрового месяца (год*12 + месяц, год из 365 дней).
+static bool MintingTimeNow(int* hours, int* monthKey)
+{
+    __try
+    {
+        void* world = *(void**)(g_base + RVA_WORLD_PTR);
+        if (!world)
+            return false;
+        int t = *(int*)((char*)world + OFF_WORLD_TIME);
+        if (t <= 0)
+            return false;
+        int days = t / 24;
+        int doy = days % 365;
+        const int* len = (const int*)(g_base + RVA_MONTH_LENGTHS);
+        int m = 0;
+        while (m < 11 && doy >= len[m])
+        {
+            doy -= len[m];
+            ++m;
+        }
+        *hours = t;
+        *monthKey = (days / 365) * 12 + m;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+// Ставка для интерфейса/подсказок/ИИ: только чтение кэша; если страны
+// в кэше ещё нет (до первого дневного тика) - считаем, но не запоминаем.
+__declspec(noinline) static long long __cdecl MintingFixedFor(void* country)
+{
+    if (!g_mintReady || !country)
+        return 0;
+    MintSlot* sl = MintFindSlot(country, false);
+    if (sl && sl->month != -2)
+        return sl->value;
+    return MintingComputeFixed(country);
+}
+
+// Переменная страны по имени: 0, если не задана (или контейнер не тот).
+static double MintReadCountryVar(void* country, int cvarIndex)
+{
+    if (!country || cvarIndex < 0 || cvarIndex >= g_mintCVarCount)
+        return 0.0;
+
+    __try
+    {
+        void* container = (char*)country + OFF_COUNTRY_VARIABLES;
+        void** vt = *(void***)container;
+        if (vt != (void**)(g_base + RVA_VARIABLES_VTABLE))
+            return 0.0;
+
+        char store[64];
+        GStr name;
+        MakeStr(&name, store, sizeof(store), g_mintCVarNames[cvarIndex]);
+
+        char* node = (char*)((tFindVariable)vt[1])(container, 0, &name);
+        if (!node)
+            return 0.0;
+        return (double)*(int*)(node + OFF_VARIABLE_VALUE) / 1000.0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0.0;
+    }
+}
+
+static void* GetLocalPlayerCountry()
+{
+    __try
+    {
+        void* world = *(void**)(g_base + RVA_WORLD_PTR);
+        if (!world)
+            return 0;
+        return GetCountryPtr(*(int*)((char*)world + OFF_WORLD_PLAYER_INDEX));
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+static bool LoadMintingFormula()
+{
+    char path[MAX_PATH];
+    char folder[MAX_PATH];
+
+    if (ResolveModFolder(folder, sizeof(folder)))
+        _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\common\\minting.txt", folder);
+    else
+        _snprintf_s(path, sizeof(path), _TRUNCATE, "common\\minting.txt");
+
+    static char buf[8192];
+    size_t len = 0;
+    if (!ReadWholeFile(path, buf, sizeof(buf), &len))
+    {
+        Log("Minting: файл формулы '%s' не найден - minting выключен", path);
+        return false;
+    }
+
+    char* start = buf;
+    if (len >= 3 && (unsigned char)buf[0] == 0xEF && (unsigned char)buf[1] == 0xBB && (unsigned char)buf[2] == 0xBF)
+        start += 3;
+
+    char* expr = 0;
+    for (char* line = start; *line; )
+    {
+        char* eol = line;
+        while (*eol && *eol != '\n' && *eol != '\r')
+            ++eol;
+        char saved = *eol;
+        *eol = 0;
+
+        char* hash = strchr(line, '#');
+        if (hash)
+            *hash = 0;
+
+        char* p = line;
+        while (*p == ' ' || *p == '\t')
+            ++p;
+
+        if (_strnicmp(p, "formula", 7) == 0 && !IsIdentChar(p[7]))
+        {
+            p += 7;
+            while (*p == ' ' || *p == '\t')
+                ++p;
+            if (*p == '=')
+            {
+                expr = p + 1;
+                break;
+            }
+        }
+
+        if (!saved)
+            break;
+        line = eol + 1;
+    }
+
+    if (!expr)
+    {
+        Log("Minting: в '%s' нет строки 'formula = ...' - minting выключен", path);
+        return false;
+    }
+
+    strncpy_s(g_mintFormulaText, sizeof(g_mintFormulaText), expr, _TRUNCATE);
+    g_mintCur = g_mintFormulaText;
+    g_mintNodeCount = 0;
+    g_mintCVarCount = 0;
+    g_mintErr = false;
+    g_mintRoot = MintParseExpr();
+    MintSkipWs();
+
+    if (g_mintErr || g_mintRoot < 0 || *g_mintCur != 0)
+    {
+        Log("Minting: не удалось разобрать формулу '%s' (позиция %d) - minting выключен",
+            g_mintFormulaText, (int)(g_mintCur - g_mintFormulaText));
+        return false;
+    }
+
+    g_mintReady = true;
+
+    for (int i = 0; i < g_mintCVarCount; ++i)
+        Log("Minting: '%s' - переменная страны (0, если не задана)", g_mintCVarNames[i]);
+
+    double sample[MINT_VAR_COUNT] = { 1000.0, 4000000.0 };
+    Log("Minting: формула '%s' из '%s' (%d узлов); пример без переменных страны: industry_score=1000, total_population=4000000 -> %.2f",
+        g_mintFormulaText, path, g_mintNodeCount, MintEval(g_mintRoot, sample, 0));
+    return true;
+}
+
+static DWORD g_mintDailyOrig = 0;
+static LONG  g_mintDailyAnyLogged = 0;
+static LONG  g_mintDailyPlayerLogged = 0;
+
+static void __cdecl MintingDailyHook(void* country)
+{
+    if (!g_mintReady || !country)
+        return;
+
+    __try
+    {
+        long long fx;
+        int hours = 0, monthKey = 0;
+        if (MintingTimeNow(&hours, &monthKey))
+        {
+            if (g_mintTimeKnown && hours != g_mintLastHours && hours != g_mintLastHours + 24)
+            {
+                memset(g_mintSlots, 0, sizeof(g_mintSlots));
+                Log("Minting: время мира %d -> %d, кэш ставок сброшен (загрузка/новая игра)",
+                    g_mintLastHours, hours);
+            }
+            g_mintLastHours = hours;
+            g_mintTimeKnown = true;
+
+            MintSlot* sl = MintFindSlot(country, true);
+            if (sl)
+            {
+                // Нулевая ставка не считается окончательной: на старте игры
+                // переменные (economic_thought_level и т.п.) ещё не заданы
+                // скриптами, а industry_score - не посчитан, и ноль,
+                // записанный в первый день, держался бы целый месяц.
+                // Пока ставка 0, формула пересчитывается каждый день
+                // (дёшево: поиск переменной и несколько операций).
+                bool newMonth = (sl->month != monthKey);
+                if (newMonth || sl->value == 0)
+                {
+                    long long before = sl->value;
+                    sl->value = MintingComputeFixed(country);
+                    sl->month = monthKey;
+                    if ((newMonth || (before == 0 && sl->value != 0)) && country == GetLocalPlayerCountry() &&
+                        InterlockedIncrement(&g_mintMonthLogged) <= 24)
+                        Log("Minting: месяц %d, ставка игрока %s: %.2f в день", monthKey,
+                            newMonth ? "пересчитана" : "стала ненулевой",
+                            (double)sl->value / 32768.0);
+                }
+                fx = sl->value;
+            }
+            else
+            {
+                fx = MintingComputeFixed(country);
+            }
+        }
+        else
+        {
+            fx = MintingComputeFixed(country);
+        }
+
+        if (fx == 0)
+            return;
+
+        unsigned* lo = (unsigned*)((char*)country + OFF_COUNTRY_MONEY);
+        unsigned* hi = (unsigned*)((char*)country + OFF_COUNTRY_MONEY + 4);
+        unsigned long long cur = ((unsigned long long)*hi << 32) | *lo;
+        cur += (unsigned long long)fx;
+        *lo = (unsigned)cur;
+        *hi = (unsigned)(cur >> 32);
+
+        bool isPlayer = (country == GetLocalPlayerCountry());
+        if ((isPlayer && InterlockedIncrement(&g_mintDailyPlayerLogged) <= 5) ||
+            InterlockedIncrement(&g_mintDailyAnyLogged) == 1)
+        {
+            Log("Minting: день, страна %p%s, +%.1f в казну (industry_score %.1f, население %d, казна %.1f)",
+                country, isPlayer ? " (игрок)" : "", (double)fx / 32768.0,
+                (double)*(long long*)((char*)country + OFF_COUNTRY_INDUSTRY_SCORE) / 32768.0,
+                *(int*)((char*)country + OFF_COUNTRY_POPULATION),
+                (double)(long long)cur / 32768.0);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Тот же контракт, что у FUN_00538200 (stdcall, страна в стеке): всё
+// самодостаточно в одном pushad/popad, затем хвостовой прыжок в оригинал.
+__declspec(naked) static void MintingDailyThunk()
+{
+    __asm {
+        pushad
+        mov eax, dword ptr [esp + 0x24]
+        push eax
+        call MintingDailyHook
+        add esp, 4
+        popad
+        jmp dword ptr [g_mintDailyOrig]
+    }
+}
+
+// FUN_0052b510: EAX=out, EDX=страна. Оригинальные 19 байт
+//   mov ecx,[idx]; mov [eax],0; mov [eax+4],0
+// заменены: результат C-вызова ждёт в двух слотах стека, и аккумулятор
+// стартует с minting вместо нуля. EAX/ECX/EDX сохраняет pushad.
+static DWORD g_mintIdxVarPtr = 0;
+static DWORD g_mintActResume = 0;
+
+__declspec(naked) static void MintingActualIncomeThunk()
+{
+    __asm {
+        sub esp, 8
+        pushad
+        push edx
+        call MintingFixedFor
+        add esp, 4
+        mov dword ptr [esp + 0x20], eax
+        mov dword ptr [esp + 0x24], edx
+        popad
+        mov ecx, dword ptr [g_mintIdxVarPtr]
+        mov ecx, dword ptr [ecx]
+        pop dword ptr [eax]
+        pop dword ptr [eax + 4]
+        jmp dword ptr [g_mintActResume]
+    }
+}
+
+// FUN_0052b610: единственный эпилог, EBX=страна, ESI=out (int64).
+static DWORD g_mintProjResume = 0;
+
+__declspec(naked) static void MintingProjectedIncomeThunk()
+{
+    __asm {
+        sub esp, 8
+        pushad
+        push ebx
+        call MintingFixedFor
+        add esp, 4
+        mov dword ptr [esp + 0x20], eax
+        mov dword ptr [esp + 0x24], edx
+        popad
+        pop eax
+        pop edx
+        add dword ptr [esi], eax
+        adc dword ptr [esi + 4], edx
+        pop edi
+        mov eax, esi
+        pop ebx
+        mov esp, ebp
+        jmp dword ptr [g_mintProjResume]
+    }
+}
+
+// Подсказка "Общие доходы": значение minting страны запоминаем в начале
+// FUN_0052a080 (там ещё цела [ebp+8]) и используем в конце.
+static volatile unsigned g_mintTipLo = 0;
+static volatile int      g_mintTipHi = 0;
+static DWORD g_mintTipStashResume = 0;
+static DWORD g_mintTipLineResume = 0;
+
+static void __cdecl MintingTipStash(void* country)
+{
+    long long fx = MintingFixedFor(country);
+    g_mintTipLo = (unsigned)fx;
+    g_mintTipHi = (int)(fx >> 32);
+}
+
+__declspec(naked) static void MintingTipStashThunk()
+{
+    __asm {
+        pushad
+        push dword ptr [ebp + 8]
+        call MintingTipStash
+        add esp, 4
+        popad
+        mov ecx, dword ptr [ebp + 8]
+        sub esp, 8
+        jmp dword ptr [g_mintTipStashResume]
+    }
+}
+
+static const char g_mintKey[] = "BUDGET_MINTING";
+static const char g_mintValName[] = "VAL";
+static const char g_mintNewline[] = "\n";
+
+static DWORD g_fnStrInit, g_fnFmtFromKey, g_fnFmtNumber, g_fnFmtReplace, g_fnLocSingleton;
+static DWORD g_fnFmtFinish, g_fnStrAppend, g_fnStrAppendChars, g_fnListFree, g_fnListFree2, g_fnFree;
+
+// Клон блока "строка категории" из FUN_0052a080 (последняя категория,
+// 0x52AF2F..0x52B0A0): те же вызовы, те же локальные, те же номера
+// состояний SEH; ключ и значение свои. EBX = 0 (нулевая константа
+// всей функции). Если minting <= 0 - ничего не добавляем.
+__declspec(naked) static void MintingTipLineThunk()
+{
+    __asm {
+        mov edi, dword ptr [g_mintTipLo]
+        mov esi, dword ptr [g_mintTipHi]
+        cmp esi, ebx
+        jl done
+        jg emit
+        cmp edi, ebx
+        jbe done
+    emit:
+        mov byte ptr [ebp - 4], 0x33
+        push 14
+        push offset g_mintKey
+        lea ecx, [ebp - 0x98]
+        mov dword ptr [ebp - 0x84], 0xf
+        mov dword ptr [ebp - 0x88], ebx
+        mov byte ptr [ebp - 0x98], bl
+        call dword ptr [g_fnStrInit]
+        lea ecx, [ebp - 0x98]
+        push ecx
+        lea edx, [ebp - 0x78]
+        push edx
+        mov byte ptr [ebp - 4], 0x3f
+        call dword ptr [g_fnFmtFromKey]
+        mov byte ptr [ebp - 4], 0x41
+        cmp dword ptr [ebp - 0x84], 0x10
+        jb f1
+        mov eax, dword ptr [ebp - 0x98]
+        push eax
+        call dword ptr [g_fnFree]
+        add esp, 4
+    f1:
+        mov eax, 0xf
+        push 3
+        push offset g_mintValName
+        lea ecx, [ebp - 0x48]
+        mov dword ptr [ebp - 0x84], eax
+        mov dword ptr [ebp - 0x88], ebx
+        mov byte ptr [ebp - 0x98], bl
+        mov dword ptr [ebp - 0x34], eax
+        mov dword ptr [ebp - 0x38], ebx
+        mov byte ptr [ebp - 0x48], bl
+        call dword ptr [g_fnStrInit]
+        sub esp, 8
+        mov eax, esp
+        mov dword ptr [ebp + 8], esp
+        push 1
+        lea ecx, [ebp - 0x2c]
+        mov byte ptr [ebp - 4], 0x42
+        push ecx
+        mov dword ptr [eax], edi
+        mov dword ptr [eax + 4], esi
+        call dword ptr [g_fnFmtNumber]
+        push eax
+        lea esi, [ebp - 0x48]
+        lea ecx, [ebp - 0x78]
+        mov byte ptr [ebp - 4], 0x43
+        call dword ptr [g_fnFmtReplace]
+        mov edi, 0x10
+        cmp dword ptr [ebp - 0x18], edi
+        jb f2
+        mov edx, dword ptr [ebp - 0x2c]
+        push edx
+        call dword ptr [g_fnFree]
+        add esp, 4
+    f2:
+        mov byte ptr [ebp - 4], 0x41
+        mov dword ptr [ebp - 0x18], 0xf
+        mov dword ptr [ebp - 0x1c], ebx
+        mov byte ptr [ebp - 0x2c], bl
+        cmp dword ptr [ebp - 0x34], edi
+        jb f3
+        mov eax, dword ptr [ebp - 0x48]
+        push eax
+        call dword ptr [g_fnFree]
+        add esp, 4
+    f3:
+        call dword ptr [g_fnLocSingleton]
+        movq xmm0, qword ptr [eax + 0x6c]
+        sub esp, 0x10
+        mov ecx, esp
+        movq qword ptr [ecx], xmm0
+        movq xmm0, qword ptr [eax + 0x74]
+        movq qword ptr [ecx + 8], xmm0
+        lea esi, [ebp - 0x2c]
+        lea ecx, [ebp - 0x78]
+        call dword ptr [g_fnFmtFinish]
+        push -1
+        mov byte ptr [ebp - 4], 0x44
+        mov ecx, dword ptr [ebp + 0xc]
+        push ebx
+        push eax
+        add ecx, 0x1c
+        call dword ptr [g_fnStrAppend]
+        mov byte ptr [ebp - 4], 0x41
+        cmp dword ptr [ebp - 0x18], edi
+        jb f4
+        mov ecx, dword ptr [ebp - 0x2c]
+        push ecx
+        call dword ptr [g_fnFree]
+        add esp, 4
+    f4:
+        mov ecx, dword ptr [ebp + 0xc]
+        push 1
+        push offset g_mintNewline
+        add ecx, 0x1c
+        call dword ptr [g_fnStrAppendChars]
+        lea edi, [ebp - 0x74]
+        mov byte ptr [ebp - 4], 0x45
+        call dword ptr [g_fnListFree]
+        mov eax, dword ptr [ebp - 0x74]
+        cmp eax, ebx
+        je done
+        mov edi, dword ptr [ebp - 0x70]
+        call dword ptr [g_fnListFree2]
+        mov edx, dword ptr [ebp - 0x74]
+        push edx
+        call dword ptr [g_fnFree]
+        add esp, 4
+    done:
+        lea edi, [ebp - 0xac]
+        jmp dword ptr [g_mintTipLineResume]
+    }
+}
+
+static const char g_mintDescKey[] = "BUDGET_MINTING_DESC";
+static DWORD g_fnStrFromCstr, g_fnStrAssign, g_fnStrClear, g_fnFmtFree;
+static DWORD g_mintBoxTipResume = 0;
+static DWORD g_mintBoxTipEnd = 0;
+
+__declspec(noinline) static int __cdecl MintingIsHoveredBox(void* element)
+{
+    if (!element || !g_mintReady)
+        return 0;
+
+    __try
+    {
+        return strcmp(GStrText(VCall0(element, VT_GET_NAME)), "minting_inc") == 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+// Диспетчер подсказок окна бюджета (FUN_00606780): ESI = элемент под
+// курсором, EDI = окно. Сначала один изолированный блок pushad/popad
+// с проверкой имени (результат - в слоте стека, все регистры целы), потом
+// либо клон ветки "текст по ключу" (0x607D21..0x607DA3, ключ свой), либо
+// исходное "cmp [edi+0x16c],esi" и возврат в цепочку сравнений.
+__declspec(naked) static void MintingBoxTipThunk()
+{
+    __asm {
+        push 0
+        pushad
+        push esi
+        call MintingIsHoveredBox
+        add esp, 4
+        mov dword ptr [esp + 0x20], eax
+        popad
+        cmp dword ptr [esp], 0
+        lea esp, [esp + 4]
+        jne mint_tip
+        cmp dword ptr [edi + 0x16c], esi
+        jmp dword ptr [g_mintBoxTipResume]
+    mint_tip:
+        mov edx, offset g_mintDescKey
+        lea esi, [ebp - 0x8c]
+        call dword ptr [g_fnStrFromCstr]
+        mov ecx, esi
+        push ecx
+        lea edx, [ebp - 0x108]
+        push edx
+        mov byte ptr [ebp - 4], 2
+        call dword ptr [g_fnFmtFromKey]
+        mov edi, eax
+        mov byte ptr [ebp - 4], 3
+        call dword ptr [g_fnLocSingleton]
+        movq xmm0, qword ptr [eax + 0x6c]
+        sub esp, 0x10
+        mov ecx, esp
+        movq qword ptr [ecx], xmm0
+        movq xmm0, qword ptr [eax + 0x74]
+        movq qword ptr [ecx + 8], xmm0
+        lea esi, [ebp - 0x6c]
+        mov ecx, edi
+        call dword ptr [g_fnFmtFinish]
+        push -1
+        push 0
+        push eax
+        lea ecx, [ebp - 0x1d0]
+        mov byte ptr [ebp - 4], 4
+        call dword ptr [g_fnStrAssign]
+        mov ecx, esi
+        call dword ptr [g_fnStrClear]
+        lea eax, [ebp - 0x108]
+        push eax
+        mov byte ptr [ebp - 4], 2
+        call dword ptr [g_fnFmtFree]
+        lea ecx, [ebp - 0x8c]
+        jmp dword ptr [g_mintBoxTipEnd]
+    }
+}
+
+typedef void* (__fastcall* tStrAssign)(void* self, void* edx, const void* src, unsigned pos, unsigned n);
+typedef void(__fastcall* tBudgetUpdate)(void* view, void* edx);
+
+static tBudgetUpdate g_origBudgetUpdate = 0;
+static LONG g_mintUiLogged = 0;
+
+static void SetBudgetMintingText(void* view, long long fixedValue)
+{
+    __try
+    {
+        void* container = *(void**)((char*)view + OFF_VIEW_CONTAINER);
+        if (!container)
+            return;
+
+        char nameStore[32];
+        GStr name;
+        MakeStr(&name, nameStore, sizeof(nameStore), "minting_inc");
+        void* box = VCall1(container, VT_FIND_TEXTBOX, &name);
+
+        if (InterlockedIncrement(&g_mintUiLogged) <= 3)
+            Log("Minting: окно бюджета, minting_inc %s, значение %.1f",
+                box ? "найден" : "НЕ найден", (double)fixedValue / 32768.0);
+
+        if (!box)
+            return;
+
+        // 0xA4 - тот же знак валюты, что движок дописывает к числам бюджета
+        // (DAT_00DF830C), шрифт рисует его значком денег.
+        char text[48];
+        _snprintf_s(text, sizeof(text), _TRUNCATE, "%.1f\xA4", (double)fixedValue / 32768.0);
+
+        char textStore[64];
+        GStr str;
+        MakeStr(&str, textStore, sizeof(textStore), text);
+
+        ((tStrAssign)(g_base + RVA_STR_ASSIGN))((char*)box + OFF_TEXTBOX_STR, 0, &str, 0, 0xFFFFFFFFu);
+
+        void* inner = *(void**)((char*)box + OFF_TEXTBOX_INNER);
+        if (!inner)
+            return;
+
+        DWORD fn = g_base + RVA_TEXT_SETTEXT;
+        void* pStr = &str;
+        __asm {
+            push esi
+            push 0
+            push pStr
+            mov esi, inner
+            call fn
+            pop esi
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static void __fastcall BudgetUpdateThunk(void* view, void* edx)
+{
+    g_origBudgetUpdate(view, edx);
+    SetBudgetMintingText(view, MintingFixedFor(GetLocalPlayerCountry()));
+}
+
+// Записывает E9 rel32 + NOP-ы поверх len байт (len >= 5), предварительно
+// проверив sig (первые sigLen байт) и resume-байты.
+static bool WriteJmpSite(DWORD rva, const unsigned char* sig, int sigLen, int len,
+                         DWORD resumeRva, const unsigned char* resumeSig, int resumeSigLen,
+                         void* target, const char* tag)
+{
+    unsigned char* p = (unsigned char*)(g_base + rva);
+    if (memcmp(p, sig, sigLen) != 0 ||
+        memcmp((unsigned char*)(g_base + resumeRva), resumeSig, resumeSigLen) != 0)
+    {
+        Log("%s: сигнатура не совпала rva %06X - не патчим", tag, rva);
+        return false;
+    }
+
+    unsigned char patch[32];
+    memset(patch, 0x90, len);
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)target - ((DWORD)(DWORD_PTR)p + 5);
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(p, len, PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    memcpy(p, patch, len);
+    VirtualProtect(p, len, oldProtect, &oldProtect);
+
+    Log("%s: установлен rva %06X", tag, rva);
+    return true;
+}
+
+static bool InstallMinting()
+{
+    if (!LoadMintingFormula())
+        return false;
+
+    g_fnIsBadReadPtr = SafeIsBadReadPtr;
+
+    unsigned char* call = (unsigned char*)(g_base + RVA_MINT_DAILY_CALL);
+    DWORD expectRel = (g_base + RVA_MINT_DAILY_TARGET) - ((DWORD)(DWORD_PTR)call + 5);
+    if (call[0] != 0xE8 || *(DWORD*)(call + 1) != expectRel)
+    {
+        Log("Minting: сигнатура daily-call не совпала rva %06X (%02X %02X %02X %02X %02X) - minting выключен",
+            RVA_MINT_DAILY_CALL, call[0], call[1], call[2], call[3], call[4]);
+        g_mintReady = false;
+        return false;
+    }
+
+    g_mintDailyOrig = g_base + RVA_MINT_DAILY_TARGET;
+    DWORD rel = (DWORD)(DWORD_PTR)&MintingDailyThunk - ((DWORD)(DWORD_PTR)call + 5);
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(call + 1, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+    {
+        g_mintReady = false;
+        return false;
+    }
+    *(DWORD*)(call + 1) = rel;
+    VirtualProtect(call + 1, 4, oldProtect, &oldProtect);
+    Log("Minting: daily-call подменён rva %06X", RVA_MINT_DAILY_CALL);
+
+    // Сумма фактического дохода: график/текст верхней панели, "вчера", ИИ.
+    unsigned char* act = (unsigned char*)(g_base + RVA_INCOME_ACT_ENTRY);
+    static const unsigned char ACT_TAIL[13] =
+    { 0xC7, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x40, 0x04, 0x00, 0x00, 0x00, 0x00 };
+    static const unsigned char ACT_RESUME[3] = { 0x83, 0xC1, 0x0D };
+    bool actOk = false;
+    if (act[0] == 0x8B && act[1] == 0x0D && memcmp(act + 6, ACT_TAIL, sizeof(ACT_TAIL)) == 0 &&
+        memcmp((unsigned char*)(g_base + RVA_INCOME_ACT_RESUME), ACT_RESUME, sizeof(ACT_RESUME)) == 0)
+    {
+        g_mintIdxVarPtr = *(DWORD*)(act + 2);
+        g_mintActResume = g_base + RVA_INCOME_ACT_RESUME;
+        unsigned char patch[19];
+        memset(patch, 0x90, sizeof(patch));
+        patch[0] = 0xE9;
+        *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&MintingActualIncomeThunk - ((DWORD)(DWORD_PTR)act + 5);
+        if (VirtualProtect(act, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
+        {
+            memcpy(act, patch, sizeof(patch));
+            VirtualProtect(act, sizeof(patch), oldProtect, &oldProtect);
+            actOk = true;
+            Log("Minting income(факт): установлен rva %06X", RVA_INCOME_ACT_ENTRY);
+        }
+    }
+    else
+    {
+        Log("Minting income(факт): сигнатура не совпала rva %06X - не патчим", RVA_INCOME_ACT_ENTRY);
+    }
+
+    // Сумма расчётного дохода: итоги окна бюджета, подсказки, события.
+    static const unsigned char PROJ_SIG[6] = { 0x5F, 0x8B, 0xC6, 0x5B, 0x8B, 0xE5 };
+    static const unsigned char PROJ_RESUME[4] = { 0x5D, 0xC2, 0x08, 0x00 };
+    g_mintProjResume = g_base + RVA_INCOME_PROJ_RESUME;
+    bool projOk = WriteJmpSite(RVA_INCOME_PROJ_EPILOGUE, PROJ_SIG, sizeof(PROJ_SIG), 6,
+        RVA_INCOME_PROJ_RESUME, PROJ_RESUME, sizeof(PROJ_RESUME),
+        (void*)&MintingProjectedIncomeThunk, "Minting income(расчёт)");
+
+    // Строка в подсказке "Общие доходы".
+    g_fnStrInit = g_base + RVA_FN_STR_INIT;
+    g_fnFmtFromKey = g_base + RVA_FN_FMT_FROM_KEY;
+    g_fnFmtNumber = g_base + RVA_FN_FMT_NUMBER;
+    g_fnFmtReplace = g_base + RVA_FN_FMT_REPLACE;
+    g_fnLocSingleton = g_base + RVA_FN_LOC_SINGLETON;
+    g_fnFmtFinish = g_base + RVA_FN_FMT_FINISH;
+    g_fnStrAppend = g_base + RVA_FN_STR_APPEND;
+    g_fnStrAppendChars = g_base + RVA_FN_STR_APPEND_CHARS;
+    g_fnListFree = g_base + RVA_FN_LIST_FREE;
+    g_fnListFree2 = g_base + RVA_FN_LIST_FREE2;
+    g_fnFree = g_base + RVA_FN_FREE;
+    g_mintTipStashResume = g_base + RVA_TIP_STASH_RESUME;
+    g_mintTipLineResume = g_base + RVA_TIP_LINE_RESUME;
+
+    static const unsigned char STASH_SIG[6] = { 0x8B, 0x4D, 0x08, 0x83, 0xEC, 0x08 };
+    static const unsigned char STASH_RESUME[4] = { 0xC6, 0x45, 0xFC, 0x04 };
+    static const unsigned char LINE_SIG[6] = { 0x8D, 0xBD, 0x54, 0xFF, 0xFF, 0xFF };
+    static const unsigned char LINE_RESUME[4] = { 0xC6, 0x45, 0xFC, 0x46 };
+    bool tipOk = false;
+    {
+        unsigned char* stash = (unsigned char*)(g_base + RVA_TIP_STASH_SITE);
+        unsigned char* line = (unsigned char*)(g_base + RVA_TIP_LINE_SITE);
+        if (memcmp(stash, STASH_SIG, sizeof(STASH_SIG)) == 0 && memcmp(line, LINE_SIG, sizeof(LINE_SIG)) == 0)
+        {
+            bool s = WriteJmpSite(RVA_TIP_STASH_SITE, STASH_SIG, sizeof(STASH_SIG), 6,
+                RVA_TIP_STASH_RESUME, STASH_RESUME, sizeof(STASH_RESUME),
+                (void*)&MintingTipStashThunk, "Minting подсказка(запомнить)");
+            if (s)
+                tipOk = WriteJmpSite(RVA_TIP_LINE_SITE, LINE_SIG, sizeof(LINE_SIG), 6,
+                    RVA_TIP_LINE_RESUME, LINE_RESUME, sizeof(LINE_RESUME),
+                    (void*)&MintingTipLineThunk, "Minting подсказка(строка)");
+        }
+        else
+        {
+            Log("Minting подсказка: сигнатуры не совпали - строку не добавляем");
+        }
+    }
+
+    // Подсказка над minting_inc.
+    g_fnStrFromCstr = g_base + RVA_FN_STR_FROM_CSTR;
+    g_fnStrAssign = g_base + RVA_STR_ASSIGN;
+    g_fnStrClear = g_base + RVA_FN_STR_CLEAR;
+    g_fnFmtFree = g_base + RVA_FN_FMT_FREE;
+    g_mintBoxTipResume = g_base + RVA_BOX_TIP_RESUME;
+    g_mintBoxTipEnd = g_base + RVA_BOX_TIP_END;
+    static const unsigned char BOXTIP_SIG[6] = { 0x39, 0xB7, 0x6C, 0x01, 0x00, 0x00 };
+    static const unsigned char BOXTIP_RESUME[2] = { 0x0F, 0x85 };
+    bool boxTipOk = WriteJmpSite(RVA_BOX_TIP_SITE, BOXTIP_SIG, sizeof(BOXTIP_SIG), 6,
+        RVA_BOX_TIP_RESUME, BOXTIP_RESUME, sizeof(BOXTIP_RESUME),
+        (void*)&MintingBoxTipThunk, "Minting подсказка minting_inc");
+
+    // Текст в окне бюджета.
+    bool uiOk = false;
+    void** slot = (void**)(g_base + RVA_BUDGET_VTABLE) + BUDGET_UPDATE_SLOT;
+    if (*slot != (void*)(g_base + RVA_BUDGET_UPDATE_FN))
+    {
+        Log("Minting: слот %d CBudgetView указывает на %p, ожидали %p - minting_inc не пишем",
+            BUDGET_UPDATE_SLOT, *slot, (void*)(g_base + RVA_BUDGET_UPDATE_FN));
+    }
+    else
+    {
+        uiOk = PatchSlot(RVA_BUDGET_VTABLE, BUDGET_UPDATE_SLOT, (void*)&BudgetUpdateThunk, (void**)&g_origBudgetUpdate);
+    }
+
+    Log("Minting: установлен (income факт=%d расчёт=%d, подсказка=%d, minting_inc=%d, подсказка minting_inc=%d)",
+        (int)actOk, (int)projOk, (int)tipOk, (int)uiOk, (int)boxTipOk);
     return true;
 }
 
@@ -15101,6 +16283,9 @@ static bool Install()
 
     if (g_settings.versionLabel)
         InstallVersionLabel();
+
+    if (g_settings.minting)
+        InstallMinting();
 
     if (g_settings.patchCombatRoll)
         InstallCombatRoll();

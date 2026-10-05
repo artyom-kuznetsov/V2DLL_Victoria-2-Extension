@@ -74,6 +74,13 @@ Allows construction of all factories in colonial regions, not just whitelisted (
 #### 10. PROD_TYPE_GATE_EXTRA_WHITELIST=X
 Type in production types separated by comma to allow constructing them in colonial regions, if you do not intend allowing all factories.  
 Can work together with №6.  
+#### 11. ENABLE_MINTING
+Every country gets a new daily income called "minting", calculated from a formula you write in `common\minting.txt` inside your mod folder
+(`formula = industry_score / 100`; variables: `industry_score` (industrial score), `total_population`, or any country variable set with `set_variable` such as `economic_thought_level` (0 if the country does not have it); operators `+ - * /` and parentheses).
+Shown in the budget window in a text box named "minting_inc" (add it to country_budget.gui) and counted in total income, balance, the topbar chart and tooltips
+(for the tooltips add localisation entries `BUDGET_MINTING;Minting: §Y$VAL$§W;X` and `BUDGET_MINTING_DESC;Daily income from minting.;X`).
+The formula is evaluated once a game month per country (so it costs nothing in performance); the resulting daily income is credited every day.
+Without that file the patch does nothing. In multiplayer everybody needs the same file.
   
 ### UI
 #### 1. ENABLE_BUTTONS
