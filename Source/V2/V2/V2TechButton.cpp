@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "4.94"
+#define MOD_VERSION "4.97"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -9145,12 +9145,12 @@ static void __fastcall BudgetUpdateThunk(void* view, void* edx)
     SetBudgetBoxText(view, "minting_inc", MintingFixedFor(player), &g_mintUiLogged);
     if (GoodsConsumptionActive())
     {
-        // Цвет числа: куплено всё - зелёный, не хватило - жёлтый (>= половины) или красный.
+        // Цвет числа: купили всё - обычный (цвет шрифта), не хватило товаров - красный.
         long long paid = 0, required = 0;
         GoodsExpenseDisplay(player, &paid, &required);
         const char* color = 0;
-        if (required > 0)
-            color = (paid * 1000 >= required * 999) ? "\xA7G" : ((paid * 2 >= required) ? "\xA7Y" : "\xA7R");
+        if (required > 0 && paid * 1000 < required * 999)
+            color = "\xA7R";
         SetBudgetBoxText(view, "naval_base_expense", paid, &g_consUiLogged, color);
     }
 }
@@ -9364,8 +9364,10 @@ static bool InstallMinting()
 //    окна бюджета, а также вход в суммы расходов - FUN_0052B5D0 (факт) и
 //    FUN_0052B1C0 (расчёт) и два встроенных вычисления верхней панели.
 //    ВАЖНО: уровень здания провинции хранится в тысячных (1000 = 1-й уровень).
-//    Закупка ограничена рынком и казной: куплено = потребность * min(1,
-//    предложение / спрос) * min(1, казна / стоимость), платим за купленное;
+//    Закупка ограничена рынком и казной: сначала берётся излишек своей страны
+//    (произведено - продано внутри), остаток покупается на мировом рынке:
+//    куплено = (излишек + остаток * min(1, предложение / спрос)) * min(1,
+//    казна / стоимость), платим за купленное;
 //    в строке бюджета число зелёное/жёлтое/красное, в подсказке по каждому
 //    товару "куплено / требуется".
 //    Карточка товара (окно trade_flow, колонка "Использовано") получает строку
@@ -9794,6 +9796,46 @@ static double ConsMarketRatio(char* market, int g)
     return (double)S / (double)D;
 }
 
+// Внутренний рынок страны. Каждая страна ведёт свои "пулы" товаров
+// (в сейве domestic_supply_pool, domestic_demand_pool, actual_sold_domestic,
+// saved_country_supply ...; писатель сейва - 0x501300): у рынка массивы
+// записей по 0x58 байт, индекс = номер страны (country+0x20), в записи байты
+// слотов с +0x08 и вектор int64 (15 дробных бит) с +0x48. Выводы по сейву:
+//   saved_country_supply (market+0x7D4) - то, что страна произвела и предлагает
+//     на внутреннем рынке (у Англии цемент 21.2 при спросе 11.9 и продаже 10.45;
+//     у Пруссии 10.04 = продано 10.04 при спросе 44.4: спрос больше - продаётся
+//     всё);
+//   actual_sold_domestic (market+0x4E4) - продано внутри страны;
+//   domestic_supply_pool (market+0x3F4) - НЕ производство: у стран без своего
+//     рынка везде одинаковое число, у остальных "общее - продано внутри"
+//     (Англия: 12.97 + 10.45 = 23.42 = то же число, что у мелких стран) - не
+//     используется.
+// Не проданное внутри (saved_country_supply - actual_sold_domestic) уходит на
+// экспорт ("EXPORTED_TO_WORLD_MARKET_FOR_NEXT_TURN") - это излишек страны, из
+// которого государство может закупаться, не выходя на мировой рынок.
+static const int OFF_MARKET_DOMESTIC_SUPPLY = 0x7D4;
+static const int OFF_MARKET_DOMESTIC_SOLD   = 0x4E4;
+static const int OFF_MARKET_DOMESTIC_POOL   = 0x3F4;   // domestic_supply_pool (только для лога)
+
+static double ConsCountryHolder(char* market, int arrayOff, int countryIdx, int g)
+{
+    char* base = *(char**)(market + arrayOff);
+    char* end = *(char**)(market + arrayOff + 4);
+    if (!base || end < base || countryIdx < 0 || countryIdx >= (int)((end - base) / 0x58))
+        return 0.0;
+    char* rec = base + countryIdx * 0x58;
+    unsigned slot = *(unsigned char*)(rec + 8 + g);
+    if (slot == 0)
+        return 0.0;
+    char* vec = *(char**)(rec + 0x48);
+    char* vend = *(char**)(rec + 0x4C);
+    if (!vec || vend < vec || (int)slot >= (int)((vend - vec) / 8))
+        return 0.0;
+    return (double)*(long long*)(vec + slot * 8) / 32768.0;
+}
+
+static LONG g_consDomLogged = 0;
+
 struct ConsResult
 {
     long long paid;                  // фактически потрачено (int64, 15 дробных бит)
@@ -9851,17 +9893,32 @@ __declspec(noinline) static void ConsEvaluate(void* country, bool addDemand, Con
         if (!market)
             return;
 
+        // Сначала берём излишек своей страны (произведено минус продано внутри),
+        // остаток - с мирового рынка по доле предложения/спроса.
+        int cidx = *(int*)((char*)country + 0x20);
         double price[CONS_MAX_GOODS];
         double ratio[CONS_MAX_GOODS];
+        double worldPart[CONS_MAX_GOODS];
         double costFull = 0.0, costSupply = 0.0;
         for (int g = 0; g < CONS_MAX_GOODS; ++g)
         {
             price[g] = 0.0;
             ratio[g] = 1.0;
+            worldPart[g] = 0.0;
             if (qty[g] <= 0.0)
                 continue;
             double pr = ConsPriceOf(g);
-            ratio[g] = ConsMarketRatio(market, g);
+            double produced = ConsCountryHolder(market, OFF_MARKET_DOMESTIC_SUPPLY, cidx, g);
+            double soldHere = ConsCountryHolder(market, OFF_MARKET_DOMESTIC_SOLD, cidx, g);
+            double pool = ConsCountryHolder(market, OFF_MARKET_DOMESTIC_POOL, cidx, g);
+            double surplus = produced > soldHere ? produced - soldHere : 0.0;
+            double fromDomestic = surplus < qty[g] ? surplus : qty[g];
+            worldPart[g] = qty[g] - fromDomestic;
+            double world = worldPart[g] > 0.0 ? ConsMarketRatio(market, g) : 1.0;
+            ratio[g] = (fromDomestic + worldPart[g] * world) / qty[g];
+            if (country == GetLocalPlayerCountry() && InterlockedIncrement(&g_consDomLogged) <= 60)
+                Log("GoodsConsumption: страна %d, товар %d: произведено(saved_country_supply) %.2f, продано внутри %.2f, излишек %.2f, domestic_supply_pool %.2f, нужно %.2f, доля купленного %.2f",
+                    cidx, g, produced, soldHere, surplus, pool, qty[g], ratio[g]);
             if (pr > 0.0)
             {
                 price[g] = pr;
@@ -9894,7 +9951,7 @@ __declspec(noinline) static void ConsEvaluate(void* country, bool addDemand, Con
             {
                 unsigned dslot = *(unsigned char*)(market + OFF_MARKET_DEMAND_SLOT + g);
                 if (dslot != 0 && (int)dslot < demandCount)
-                    *(long long*)(demand + dslot * 8) += MintToFixed(qty[g] * afford);
+                    *(long long*)(demand + dslot * 8) += MintToFixed(worldPart[g] * afford);
             }
         }
 
