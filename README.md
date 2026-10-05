@@ -81,6 +81,18 @@ Shown in the budget window in a text box named "minting_inc" (add it to country_
 (for the tooltips add localisation entries `BUDGET_MINTING;Minting: §Y$VAL$§W;X` and `BUDGET_MINTING_DESC;Daily income from minting.;X`).
 The formula is evaluated once a game month per country (so it costs nothing in performance); the resulting daily income is credited every day.
 Without that file the patch does nothing. In multiplayer everybody needs the same file.
+#### 12. ENABLE_GOODS_CONSUMPTION
+Teaches the game the key `goods_consumption = { cement = 5 steel = 5 }` in a building of `common\buildings.txt` (without the patch the vanilla parser mis-reads the block and the game crashes).
+Every such building in a country is "bought" by the state every day: for each province building the country owns, `amount × building level` of every listed good is paid at the **current market price** from the treasury.
+The total is shown in the budget window in the text box `naval_base_expense` (an existing box of `country_budget.gui`, shown with the money sign) and is included in total expenses, balance and the topbar (chart and text).
+The purchase is limited by the market and the treasury: bought = needed × min(1, supply / real demand) × min(1, treasury / cost); you pay only for what was bought. The number in the box is green when everything was bought, yellow/red when not.
+The good's card (the "trade flow" window, shows one country) gets a row in the "Used" column for that country's such buildings (localisation key `GOODS_CONS_NAME_<building>`, e.g. `GOODS_CONS_NAME_naval_base;Naval bases;X`).
+Hover the box to see which goods are bought ("bought / needed"), how many, at what price (names and the three header lines come from your `localisation\*.csv`: keys such as `cement`, `naval_base`, `BUDGET_GOODS_CONS_HEADER`, `BUDGET_GOODS_CONS_LEVELS`, `BUDGET_GOODS_CONS_TOTAL`).
+The amounts are per day per building level.
+The block is **always** read, even with `ENABLE_GOODS_CONSUMPTION=0` (then nothing is bought) - so it is safe to leave `goods_consumption` in the files.
+Only buildings with `province = yes` (e.g. `naval_base`) are counted. Up to 16 goods per building. In multiplayer everybody needs the same buildings.txt.
+#### 13. GOODS_CONSUMPTION_MARKET_DEMAND
+With №12: the bought amounts are also added to the demand of the world market (the same demand the price formula uses), so the state really competes for the goods and prices react. `0` = only money is paid, the market is not touched.
   
 ### UI
 #### 1. ENABLE_BUTTONS

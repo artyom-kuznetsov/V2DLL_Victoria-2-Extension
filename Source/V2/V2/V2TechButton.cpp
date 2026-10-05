@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "4.89"
+#define MOD_VERSION "4.94"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -108,6 +108,15 @@ struct Settings
     // Ежедневный доход "minting" по формуле из <мод>\common\minting.txt
     // (см. InstallMinting). Без файла формулы ничего не делает.
     bool minting                     = true;
+    // Ключ goods_consumption в common\buildings.txt: чтение блока (иначе
+    // игра падает) и ежедневная закупка товаров государством по рыночной
+    // цене для каждого такого здания в стране; сумма - в строке бюджета
+    // naval_base_expense (см. InstallGoodsConsumption). false - блок только
+    // читается, ничего не покупается.
+    bool goodsConsumption            = true;
+    // Прибавлять закупленное к спросу рынка (иначе государство только
+    // платит деньги, цены не двигаются).
+    bool goodsConsumptionDemand      = true;
 
     // Взаимоисключающе с priceDelta (ENABLE_PRICE_DELTA) - оба
     // патчат один и тот же адрес. Если включены оба, побеждает этот.
@@ -4157,6 +4166,8 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PLAYER_BUTTONS") == 0)               { g_settings.playerButtons            = v; return; }
     if (_stricmp(key, "MUSIC_FAIR_RANDOM") == 0)                { g_settings.musicFairRandom             = v; return; }
     if (_stricmp(key, "ENABLE_MINTING") == 0)                   { g_settings.minting                     = v; return; }
+    if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
+    if (_stricmp(key, "GOODS_CONSUMPTION_MARKET_DEMAND") == 0)  { g_settings.goodsConsumptionDemand      = v; return; }
 
     if (_stricmp(key, "COMBAT_ROLL_MIN") == 0) { g_settings.combatRollMin = atoi(value); return; }
     if (_stricmp(key, "COMBAT_ROLL_MAX") == 0) { g_settings.combatRollMax = atoi(value); return; }
@@ -4323,6 +4334,8 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_TECH_NULL_CHECK_FIXES=%d\n"
         "PATCH_SUPPLY_SOURCE_NULL_CHECK=%d\n"
         "ENABLE_MINTING=%d\n"
+        "ENABLE_GOODS_CONSUMPTION=%d\n"
+        "GOODS_CONSUMPTION_MARKET_DEMAND=%d\n"
         "\n",
         (int)FindExePatchEnabled("consciousness_plurality_growth"),
         (int)g_settings.patchCivilizeNullCheck,
@@ -4333,7 +4346,9 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.musicFairRandom,
         (int)g_settings.patchTechNullCheckFixes,
         (int)g_settings.patchSupplySourceNullCheck,
-        (int)g_settings.minting);
+        (int)g_settings.minting,
+        (int)g_settings.goodsConsumption,
+        (int)g_settings.goodsConsumptionDemand);
 
     fprintf(f,
         "; Stability\n"
@@ -8128,7 +8143,8 @@ static bool InstallVersionLabel()
 //  1. Ежедневное начисление. FUN_006859c0 (дневной тик мира) в
 //     однопоточном цикле зовёт FUN_005091a0(страна); та вызывает
 //     FUN_00538200 (сбор дохода с государственных RGO) через
-//     "push ebx; call" на 0x509F74. Подменяем этот call: прибавляем
+//     "push ebx; call" на 0x509F74. Подменяем этот call (общий дневной
+//     хук CountryDailyThunk, он же у GOODS_CONSUMPTION): прибавляем
 //     minting к казне (+0xE78/+0xE7C, int64 с 15 дробными битами)
 //     тем же способом, что сама FUN_00538200, и прыгаем в оригинал.
 //     (+0xE80 - снимок казны на начало дня, его не трогаем.)
@@ -8650,11 +8666,10 @@ static bool LoadMintingFormula()
     return true;
 }
 
-static DWORD g_mintDailyOrig = 0;
 static LONG  g_mintDailyAnyLogged = 0;
 static LONG  g_mintDailyPlayerLogged = 0;
 
-static void __cdecl MintingDailyHook(void* country)
+static void MintingDailyCredit(void* country)
 {
     if (!g_mintReady || !country)
         return;
@@ -8730,21 +8745,6 @@ static void __cdecl MintingDailyHook(void* country)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-    }
-}
-
-// Тот же контракт, что у FUN_00538200 (stdcall, страна в стеке): всё
-// самодостаточно в одном pushad/popad, затем хвостовой прыжок в оригинал.
-__declspec(naked) static void MintingDailyThunk()
-{
-    __asm {
-        pushad
-        mov eax, dword ptr [esp + 0x24]
-        push eax
-        call MintingDailyHook
-        add esp, 4
-        popad
-        jmp dword ptr [g_mintDailyOrig]
     }
 }
 
@@ -8970,19 +8970,33 @@ static DWORD g_fnStrFromCstr, g_fnStrAssign, g_fnStrClear, g_fnFmtFree;
 static DWORD g_mintBoxTipResume = 0;
 static DWORD g_mintBoxTipEnd = 0;
 
+// Подсказка над naval_base_expense (GOODS_CONSUMPTION, см. ниже).
+static bool GoodsConsumptionActive();
+__declspec(noinline) static const GStr* __cdecl GoodsTipBuild();
+
+// Что под курсором: 0 - ничего нашего, 1 - minting_inc, 2 - naval_base_expense.
+// Вид запоминается в g_boxTipKind - его читает тот же thunk чуть дальше.
+static volatile int g_boxTipKind = 0;
+
 __declspec(noinline) static int __cdecl MintingIsHoveredBox(void* element)
 {
-    if (!element || !g_mintReady)
+    g_boxTipKind = 0;
+    if (!element)
         return 0;
 
     __try
     {
-        return strcmp(GStrText(VCall0(element, VT_GET_NAME)), "minting_inc") == 0;
+        const char* nm = GStrText(VCall0(element, VT_GET_NAME));
+        if (g_mintReady && strcmp(nm, "minting_inc") == 0)
+            g_boxTipKind = 1;
+        else if (GoodsConsumptionActive() && strcmp(nm, "naval_base_expense") == 0)
+            g_boxTipKind = 2;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        return 0;
+        g_boxTipKind = 0;
     }
+    return g_boxTipKind;
 }
 
 // Диспетчер подсказок окна бюджета (FUN_00606780): ESI = элемент под
@@ -8990,6 +9004,11 @@ __declspec(noinline) static int __cdecl MintingIsHoveredBox(void* element)
 // с проверкой имени (результат - в слоте стека, все регистры целы), потом
 // либо клон ветки "текст по ключу" (0x607D21..0x607DA3, ключ свой), либо
 // исходное "cmp [edi+0x16c],esi" и возврат в цепочку сравнений.
+// Для naval_base_expense (вид 2) ветка та же, но текст, который она
+// присваивает результату, - не из ключа, а построенный GoodsTipBuild:
+// после FmtFinish EAX (указатель на строку-результат) подменяется
+// указателем на статическую std::string с готовым текстом; остальное
+// (очистка строки-результата, формата) идёт как есть.
 __declspec(naked) static void MintingBoxTipThunk()
 {
     __asm {
@@ -9027,6 +9046,13 @@ __declspec(naked) static void MintingBoxTipThunk()
         lea esi, [ebp - 0x6c]
         mov ecx, edi
         call dword ptr [g_fnFmtFinish]
+        cmp dword ptr [g_boxTipKind], 2
+        jne have_text
+        pushad
+        call GoodsTipBuild
+        mov dword ptr [esp + 0x1C], eax
+        popad
+    have_text:
         push -1
         push 0
         push eax
@@ -9047,10 +9073,17 @@ __declspec(naked) static void MintingBoxTipThunk()
 typedef void* (__fastcall* tStrAssign)(void* self, void* edx, const void* src, unsigned pos, unsigned n);
 typedef void(__fastcall* tBudgetUpdate)(void* view, void* edx);
 
+// GOODS_CONSUMPTION (ниже): строка naval_base_expense окна бюджета.
+static bool GoodsConsumptionActive();
+static void GoodsExpenseDisplay(void* country, long long* paid, long long* required);
+static bool InstallCountryDailyCall();
+
 static tBudgetUpdate g_origBudgetUpdate = 0;
 static LONG g_mintUiLogged = 0;
+static LONG g_consUiLogged = 0;
 
-static void SetBudgetMintingText(void* view, long long fixedValue)
+static void SetBudgetBoxText(void* view, const char* boxName, long long fixedValue, LONG* logCounter,
+                             const char* color = 0)
 {
     __try
     {
@@ -9060,20 +9093,24 @@ static void SetBudgetMintingText(void* view, long long fixedValue)
 
         char nameStore[32];
         GStr name;
-        MakeStr(&name, nameStore, sizeof(nameStore), "minting_inc");
+        MakeStr(&name, nameStore, sizeof(nameStore), boxName);
         void* box = VCall1(container, VT_FIND_TEXTBOX, &name);
 
-        if (InterlockedIncrement(&g_mintUiLogged) <= 3)
-            Log("Minting: окно бюджета, minting_inc %s, значение %.1f",
-                box ? "найден" : "НЕ найден", (double)fixedValue / 32768.0);
+        if (InterlockedIncrement(logCounter) <= 3)
+            Log("Окно бюджета: %s %s, значение %.1f",
+                boxName, box ? "найден" : "НЕ найден", (double)fixedValue / 32768.0);
 
         if (!box)
             return;
 
         // 0xA4 - тот же знак валюты, что движок дописывает к числам бюджета
         // (DAT_00DF830C), шрифт рисует его значком денег.
+        // color - код цвета перед числом (\xA7G/\xA7Y/\xA7R), после - \xA7! (вернуть цвет шрифта).
         char text[48];
-        _snprintf_s(text, sizeof(text), _TRUNCATE, "%.1f\xA4", (double)fixedValue / 32768.0);
+        if (color)
+            _snprintf_s(text, sizeof(text), _TRUNCATE, "%s%.1f\xA4\xA7!", color, (double)fixedValue / 32768.0);
+        else
+            _snprintf_s(text, sizeof(text), _TRUNCATE, "%.1f\xA4", (double)fixedValue / 32768.0);
 
         char textStore[64];
         GStr str;
@@ -9104,7 +9141,18 @@ static void SetBudgetMintingText(void* view, long long fixedValue)
 static void __fastcall BudgetUpdateThunk(void* view, void* edx)
 {
     g_origBudgetUpdate(view, edx);
-    SetBudgetMintingText(view, MintingFixedFor(GetLocalPlayerCountry()));
+    void* player = GetLocalPlayerCountry();
+    SetBudgetBoxText(view, "minting_inc", MintingFixedFor(player), &g_mintUiLogged);
+    if (GoodsConsumptionActive())
+    {
+        // Цвет числа: куплено всё - зелёный, не хватило - жёлтый (>= половины) или красный.
+        long long paid = 0, required = 0;
+        GoodsExpenseDisplay(player, &paid, &required);
+        const char* color = 0;
+        if (required > 0)
+            color = (paid * 1000 >= required * 999) ? "\xA7G" : ((paid * 2 >= required) ? "\xA7Y" : "\xA7R");
+        SetBudgetBoxText(view, "naval_base_expense", paid, &g_consUiLogged, color);
+    }
 }
 
 // Записывает E9 rel32 + NOP-ы поверх len байт (len >= 5), предварительно
@@ -9136,6 +9184,50 @@ static bool WriteJmpSite(DWORD rva, const unsigned char* sig, int sigLen, int le
     return true;
 }
 
+// Хуки окна бюджета, общие для minting и goods_consumption: подсказка над
+// textbox'ами (minting_inc, naval_base_expense) и запись в них текста.
+// Идемпотентно: ставится один раз тем, кто позвал первым.
+static bool g_budgetHooksTried = false;
+static bool g_budgetBoxTipOk = false;
+static bool g_budgetUiOk = false;
+
+static void InstallBudgetWindowHooks()
+{
+    if (g_budgetHooksTried)
+        return;
+    g_budgetHooksTried = true;
+
+    g_fnIsBadReadPtr = SafeIsBadReadPtr;
+    g_fnStrInit = g_base + RVA_FN_STR_INIT;
+    g_fnFmtFromKey = g_base + RVA_FN_FMT_FROM_KEY;
+    g_fnLocSingleton = g_base + RVA_FN_LOC_SINGLETON;
+    g_fnFmtFinish = g_base + RVA_FN_FMT_FINISH;
+    g_fnStrFromCstr = g_base + RVA_FN_STR_FROM_CSTR;
+    g_fnStrAssign = g_base + RVA_STR_ASSIGN;
+    g_fnStrClear = g_base + RVA_FN_STR_CLEAR;
+    g_fnFmtFree = g_base + RVA_FN_FMT_FREE;
+    g_mintBoxTipResume = g_base + RVA_BOX_TIP_RESUME;
+    g_mintBoxTipEnd = g_base + RVA_BOX_TIP_END;
+
+    static const unsigned char BOXTIP_SIG[6] = { 0x39, 0xB7, 0x6C, 0x01, 0x00, 0x00 };
+    static const unsigned char BOXTIP_RESUME[2] = { 0x0F, 0x85 };
+    g_budgetBoxTipOk = WriteJmpSite(RVA_BOX_TIP_SITE, BOXTIP_SIG, sizeof(BOXTIP_SIG), 6,
+        RVA_BOX_TIP_RESUME, BOXTIP_RESUME, sizeof(BOXTIP_RESUME),
+        (void*)&MintingBoxTipThunk, "Окно бюджета: подсказка над textbox'ами");
+
+    void** slot = (void**)(g_base + RVA_BUDGET_VTABLE) + BUDGET_UPDATE_SLOT;
+    if (*slot != (void*)(g_base + RVA_BUDGET_UPDATE_FN))
+    {
+        Log("Окно бюджета: слот %d CBudgetView указывает на %p, ожидали %p - текст в textbox'ы не пишем",
+            BUDGET_UPDATE_SLOT, *slot, (void*)(g_base + RVA_BUDGET_UPDATE_FN));
+    }
+    else
+    {
+        g_budgetUiOk = PatchSlot(RVA_BUDGET_VTABLE, BUDGET_UPDATE_SLOT, (void*)&BudgetUpdateThunk,
+            (void**)&g_origBudgetUpdate);
+    }
+}
+
 static bool InstallMinting()
 {
     if (!LoadMintingFormula())
@@ -9143,27 +9235,14 @@ static bool InstallMinting()
 
     g_fnIsBadReadPtr = SafeIsBadReadPtr;
 
-    unsigned char* call = (unsigned char*)(g_base + RVA_MINT_DAILY_CALL);
-    DWORD expectRel = (g_base + RVA_MINT_DAILY_TARGET) - ((DWORD)(DWORD_PTR)call + 5);
-    if (call[0] != 0xE8 || *(DWORD*)(call + 1) != expectRel)
+    if (!InstallCountryDailyCall())
     {
-        Log("Minting: сигнатура daily-call не совпала rva %06X (%02X %02X %02X %02X %02X) - minting выключен",
-            RVA_MINT_DAILY_CALL, call[0], call[1], call[2], call[3], call[4]);
+        Log("Minting: дневной хук не встал - minting выключен");
         g_mintReady = false;
         return false;
     }
 
-    g_mintDailyOrig = g_base + RVA_MINT_DAILY_TARGET;
-    DWORD rel = (DWORD)(DWORD_PTR)&MintingDailyThunk - ((DWORD)(DWORD_PTR)call + 5);
     DWORD oldProtect = 0;
-    if (!VirtualProtect(call + 1, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
-    {
-        g_mintReady = false;
-        return false;
-    }
-    *(DWORD*)(call + 1) = rel;
-    VirtualProtect(call + 1, 4, oldProtect, &oldProtect);
-    Log("Minting: daily-call подменён rva %06X", RVA_MINT_DAILY_CALL);
 
     // Сумма фактического дохода: график/текст верхней панели, "вчера", ИИ.
     unsigned char* act = (unsigned char*)(g_base + RVA_INCOME_ACT_ENTRY);
@@ -9240,34 +9319,1319 @@ static bool InstallMinting()
         }
     }
 
-    // Подсказка над minting_inc.
-    g_fnStrFromCstr = g_base + RVA_FN_STR_FROM_CSTR;
-    g_fnStrAssign = g_base + RVA_STR_ASSIGN;
-    g_fnStrClear = g_base + RVA_FN_STR_CLEAR;
-    g_fnFmtFree = g_base + RVA_FN_FMT_FREE;
-    g_mintBoxTipResume = g_base + RVA_BOX_TIP_RESUME;
-    g_mintBoxTipEnd = g_base + RVA_BOX_TIP_END;
-    static const unsigned char BOXTIP_SIG[6] = { 0x39, 0xB7, 0x6C, 0x01, 0x00, 0x00 };
-    static const unsigned char BOXTIP_RESUME[2] = { 0x0F, 0x85 };
-    bool boxTipOk = WriteJmpSite(RVA_BOX_TIP_SITE, BOXTIP_SIG, sizeof(BOXTIP_SIG), 6,
-        RVA_BOX_TIP_RESUME, BOXTIP_RESUME, sizeof(BOXTIP_RESUME),
-        (void*)&MintingBoxTipThunk, "Minting подсказка minting_inc");
-
-    // Текст в окне бюджета.
-    bool uiOk = false;
-    void** slot = (void**)(g_base + RVA_BUDGET_VTABLE) + BUDGET_UPDATE_SLOT;
-    if (*slot != (void*)(g_base + RVA_BUDGET_UPDATE_FN))
-    {
-        Log("Minting: слот %d CBudgetView указывает на %p, ожидали %p - minting_inc не пишем",
-            BUDGET_UPDATE_SLOT, *slot, (void*)(g_base + RVA_BUDGET_UPDATE_FN));
-    }
-    else
-    {
-        uiOk = PatchSlot(RVA_BUDGET_VTABLE, BUDGET_UPDATE_SLOT, (void*)&BudgetUpdateThunk, (void**)&g_origBudgetUpdate);
-    }
+    // Подсказки над textbox'ами и текст в окне бюджета (общие с GOODS_CONSUMPTION).
+    InstallBudgetWindowHooks();
+    bool boxTipOk = g_budgetBoxTipOk;
+    bool uiOk = g_budgetUiOk;
 
     Log("Minting: установлен (income факт=%d расчёт=%d, подсказка=%d, minting_inc=%d, подсказка minting_inc=%d)",
         (int)actOk, (int)projOk, (int)tipOk, (int)uiOk, (int)boxTipOk);
+    return true;
+}
+
+
+// ---------------------------------------------------------------
+// GOODS_CONSUMPTION (ENABLE_GOODS_CONSUMPTION) - ключ goods_consumption
+// в common\buildings.txt и ежедневная закупка товаров государством.
+//
+//   naval_base = { ... goods_consumption = { cement = 5 steel = 5 } ... }
+//
+// 1. Чтение. Ваниль не знает ключа goods_consumption и ломается: обработчик
+//    свойств здания (CBuilding, слот 4 = FUN_004D9310) не съедает блок
+//    "{ ... }", поэтому его содержимое разбирается как свойства самого
+//    здания ("cement = 5" - это имя товара, и обработчик присваивает его
+//    зданию), закрывающая "}" преждевременно закрывает здание, а следующие
+//    свойства становятся "новыми зданиями" - позже падение. Слот 4 стоит
+//    сразу в двух vftable: базовом (0xDFDAC0) и производном (0xDFDAF0, его
+//    ставят конструкторы реальных зданий) - подменяем в обоих. Если ключ
+//    (текст токена ctx+0x24) - "goods_consumption", читаем блок сами теми
+//    же вызовами лексера, что и ветки блоков самого FUN_004D9310 (напр.
+//    список 0x2A5): подглядеть токен (флаг lexer+0x110), на "}" (тип 4)
+//    или конце файла (0x13) выйти, иначе FUN_009A1440(ctx) читает
+//    "ключ = значение" в ctx+0x20/+0x124/+0x228; в конце съесть "}". Пары
+//    (товар, количество) кладём в таблицу DLL; любой другой ключ - оригинал.
+//    Чтение включено всегда, даже при ENABLE_GOODS_CONSUMPTION=0 (иначе
+//    блок в buildings.txt снова ронял бы игру).
+// 2. Закупка. Раз в день на страну (общий дневной хук, см. CountryDailyHook)
+//    для каждой провинции страны (country+0x9D8..0x9DC - список id;
+//    провинция = vector[session+0xACC][id]) берём запись здания:
+//    province+0x118 - вектор указателей, индекс = CBuilding+0x134, уровень
+//    = запись+0x20 (так же читает FUN_008CE600). Товары = количество *
+//    уровень; платим по текущей рыночной цене (рынок = [session+0xBCC],
+//    цена товара g - int64 с 15 дробными битами в векторе +0x2C8, слот по
+//    байту +0x288+g) и списываем с казны (+0xE78). Сумма запоминается в кэше
+//    по стране - это и есть строка бюджета: textbox "naval_base_expense"
+//    окна бюджета, а также вход в суммы расходов - FUN_0052B5D0 (факт) и
+//    FUN_0052B1C0 (расчёт) и два встроенных вычисления верхней панели.
+//    ВАЖНО: уровень здания провинции хранится в тысячных (1000 = 1-й уровень).
+//    Закупка ограничена рынком и казной: куплено = потребность * min(1,
+//    предложение / спрос) * min(1, казна / стоимость), платим за купленное;
+//    в строке бюджета число зелёное/жёлтое/красное, в подсказке по каждому
+//    товару "куплено / требуется".
+//    Карточка товара (окно trade_flow, колонка "Использовано") получает строку
+//    на каждое такое здание - см. TradeFlowAppendUsed.
+//    Подсказка над textbox'ом (хук диспетчера подсказок FUN_00606780, общий
+//    с minting_inc) перечисляет здания, товары, количество, цену и итог.
+//    Опционально (GOODS_CONSUMPTION_MARKET_DEMAND, по умолчанию да) то же
+//    количество прибавляется к спросу рынка (вектор +0x218, слот +0x1D8+g
+//    - это "спрос" из формулы цены FUN_00482930: цена тянется к
+//    базовой * спрос / предложение), т.е. государство действительно
+//    скупает товар, а не просто платит деньги в никуда.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_CBUILDING_VTABLE     = 0x9FDAC0;  // VA 0xDFDAC0 (база)
+static const DWORD RVA_CBUILDING_VTABLE2    = 0x9FDAF0;  // VA 0xDFDAF0 (производный, ставится конструкторами зданий)
+static const int   CBUILDING_PROP_SLOT      = 4;
+static const DWORD RVA_CBUILDING_PROP_FN    = 0xD9310;   // FUN_004D9310(this, ctx, keyId), thiscall ret 8
+static const DWORD RVA_PARSER_READ_PROP     = 0x5A1440;  // FUN_009A1440(ctx), ret 4
+static const int   OFF_PARSER_LEXER         = 0x1C;
+static const int   OFF_PARSER_KEY_TEXT      = 0x24;
+static const int   OFF_PARSER_VALUE_TEXT    = 0x22C;
+static const int   OFF_LEXER_PEEK_FLAG      = 0x110;
+static const int   OFF_BUILDING_NAME        = 0x20;
+static const int   OFF_BUILDING_IS_PROVINCE = 0x131;     // province = yes
+static const int   OFF_BUILDING_PROV_INDEX  = 0x134;     // индекс в векторе зданий провинции
+static const int   OFF_SESSION_PROVINCES    = 0xACC;
+static const int   OFF_SESSION_MARKET       = 0xBCC;
+static const int   OFF_COUNTRY_OWNED_LIST   = 0x9D8;     // vector<int> id провинций страны
+static const int   OFF_PROVINCE_BUILDINGS   = 0x118;     // vector<CProvinceBuilding*>
+static const int   OFF_PBUILDING_LEVEL      = 0x20;
+static const int   OFF_MARKET_PRICE_SLOT    = 0x288;     // byte[64] - слот товара в векторе цен
+static const int   OFF_MARKET_PRICES        = 0x2C8;     // vector<int64>
+static const int   OFF_MARKET_DEMAND_SLOT   = 0x1D8;     // byte[64]
+static const int   OFF_MARKET_DEMAND        = 0x218;     // vector<int64>
+static const int   CONS_MAX_GOODS           = 64;        // размер таблиц слотов рынка
+
+static const DWORD RVA_EXP_ACT_SEED         = 0x12B5E1;  // FUN_0052B5D0: обнуление накопителя (18 байт)
+static const DWORD RVA_EXP_ACT_RESUME       = 0x12B5F3;  // mov edx,0xB
+static const DWORD RVA_EXP_PROJ_EPILOGUE    = 0x12B354;  // FUN_0052B1C0: pop edi; pop esi; mov eax,ebx; pop ebx
+static const DWORD RVA_EXP_PROJ_RESUME      = 0x12B359;  // mov esp,ebp
+static const DWORD RVA_TOPBAR_HIST_SITE     = 0x30E859;  // график верхней панели: mov edx,[esp+0x40]; sub edx,eax
+static const DWORD RVA_TOPBAR_HIST_RESUME   = 0x30E85F;
+static const DWORD RVA_TOPBAR_TEXT_SITE     = 0x30F3A4;  // текст "доход" верхней панели: sub ecx,esi; mov esi,[ebp-0xD8]; sbb esi,eax
+static const DWORD RVA_TOPBAR_TEXT_RESUME   = 0x30F3AE;
+
+struct ConsGood { char name[40]; double amount; int index; };   // index: -2 не искали, -1 нет такого товара
+struct ConsBuilding { void* type; char name[48]; int count; ConsGood goods[16]; };
+
+static ConsBuilding g_consBuildings[24];
+static int  g_consBuildingCount = 0;
+static bool g_consResolved = false;
+static bool g_consDemand = false;
+static bool g_consActive = false;        // включены закупка/расходы/строка бюджета
+static LONG g_consLevelLogged = 0;
+static LONG g_consDailyLogged = 0;
+
+static double ConsParseNumber(const char* s)
+{
+    while (*s == ' ' || *s == '\t')
+        ++s;
+    bool neg = false;
+    if (*s == '-')
+    {
+        neg = true;
+        ++s;
+    }
+    double v = 0.0;
+    while (*s >= '0' && *s <= '9')
+        v = v * 10.0 + (*s++ - '0');
+    if (*s == '.')
+    {
+        ++s;
+        double scale = 0.1;
+        while (*s >= '0' && *s <= '9')
+        {
+            v += (*s++ - '0') * scale;
+            scale *= 0.1;
+        }
+    }
+    return neg ? -v : v;
+}
+
+static ConsBuilding* ConsFindOrCreate(void* type)
+{
+    for (int i = 0; i < g_consBuildingCount; ++i)
+    {
+        if (g_consBuildings[i].type == type)
+            return &g_consBuildings[i];
+    }
+
+    const char* nm = GStrText((char*)type + OFF_BUILDING_NAME);
+
+    // То же здание после перезагрузки данных: новый объект - берём старую запись.
+    for (int i = 0; i < g_consBuildingCount; ++i)
+    {
+        if (_stricmp(g_consBuildings[i].name, nm) == 0)
+        {
+            g_consBuildings[i].type = type;
+            g_consBuildings[i].count = 0;
+            return &g_consBuildings[i];
+        }
+    }
+
+    if (g_consBuildingCount >= (int)(sizeof(g_consBuildings) / sizeof(g_consBuildings[0])))
+        return 0;
+
+    ConsBuilding& cb = g_consBuildings[g_consBuildingCount++];
+    memset(&cb, 0, sizeof(cb));
+    cb.type = type;
+    strncpy_s(cb.name, sizeof(cb.name), nm, _TRUNCATE);
+    return &cb;
+}
+
+typedef int(__fastcall* tLexNext)(void* self, void* edx);
+typedef void(__stdcall* tReadProperty)(void* ctx);
+typedef void(__fastcall* tBuildingProp)(void* self, void* edx, void* ctx, int keyId);
+
+static tBuildingProp g_origBuildingProp = 0;
+
+// Тот же цикл, что в ветках блоков самого обработчика, но элементы -
+// пары "ключ = значение" (их читает FUN_009A1440, как общий разбор блока).
+static void ParseGoodsConsumptionBlock(void* self, void* ctx)
+{
+    char* c = (char*)ctx;
+    int* lexer = *(int**)(c + OFF_PARSER_LEXER);
+    tLexNext next = (tLexNext)(*(void***)lexer)[1];
+    tReadProperty readProp = (tReadProperty)(g_base + RVA_PARSER_READ_PROP);
+
+    ConsBuilding* cb = ConsFindOrCreate(self);
+    if (cb)
+        cb->count = 0;
+
+    for (int guard = 0; guard < 256; ++guard)
+    {
+        if (*((char*)lexer + OFF_LEXER_PEEK_FLAG) == 0)
+        {
+            int r = next(lexer, 0);
+            lexer[2] = r;
+            if (r == 0)
+                lexer[3] = 0x13;
+            *((char*)lexer + OFF_LEXER_PEEK_FLAG) = 1;
+        }
+
+        int type = lexer[3];
+        if (type == 4 || type == 0x13)
+            break;
+
+        readProp(ctx);
+
+        if (!cb || cb->count >= (int)(sizeof(cb->goods) / sizeof(cb->goods[0])))
+            continue;
+
+        const char* goodName = c + OFF_PARSER_KEY_TEXT;
+        double amount = ConsParseNumber(c + OFF_PARSER_VALUE_TEXT);
+        if (!goodName[0] || amount <= 0.0)
+            continue;
+
+        ConsGood* g = 0;
+        for (int i = 0; i < cb->count; ++i)
+        {
+            if (_stricmp(cb->goods[i].name, goodName) == 0)
+            {
+                g = &cb->goods[i];
+                break;
+            }
+        }
+        if (!g)
+            g = &cb->goods[cb->count++];
+        strncpy_s(g->name, sizeof(g->name), goodName, _TRUNCATE);
+        g->amount = amount;
+        g->index = -2;
+    }
+
+    next(lexer, 0);   // съесть закрывающую "}"
+
+    g_consResolved = false;
+    if (cb)
+    {
+        Log("GoodsConsumption: здание '%s': %d товаров в goods_consumption", cb->name, cb->count);
+        for (int i = 0; i < cb->count; ++i)
+            Log("GoodsConsumption:   %s = %.3f", cb->goods[i].name, cb->goods[i].amount);
+    }
+}
+
+static void __fastcall BuildingPropThunk(void* self, void* edx, void* ctx, int keyId)
+{
+    bool mine = false;
+    __try
+    {
+        mine = (strcmp((const char*)ctx + OFF_PARSER_KEY_TEXT, "goods_consumption") == 0);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        mine = false;
+    }
+
+    if (mine)
+    {
+        ParseGoodsConsumptionBlock(self, ctx);
+        return;
+    }
+
+    g_origBuildingProp(self, edx, ctx, keyId);
+}
+
+static void ConsResolveGoods()
+{
+    __try
+    {
+        char* mgr = *(char**)(g_base + RVA_GOODS_MANAGER);
+        if (!mgr)
+            return;
+        int* b = *(int**)(mgr + 0xC);
+        int* e = *(int**)(mgr + 0x10);
+        int n = (int)(e - b);
+        if (!b || n <= 0)
+            return;
+        if (n > CONS_MAX_GOODS)
+            n = CONS_MAX_GOODS;
+
+        for (int bi = 0; bi < g_consBuildingCount; ++bi)
+        {
+            for (int k = 0; k < g_consBuildings[bi].count; ++k)
+            {
+                ConsGood& g = g_consBuildings[bi].goods[k];
+                g.index = -1;
+                for (int i = 0; i < n; ++i)
+                {
+                    const char* nm = ResolveGoodNameByIndex(i);
+                    if (nm && _stricmp(nm, g.name) == 0)
+                    {
+                        g.index = i;
+                        break;
+                    }
+                }
+                if (g.index < 0)
+                    Log("GoodsConsumption: товар '%s' (здание '%s') не найден среди %d товаров - пропускаем",
+                        g.name, g_consBuildings[bi].name, n);
+            }
+        }
+        g_consResolved = true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Суммарный уровень каждого описанного здания в стране, в ТЫСЯЧНЫХ
+// (rawSum[i] - для g_consBuildings[i]). Уровень здания провинции движок
+// хранит целым в тысячных: 1000 = 1-й уровень (в логе 4.90 было видно
+// "уровень 1000"; 4.90 принимала это за сам уровень, и всё стоило в 1000
+// раз больше). Суммируем сырые целые - точно и одинаково у всех клиентов.
+// Возвращает false, если подходящих зданий нет.
+static bool ConsScanLevels(void* country, long long* rawSum)
+{
+    for (int i = 0; i < 24; ++i)
+        rawSum[i] = 0;
+
+    if (g_consBuildingCount == 0 || !country)
+        return false;
+
+    __try
+    {
+        char* session = *(char**)(g_base + RVA_WORLD_PTR);
+        if (!session)
+            return false;
+
+        char** provs = *(char***)(session + OFF_SESSION_PROVINCES);
+        DWORD* ids = *(DWORD**)((char*)country + OFF_COUNTRY_OWNED_LIST);
+        DWORD* idsEnd = *(DWORD**)((char*)country + OFF_COUNTRY_OWNED_LIST + 4);
+        if (!provs || !ids || idsEnd < ids || (idsEnd - ids) > 20000)
+            return false;
+
+        // Описание здания актуально, если объект ещё называется так же
+        // (указатель мог достаться другому зданию после перезагрузки данных)
+        // и это здание провинции; provIdx - его место в векторе зданий провинции.
+        int provIdx[24];
+        bool live = false;
+        for (int i = 0; i < g_consBuildingCount; ++i)
+        {
+            ConsBuilding& cb = g_consBuildings[i];
+            provIdx[i] = -1;
+            char* t = (char*)cb.type;
+            if (!t || cb.count == 0)
+                continue;
+            if (_stricmp(GStrText(t + OFF_BUILDING_NAME), cb.name) != 0)
+                continue;
+            if (*(unsigned char*)(t + OFF_BUILDING_IS_PROVINCE) == 0)
+                continue;
+            int idx = *(int*)(t + OFF_BUILDING_PROV_INDEX);
+            if (idx < 0 || idx > 255)
+                continue;
+            provIdx[i] = idx;
+            live = true;
+        }
+        if (!live)
+            return false;
+
+        bool any = false;
+        for (DWORD* p = ids; p < idsEnd; ++p)
+        {
+            DWORD id = *p;
+            if (id >= 20000)
+                continue;
+            char* prov = provs[id];
+            if (!prov)
+                continue;
+
+            char** vb = *(char***)(prov + OFF_PROVINCE_BUILDINGS);
+            char** ve = *(char***)(prov + OFF_PROVINCE_BUILDINGS + 4);
+            if (!vb || ve < vb)
+                continue;
+            int vcount = (int)(ve - vb);
+
+            for (int i = 0; i < g_consBuildingCount; ++i)
+            {
+                int idx = provIdx[i];
+                if (idx < 0 || idx >= vcount)
+                    continue;
+                char* inst = vb[idx];
+                if (!inst)
+                    continue;
+
+                int raw = *(int*)(inst + OFF_PBUILDING_LEVEL);
+                if (raw <= 0)
+                    continue;
+                if (raw > 1000000)
+                {
+                    if (InterlockedIncrement(&g_consLevelLogged) <= 5)
+                        Log("GoodsConsumption: '%s' в провинции %u: странный уровень %d - пропускаем",
+                            g_consBuildings[i].name, (unsigned)id, raw);
+                    continue;
+                }
+
+                if (InterlockedIncrement(&g_consLevelLogged) <= 5)
+                    Log("GoodsConsumption: '%s' в провинции %u, сырой уровень %d = %.3f",
+                        g_consBuildings[i].name, (unsigned)id, raw, (double)raw / 1000.0);
+
+                rawSum[i] += raw;
+                any = true;
+            }
+        }
+        return any;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+// Текущая рыночная цена товара (фунтов за единицу) или -1, если у товара
+// на рынке нет цены.
+static double ConsPriceOf(int g)
+{
+    if (g < 0 || g >= CONS_MAX_GOODS)
+        return -1.0;
+    __try
+    {
+        char* session = *(char**)(g_base + RVA_WORLD_PTR);
+        if (!session)
+            return -1.0;
+        char* market = *(char**)(session + OFF_SESSION_MARKET);
+        if (!market)
+            return -1.0;
+        char* prices = *(char**)(market + OFF_MARKET_PRICES);
+        char* pricesEnd = *(char**)(market + OFF_MARKET_PRICES + 4);
+        if (!prices || pricesEnd < prices)
+            return -1.0;
+        unsigned slot = *(unsigned char*)(market + OFF_MARKET_PRICE_SLOT + g);
+        if (slot == 0 || (int)slot >= (int)((pricesEnd - prices) / 8))
+            return -1.0;
+        long long price = *(long long*)(prices + slot * 8);
+        return price > 0 ? (double)price / 32768.0 : -1.0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1.0;
+    }
+}
+
+// Сколько спроса на товар рынок может покрыть предложением: min(1, предложение /
+// реальный спрос) - то же отношение, из которого FUN_00482930 считает цену (там
+// реальный спрос делится на предложение), и по той же схеме Vic2 делит
+// нехватку между всеми покупателями (в сейве: supply_pool, real_demand,
+// demand, actual_sold; у cotton предложение 40 > спрос 31 - продано 31, у
+// ammunition предложение 32 < спрос 44 - продано 34). Векторы - "держатели"
+// товаров рынка (байты слотов + вектор int64, 15 дробных бит, слот 0 -
+// "нет записи"): real_demand = market+0x218 (слоты +0x1D8+товар; этот же
+// вектор пополняет FUN_00487410 для государственных закупок, масштабируя по
+// казне), предложение supply = market+0x50 (слоты +0x10+товар; в отладочном
+// выводе рынка " supply: "); обычный спрос demand - market+0x1C0 (слоты
+// +0x180), его мы не трогаем. В дневном тике страны там ещё итоги прошлого
+// обновления рынка (рынок обновляется один раз за день после тиков стран), так
+// что у всех стран и у всех клиентов один и тот же срез.
+static const int OFF_MARKET_SUPPLY_SLOT = 0x10;
+static const int OFF_MARKET_SUPPLY      = 0x50;
+
+static LONG g_consRatioLogged = 0;
+
+static double ConsMarketRatio(char* market, int g)
+{
+    char* dv = *(char**)(market + OFF_MARKET_DEMAND);
+    char* dvEnd = *(char**)(market + OFF_MARKET_DEMAND + 4);
+    unsigned sD = *(unsigned char*)(market + OFF_MARKET_DEMAND_SLOT + g);
+    long long D = 0;
+    if (dv && dvEnd >= dv && sD != 0 && (int)sD < (int)((dvEnd - dv) / 8))
+        D = *(long long*)(dv + sD * 8);
+    if (D <= 0)
+        return 1.0;
+
+    char* sv = *(char**)(market + OFF_MARKET_SUPPLY);
+    char* svEnd = *(char**)(market + OFF_MARKET_SUPPLY + 4);
+    unsigned sS = *(unsigned char*)(market + OFF_MARKET_SUPPLY_SLOT + g);
+    long long S = 0;
+    if (sv && svEnd >= sv && sS != 0 && (int)sS < (int)((svEnd - sv) / 8))
+        S = *(long long*)(sv + sS * 8);
+
+    if (InterlockedIncrement(&g_consRatioLogged) <= 8)
+        Log("GoodsConsumption: рынок, товар %d: спрос %.1f, предложение %.1f", g,
+            (double)D / 32768.0, (double)S / 32768.0);
+
+    if (S <= 0)
+        return 0.0;
+    if (S >= D)
+        return 1.0;
+    return (double)S / (double)D;
+}
+
+struct ConsResult
+{
+    long long paid;                  // фактически потрачено (int64, 15 дробных бит)
+    long long required;              // полная потребность по текущим ценам
+    long long raw[24];               // суммы уровней по зданиям (в тысячных)
+    double    frac[CONS_MAX_GOODS];  // какая доля потребности по товару куплена
+};
+
+// Закупка страны за день: потребность по каждому товару (количество * уровень),
+// доля, которую рынок может покрыть, и доля, на которую хватает казны (как у
+// государственных закупок движка - FUN_00487410 масштабирует их по казне);
+// платим только за купленное. addDemand - ещё и спрос рынка (потребность *
+// доля по казне, как у FUN_00487410).
+__declspec(noinline) static void ConsEvaluate(void* country, bool addDemand, ConsResult* r)
+{
+    memset(r, 0, sizeof(*r));
+    for (int g = 0; g < CONS_MAX_GOODS; ++g)
+        r->frac[g] = 1.0;
+
+    if (g_consBuildingCount == 0 || !country)
+        return;
+
+    if (!g_consResolved)
+        ConsResolveGoods();
+
+    if (!ConsScanLevels(country, r->raw))
+        return;
+
+    __try
+    {
+        double qty[CONS_MAX_GOODS];
+        memset(qty, 0, sizeof(qty));
+        bool any = false;
+        for (int i = 0; i < g_consBuildingCount; ++i)
+        {
+            if (r->raw[i] <= 0)
+                continue;
+            double levels = (double)r->raw[i] / 1000.0;
+            ConsBuilding& cb = g_consBuildings[i];
+            for (int k = 0; k < cb.count; ++k)
+            {
+                int gi = cb.goods[k].index;
+                if (gi >= 0 && gi < CONS_MAX_GOODS)
+                {
+                    qty[gi] += cb.goods[k].amount * levels;
+                    any = true;
+                }
+            }
+        }
+        if (!any)
+            return;
+
+        char* session = *(char**)(g_base + RVA_WORLD_PTR);
+        char* market = session ? *(char**)(session + OFF_SESSION_MARKET) : 0;
+        if (!market)
+            return;
+
+        double price[CONS_MAX_GOODS];
+        double ratio[CONS_MAX_GOODS];
+        double costFull = 0.0, costSupply = 0.0;
+        for (int g = 0; g < CONS_MAX_GOODS; ++g)
+        {
+            price[g] = 0.0;
+            ratio[g] = 1.0;
+            if (qty[g] <= 0.0)
+                continue;
+            double pr = ConsPriceOf(g);
+            ratio[g] = ConsMarketRatio(market, g);
+            if (pr > 0.0)
+            {
+                price[g] = pr;
+                costFull += qty[g] * pr;
+                costSupply += qty[g] * ratio[g] * pr;
+            }
+        }
+
+        double afford = 1.0;
+        if (costSupply > 0.0)
+        {
+            double money = (double)*(long long*)((char*)country + OFF_COUNTRY_MONEY) / 32768.0;
+            afford = money <= 0.0 ? 0.0 : (money >= costSupply ? 1.0 : money / costSupply);
+        }
+
+        char* demand = *(char**)(market + OFF_MARKET_DEMAND);
+        char* demandEnd = *(char**)(market + OFF_MARKET_DEMAND + 4);
+        int demandCount = (demand && demandEnd >= demand) ? (int)((demandEnd - demand) / 8) : 0;
+
+        double paid = 0.0;
+        for (int g = 0; g < CONS_MAX_GOODS; ++g)
+        {
+            if (qty[g] <= 0.0)
+                continue;
+            double f = ratio[g] * afford;
+            r->frac[g] = f;
+            paid += qty[g] * f * price[g];
+
+            if (addDemand && demandCount > 0)
+            {
+                unsigned dslot = *(unsigned char*)(market + OFF_MARKET_DEMAND_SLOT + g);
+                if (dslot != 0 && (int)dslot < demandCount)
+                    *(long long*)(demand + dslot * 8) += MintToFixed(qty[g] * afford);
+            }
+        }
+
+        r->paid = MintToFixed(paid);
+        r->required = MintToFixed(costFull);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Кэш последнего дневного расхода по стране (то, что видят интерфейс и суммы).
+struct ExpSlot
+{
+    void*     country;
+    long long value;                 // потрачено
+    long long required;              // потребность по полной
+    long long raw[24];               // суммы уровней по зданиям
+    double    frac[CONS_MAX_GOODS];  // доля выполнения по товару
+};
+static ExpSlot g_expSlots[MINT_SLOTS];
+
+static ExpSlot* ExpFindSlot(void* country, bool create)
+{
+    unsigned h = ((unsigned)(DWORD_PTR)country >> 4) * 2654435761u;
+    for (int i = 0; i < MINT_SLOTS; ++i)
+    {
+        ExpSlot& sl = g_expSlots[(h + i) & (MINT_SLOTS - 1)];
+        if (sl.country == country)
+            return &sl;
+        if (!sl.country)
+        {
+            if (!create)
+                return 0;
+            sl.country = country;
+            sl.value = 0;
+            sl.required = 0;
+            memset(sl.raw, 0, sizeof(sl.raw));
+            for (int g = 0; g < CONS_MAX_GOODS; ++g)
+                sl.frac[g] = 1.0;
+            return &sl;
+        }
+    }
+    return 0;
+}
+
+// ---- текст подсказки над naval_base_expense ----
+//
+// Названия зданий/товаров и заголовки берём из localisation\*.csv мода
+// (формат "KEY;Текст;X", cp1251, как в самой игре; байты идут в
+// подсказку как есть), потом - из localisation\ игры; нет ключа - ASCII-
+// запасной вариант (сам ключ / английский текст). Ищем один раз на ключ.
+
+struct ConsLocEntry { char key[48]; char text[128]; };
+static ConsLocEntry g_consLoc[64];
+static int g_consLocCount = 0;
+
+static bool ConsLocScanFile(const char* path, const char* key, char* out, size_t outSize)
+{
+    HANDLE h = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+
+    bool found = false;
+    DWORD size = GetFileSize(h, 0);
+    if (size != INVALID_FILE_SIZE && size > 0 && size < 48u * 1024u * 1024u)
+    {
+        char* buf = (char*)HeapAlloc(GetProcessHeap(), 0, (SIZE_T)size + 1);
+        if (buf)
+        {
+            DWORD got = 0;
+            if (ReadFile(h, buf, size, &got, 0))
+            {
+                buf[got] = 0;
+                size_t klen = strlen(key);
+                for (char* line = buf; *line; )
+                {
+                    if (_strnicmp(line, key, klen) == 0 && line[klen] == ';')
+                    {
+                        const char* t = line + klen + 1;
+                        size_t n = 0;
+                        while (*t && *t != ';' && *t != '\r' && *t != '\n' && n < outSize - 1)
+                            out[n++] = *t++;
+                        out[n] = 0;
+                        found = n > 0;
+                        break;
+                    }
+                    while (*line && *line != '\n')
+                        ++line;
+                    if (*line)
+                        ++line;
+                }
+            }
+            HeapFree(GetProcessHeap(), 0, buf);
+        }
+    }
+    CloseHandle(h);
+    return found;
+}
+
+static bool ConsLocScanDir(const char* dir, const char* key, char* out, size_t outSize)
+{
+    char pattern[MAX_PATH + 16];
+    _snprintf_s(pattern, sizeof(pattern), _TRUNCATE, "%s\\*.csv", dir);
+
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+
+    bool found = false;
+    do
+    {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+        char path[MAX_PATH + 16];
+        _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\%s", dir, fd.cFileName);
+        if (ConsLocScanFile(path, key, out, outSize))
+        {
+            found = true;
+            break;
+        }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+    return found;
+}
+
+static const char* ConsLoc(const char* key, const char* fallback)
+{
+    for (int i = 0; i < g_consLocCount; ++i)
+    {
+        if (_stricmp(g_consLoc[i].key, key) == 0)
+            return g_consLoc[i].text;
+    }
+
+    char found[128];
+    bool ok = false;
+    char folder[MAX_PATH];
+    if (ResolveModFolder(folder, sizeof(folder)))
+    {
+        char dir[MAX_PATH + 16];
+        _snprintf_s(dir, sizeof(dir), _TRUNCATE, "%s\\localisation", folder);
+        ok = ConsLocScanDir(dir, key, found, sizeof(found));
+    }
+    if (!ok)
+        ok = ConsLocScanDir("localisation", key, found, sizeof(found));
+
+    if (!fallback)
+        fallback = "?";
+    if (g_consLocCount >= (int)(sizeof(g_consLoc) / sizeof(g_consLoc[0])))
+        return ok ? "?" : fallback;
+
+    ConsLocEntry& e = g_consLoc[g_consLocCount++];
+    strncpy_s(e.key, sizeof(e.key), key, _TRUNCATE);
+    strncpy_s(e.text, sizeof(e.text), ok ? found : fallback, _TRUNCATE);
+    Log("GoodsConsumption: локализация '%s' -> %s", e.key, ok ? "найдена в csv" : "нет, запасной текст");
+    return e.text;
+}
+
+static char g_consTipText[2048];
+static char g_consTipStore[2048];
+static GStr g_consTipStr;
+
+static void ConsTipAppend(const char* fmt, ...)
+{
+    size_t len = strlen(g_consTipText);
+    if (len >= sizeof(g_consTipText) - 1)
+        return;
+    va_list ap;
+    va_start(ap, fmt);
+    _vsnprintf_s(g_consTipText + len, sizeof(g_consTipText) - len, _TRUNCATE, fmt, ap);
+    va_end(ap);
+}
+
+static void ConsFmtNum(char* out, size_t n, double v)
+{
+    if (v == (double)(long long)v)
+        _snprintf_s(out, n, _TRUNCATE, "%lld", (long long)v);
+    else
+        _snprintf_s(out, n, _TRUNCATE, "%.1f", v);
+}
+
+// Для сумм расходов (в том числе ИИ): только кэш дневного тика, одинаков
+// у всех клиентов.
+__declspec(noinline) static long long __cdecl GoodsExpenseFixedFor(void* country)
+{
+    if (!g_consActive || !country)
+        return 0;
+    ExpSlot* sl = ExpFindSlot(country, false);
+    return sl ? sl->value : 0;
+}
+
+__declspec(noinline) static long long __cdecl GoodsExpensePlayer()
+{
+    return GoodsExpenseFixedFor(GetLocalPlayerCountry());
+}
+
+// Для строки окна бюджета: до первого дневного тика кэша ещё нет, тогда
+// просто считаем (без записи и без спроса рынка).
+static bool GoodsConsumptionActive()
+{
+    return g_consActive && g_consBuildingCount > 0;
+}
+
+static void GoodsExpenseDisplay(void* country, long long* paid, long long* required)
+{
+    *paid = 0;
+    *required = 0;
+    if (!GoodsConsumptionActive() || !country)
+        return;
+    ExpSlot* sl = ExpFindSlot(country, false);
+    if (sl)
+    {
+        *paid = sl->value;
+        *required = sl->required;
+        return;
+    }
+    ConsResult r;
+    ConsEvaluate(country, false, &r);
+    *paid = r.paid;
+    *required = r.required;
+}
+
+static void GoodsConsumptionDaily(void* country)
+{
+    if (!GoodsConsumptionActive() || !country)
+        return;
+
+    __try
+    {
+        static int s_lastHours = 0;
+        static bool s_timeKnown = false;
+        int hours = 0, monthKey = 0;
+        if (MintingTimeNow(&hours, &monthKey))
+        {
+            if (s_timeKnown && hours != s_lastHours && hours != s_lastHours + 24)
+                memset(g_expSlots, 0, sizeof(g_expSlots));
+            s_lastHours = hours;
+            s_timeKnown = true;
+        }
+
+        ConsResult r;
+        ConsEvaluate(country, g_consDemand, &r);
+
+        ExpSlot* sl = ExpFindSlot(country, true);
+        if (sl)
+        {
+            sl->value = r.paid;
+            sl->required = r.required;
+            memcpy(sl->raw, r.raw, sizeof(sl->raw));
+            memcpy(sl->frac, r.frac, sizeof(sl->frac));
+        }
+        if (r.paid <= 0)
+            return;
+
+        unsigned* lo = (unsigned*)((char*)country + OFF_COUNTRY_MONEY);
+        unsigned* hi = (unsigned*)((char*)country + OFF_COUNTRY_MONEY + 4);
+        unsigned long long cur = ((unsigned long long)*hi << 32) | *lo;
+        cur -= (unsigned long long)r.paid;
+        *lo = (unsigned)cur;
+        *hi = (unsigned)(cur >> 32);
+
+        if (country == GetLocalPlayerCountry() && InterlockedIncrement(&g_consDailyLogged) <= 5)
+            Log("GoodsConsumption: день, страна игрока %p, куплено на %.2f из %.2f (казна %.1f)",
+                country, (double)r.paid / 32768.0, (double)r.required / 32768.0,
+                (double)(long long)cur / 32768.0);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Для подсказки окна бюджета (вызывается из MintingBoxTipThunk, kind 2):
+// std::string движка с готовым текстом лежит в статическом буфере - движок
+// только копирует её в свою строку. Цвета: \xA7Y жёлтый, \xA7G зелёный, \xA7R
+// красный, \xA7W белый; \xA4 - знак денег. По каждому товару: куплено /
+// требуется (доля из дневного кэша игрока) и цена.
+__declspec(noinline) static const GStr* __cdecl GoodsTipBuild()
+{
+    g_consTipText[0] = 0;
+    __try
+    {
+        void* country = GetLocalPlayerCountry();
+        if (!g_consResolved)
+            ConsResolveGoods();
+
+        long long rawSum[24];
+        bool any = ConsScanLevels(country, rawSum);
+        ExpSlot* slot = ExpFindSlot(country, false);
+
+        ConsTipAppend("\xA7Y%s\xA7W", ConsLoc("BUDGET_GOODS_CONS_HEADER", "Goods bought for buildings"));
+
+        double paid = 0.0, full = 0.0;
+        for (int i = 0; any && i < g_consBuildingCount; ++i)
+        {
+            if (rawSum[i] <= 0)
+                continue;
+
+            ConsBuilding& cb = g_consBuildings[i];
+            double levels = (double)rawSum[i] / 1000.0;
+            char lv[32];
+            ConsFmtNum(lv, sizeof(lv), levels);
+            ConsTipAppend("\n\n\xA7Y%s\xA7W (%s: %s)", ConsLoc(cb.name, cb.name),
+                ConsLoc("BUDGET_GOODS_CONS_LEVELS", "levels"), lv);
+
+            for (int k = 0; k < cb.count; ++k)
+            {
+                ConsGood& g = cb.goods[k];
+                if (g.index < 0)
+                    continue;
+                double need = g.amount * levels;
+                double f = slot ? slot->frac[g.index] : 1.0;
+                double bought = need * f;
+                double price = ConsPriceOf(g.index);
+                if (price < 0.0)
+                    price = 0.0;
+                full += need * price;
+                paid += bought * price;
+
+                char ns[32], bs[32];
+                ConsFmtNum(ns, sizeof(ns), need);
+                ConsFmtNum(bs, sizeof(bs), bought);
+                char col = f >= 0.999 ? 'G' : (f >= 0.5 ? 'Y' : 'R');
+                ConsTipAppend("\n  %s: %s \xA7%c%s\xA7W / %s \xA7Y%s\xA7W  (%.2f\xA4)", ConsLoc(g.name, g.name),
+                    ConsLoc("BUDGET_GOODS_CONS_BOUGHT", "bought"), col, bs,
+                    ConsLoc("BUDGET_GOODS_CONS_NEED", "needed"), ns, price);
+            }
+        }
+
+        ConsTipAppend("\n\n%s: \xA7Y%.1f\xA4\xA7W", ConsLoc("BUDGET_GOODS_CONS_TOTAL", "Total per day"), paid);
+        if (full > 0.0 && paid < full * 0.999)
+            ConsTipAppend("\n%s: \xA7R%d%%\xA7W", ConsLoc("BUDGET_GOODS_CONS_FILL", "Purchases fulfilled"),
+                (int)(paid * 100.0 / full));
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+
+    MakeStr(&g_consTipStr, g_consTipStore, sizeof(g_consTipStore), g_consTipText);
+    return &g_consTipStr;
+}
+
+// ---- карточка товара (окно trade_flow), колонка "Использовано" ----
+//
+// Окно - FUN_00477ad0 (param_1 = окно: +0x10 = выбранный товар, +0x54 =
+// listbox used_by_listbox). Строки колонки собираются в локальный vector
+// записей по 0x4C байта (begin/end/cap на [esp+0xC8]) и перед сортировкой
+// (FUN_0047BEA0) и выводом в listbox (FUN_00476C40) уходят по общему
+// пути с 0x479C07 - сюда сходятся все ветки (ДП/заводы/население/военные
+// затраты). Запись (создаёт FUN_00476130, показывает FUN_00476590):
+//   +0x00 тип значка: 0 завод, 1 ДП, 2 население, 3 военные
+//   +0x04 std::string - название строки;  +0x20 std::string - подсказка
+//   +0x3C float - количество;  +0x40 dword;  +0x44 byte - показывать число;
+//   +0x48 dword - -1: без кнопки.
+// Военные затраты (0x479985..0x479BE0) делают то же самое: ctor, строки,
+// float = fixed/32768, FUN_0047BB40 (thiscall ECX=запись, [стек]=vector)
+// кладёт копию в vector, FUN_0047AA50 (ESI=запись) освобождает строки
+// временной записи, а fixed-количество прибавляется к итогу "Всего
+// использовано" (int64 на [esp+0x28]).
+// Мы перед сортировкой добавляем по записи (значок "военные") на каждое
+// здание с goods_consumption, потребляющее этот товар: количество = уровни
+// таких зданий ЭТОЙ страны (из её дневного кэша) * количество в buildings.txt *
+// доля купленного. Название - из localisation\*.csv: ключ GOODS_CONS_NAME_<здание>
+// (напр. GOODS_CONS_NAME_naval_base = "Морские базы"), нет - ключ <здание>.
+
+static const DWORD RVA_TRADEFLOW_USED_SITE   = 0x79C07;  // mov edi,[esp+0xCC] (7 байт)
+static const DWORD RVA_TRADEFLOW_USED_RESUME = 0x79C0E;  // mov esi,[esp+0xC8]
+static const DWORD RVA_TRADEFLOW_ENTRY_CTOR  = 0x76130;  // FUN_00476130(entry) stdcall, ret 4
+static const DWORD RVA_TRADEFLOW_ENTRY_PUSH  = 0x7BB40;  // FUN_0047BB40 thiscall(ECX=entry, vector*)
+static const DWORD RVA_TRADEFLOW_ENTRY_FREE  = 0x7AA50;  // FUN_0047AA50 ESI=entry
+static const int   OFF_TRADEFLOW_GOOD        = 0x10;     // окно -> товар (+8 = индекс)
+static const int   OFF_TRADEFLOW_COUNTRY     = 0x0C;     // окно -> индекс страны, чьи данные показаны
+
+typedef void*(__stdcall* tTradeFlowEntryCtor)(void* entry);
+typedef void(__fastcall* tTradeFlowEntryPush)(void* entry, void* edx, void* vec);
+
+static void ConsAssignString(void* dest, const char* text)
+{
+    char store[1100];
+    GStr str;
+    MakeStr(&str, store, sizeof(store), text);
+    ((tStrAssign)(g_base + RVA_STR_ASSIGN))(dest, 0, &str, 0, 0xFFFFFFFFu);
+}
+
+// Добавляет записи в vector колонки "Использовано"; возвращает добавленное
+// количество (int64, 15 дробных бит) для итога.
+__declspec(noinline) static long long __cdecl TradeFlowAppendUsed(void* window, void* vec)
+{
+    long long total = 0;
+    if (!GoodsConsumptionActive() || !window || !vec)
+        return 0;
+
+    __try
+    {
+        char* good = *(char**)((char*)window + OFF_TRADEFLOW_GOOD);
+        if (!good)
+            return 0;
+        int gi = *(int*)(good + 8);
+        if (gi < 0 || gi >= CONS_MAX_GOODS)
+            return 0;
+        if (!g_consResolved)
+            ConsResolveGoods();
+
+        // Окно показывает данные ОДНОЙ страны (в заголовке "N% от мирового
+        // производства"; индекс страны - window+0xC), а не всего мира.
+        void* country = GetCountryPtr(*(int*)((char*)window + OFF_TRADEFLOW_COUNTRY));
+        ExpSlot* slot = country ? ExpFindSlot(country, false) : 0;
+        if (!slot)
+            return 0;
+
+        for (int bi = 0; bi < g_consBuildingCount; ++bi)
+        {
+            ConsBuilding& cb = g_consBuildings[bi];
+            double perLevel = 0.0;
+            for (int k = 0; k < cb.count; ++k)
+            {
+                if (cb.goods[k].index == gi)
+                    perLevel += cb.goods[k].amount;
+            }
+            if (perLevel <= 0.0)
+                continue;
+
+            long long raw = slot->raw[bi];
+            if (raw <= 0)
+                continue;
+
+            double levels = (double)raw / 1000.0;
+            double need = perLevel * levels;
+            double qty = need * slot->frac[gi];
+            long long fixedQty = MintToFixed(qty);
+            if (fixedQty <= 0)
+                continue;
+
+            char nameKey[64];
+            _snprintf_s(nameKey, sizeof(nameKey), _TRUNCATE, "GOODS_CONS_NAME_%s", cb.name);
+            const char* name = ConsLoc(nameKey, 0);
+            if (!name || strcmp(name, "?") == 0)
+                name = ConsLoc(cb.name, cb.name);
+            const char* goodName = ConsLoc(good ? GStrText(good + 0xC) : "", GStrText(good + 0xC));
+
+            char lv[32], qs[32], ns[32];
+            ConsFmtNum(lv, sizeof(lv), levels);
+            ConsFmtNum(qs, sizeof(qs), qty);
+            ConsFmtNum(ns, sizeof(ns), need);
+            char col = qty >= need * 0.999 ? 'G' : (qty >= need * 0.5 ? 'Y' : 'R');
+            char tip[640];
+            _snprintf_s(tip, sizeof(tip), _TRUNCATE, "\xA7Y%s\xA7W (%s: %s)\n%s: %s \xA7%c%s\xA7W / %s \xA7Y%s\xA7W",
+                name, ConsLoc("BUDGET_GOODS_CONS_LEVELS", "levels"), lv, goodName,
+                ConsLoc("BUDGET_GOODS_CONS_BOUGHT", "bought"), col, qs,
+                ConsLoc("BUDGET_GOODS_CONS_NEED", "needed"), ns);
+
+            char entry[0x4C];
+            memset(entry, 0, sizeof(entry));
+            ((tTradeFlowEntryCtor)(g_base + RVA_TRADEFLOW_ENTRY_CTOR))(entry);
+            *(int*)entry = 3;
+            ConsAssignString(entry + 0x04, name);
+            ConsAssignString(entry + 0x20, tip);
+            *(float*)(entry + 0x3C) = (float)((double)fixedQty / 32768.0);
+            *(int*)(entry + 0x40) = -1;
+            *(unsigned char*)(entry + 0x44) = 1;
+            *(int*)(entry + 0x48) = -1;
+
+            ((tTradeFlowEntryPush)(g_base + RVA_TRADEFLOW_ENTRY_PUSH))(entry, 0, vec);
+
+            DWORD freeFn = g_base + RVA_TRADEFLOW_ENTRY_FREE;
+            void* pEntry = entry;
+            __asm {
+                push esi
+                mov esi, pEntry
+                call freeFn
+                pop esi
+            }
+
+            total += fixedQty;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+    return total;
+}
+
+static DWORD g_tradeFlowUsedResume = 0;
+
+__declspec(naked) static void TradeFlowUsedThunk()
+{
+    __asm {
+        sub esp, 8
+        pushad
+        lea eax, [esp + 0x20 + 8 + 0xC8]
+        push eax
+        push dword ptr [ebp + 8]
+        call TradeFlowAppendUsed
+        add esp, 8
+        mov dword ptr [esp + 0x20], eax
+        mov dword ptr [esp + 0x24], edx
+        popad
+        pop eax
+        pop edx
+        add dword ptr [esp + 0x28], eax
+        adc dword ptr [esp + 0x2C], edx
+        mov edi, dword ptr [esp + 0xCC]
+        jmp dword ptr [g_tradeFlowUsedResume]
+    }
+}
+
+// FUN_0052B5D0 (фактические расходы; EAX=out, EDX=страна). Исходные 18 байт
+//   mov [eax],0; mov edi,[eax]; mov [eax+4],0; mov ebx,[eax+4]
+// обнуляли накопитель - теперь он стартует с расхода на здания.
+static DWORD g_expActResume = 0;
+
+__declspec(naked) static void GoodsExpenseActualThunk()
+{
+    __asm {
+        sub esp, 8
+        pushad
+        push edx
+        call GoodsExpenseFixedFor
+        add esp, 4
+        mov dword ptr [esp + 0x20], eax
+        mov dword ptr [esp + 0x24], edx
+        popad
+        pop edi
+        pop ebx
+        mov dword ptr [eax], edi
+        mov dword ptr [eax + 4], ebx
+        jmp dword ptr [g_expActResume]
+    }
+}
+
+// FUN_0052B1C0 (расчётные расходы): единственный эпилог, EDI=страна ([ebp+8]),
+// EBX=out (int64).
+static DWORD g_expProjResume = 0;
+
+__declspec(naked) static void GoodsExpenseProjectedThunk()
+{
+    __asm {
+        sub esp, 8
+        pushad
+        push edi
+        call GoodsExpenseFixedFor
+        add esp, 4
+        mov dword ptr [esp + 0x20], eax
+        mov dword ptr [esp + 0x24], edx
+        popad
+        pop eax
+        pop edx
+        add dword ptr [ebx], eax
+        adc dword ptr [ebx + 4], edx
+        pop edi
+        pop esi
+        mov eax, ebx
+        pop ebx
+        jmp dword ptr [g_expProjResume]
+    }
+}
+
+// Верхняя панель: два встроенных расчёта "доход - расходы" (график и текст
+// FUN_0070EC60) складывают расходы сами, мимо FUN_0052B5D0. Расходы там в
+// EAX:ECX (график, низ:верх) и ESI:EAX (текст).
+static DWORD g_topbarHistResume = 0;
+static DWORD g_topbarTextResume = 0;
+
+__declspec(naked) static void GoodsExpenseTopbarHistThunk()
+{
+    __asm {
+        sub esp, 8
+        pushad
+        call GoodsExpensePlayer
+        mov dword ptr [esp + 0x20], eax
+        mov dword ptr [esp + 0x24], edx
+        popad
+        add eax, dword ptr [esp]
+        adc ecx, dword ptr [esp + 4]
+        lea esp, [esp + 8]
+        mov edx, dword ptr [esp + 0x40]
+        sub edx, eax
+        jmp dword ptr [g_topbarHistResume]
+    }
+}
+
+__declspec(naked) static void GoodsExpenseTopbarTextThunk()
+{
+    __asm {
+        sub esp, 8
+        pushad
+        call GoodsExpensePlayer
+        mov dword ptr [esp + 0x20], eax
+        mov dword ptr [esp + 0x24], edx
+        popad
+        add esi, dword ptr [esp]
+        adc eax, dword ptr [esp + 4]
+        lea esp, [esp + 8]
+        sub ecx, esi
+        mov esi, dword ptr [ebp - 0xD8]
+        sbb esi, eax
+        jmp dword ptr [g_topbarTextResume]
+    }
+}
+
+// ---- общий дневной хук страны (minting + закупка товаров) ----
+
+static DWORD g_dailyOrig = 0;
+static bool  g_dailyInstalled = false;
+
+static void __cdecl CountryDailyHook(void* country)
+{
+    MintingDailyCredit(country);
+    GoodsConsumptionDaily(country);
+}
+
+// Тот же контракт, что у FUN_00538200 (stdcall, страна в стеке): всё
+// самодостаточно в одном pushad/popad, затем хвостовой прыжок в оригинал.
+__declspec(naked) static void CountryDailyThunk()
+{
+    __asm {
+        pushad
+        mov eax, dword ptr [esp + 0x24]
+        push eax
+        call CountryDailyHook
+        add esp, 4
+        popad
+        jmp dword ptr [g_dailyOrig]
+    }
+}
+
+static bool InstallCountryDailyCall()
+{
+    if (g_dailyInstalled)
+        return true;
+
+    unsigned char* call = (unsigned char*)(g_base + RVA_MINT_DAILY_CALL);
+    DWORD expectRel = (g_base + RVA_MINT_DAILY_TARGET) - ((DWORD)(DWORD_PTR)call + 5);
+    if (call[0] != 0xE8 || *(DWORD*)(call + 1) != expectRel)
+    {
+        Log("CountryDaily: сигнатура call не совпала rva %06X (%02X %02X %02X %02X %02X)",
+            RVA_MINT_DAILY_CALL, call[0], call[1], call[2], call[3], call[4]);
+        return false;
+    }
+
+    g_dailyOrig = g_base + RVA_MINT_DAILY_TARGET;
+    DWORD rel = (DWORD)(DWORD_PTR)&CountryDailyThunk - ((DWORD)(DWORD_PTR)call + 5);
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(call + 1, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    *(DWORD*)(call + 1) = rel;
+    VirtualProtect(call + 1, 4, oldProtect, &oldProtect);
+    g_dailyInstalled = true;
+    Log("CountryDaily: call подменён rva %06X", RVA_MINT_DAILY_CALL);
+    return true;
+}
+
+static bool InstallGoodsConsumption()
+{
+    g_fnIsBadReadPtr = SafeIsBadReadPtr;
+
+    // Чтение блока - всегда (иначе goods_consumption в buildings.txt роняет игру).
+    const void* expect = (void*)(g_base + RVA_CBUILDING_PROP_FN);
+    void** slotA = (void**)(g_base + RVA_CBUILDING_VTABLE) + CBUILDING_PROP_SLOT;
+    void** slotB = (void**)(g_base + RVA_CBUILDING_VTABLE2) + CBUILDING_PROP_SLOT;
+    if (*slotA != expect || *slotB != expect)
+    {
+        Log("GoodsConsumption: слот %d CBuilding указывает на %p/%p, ожидали %p - не включаем",
+            CBUILDING_PROP_SLOT, *slotA, *slotB, expect);
+        return false;
+    }
+
+    void* orig = 0;
+    if (!PatchSlot(RVA_CBUILDING_VTABLE, CBUILDING_PROP_SLOT, (void*)&BuildingPropThunk, &orig) ||
+        !PatchSlot(RVA_CBUILDING_VTABLE2, CBUILDING_PROP_SLOT, (void*)&BuildingPropThunk, 0))
+    {
+        Log("GoodsConsumption: PatchSlot CBuilding не удался");
+        return false;
+    }
+    g_origBuildingProp = (tBuildingProp)orig;
+    Log("GoodsConsumption: чтение goods_consumption установлено (слот %d двух vftable CBuilding)",
+        CBUILDING_PROP_SLOT);
+
+    if (!g_settings.goodsConsumption)
+    {
+        Log("GoodsConsumption: ENABLE_GOODS_CONSUMPTION=0 - блок читается, но ничего не покупается");
+        return true;
+    }
+
+    g_consDemand = g_settings.goodsConsumptionDemand;
+
+    bool dailyOk = InstallCountryDailyCall();
+    if (!dailyOk)
+    {
+        Log("GoodsConsumption: дневной хук не встал - закупка выключена");
+        return true;
+    }
+
+    static const unsigned char ACT_SIG[18] =
+    { 0xC7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8B, 0x38, 0xC7, 0x40, 0x04, 0x00, 0x00, 0x00, 0x00, 0x8B, 0x58, 0x04 };
+    static const unsigned char ACT_RESUME[5] = { 0xBA, 0x0B, 0x00, 0x00, 0x00 };
+    g_expActResume = g_base + RVA_EXP_ACT_RESUME;
+    bool actOk = WriteJmpSite(RVA_EXP_ACT_SEED, ACT_SIG, sizeof(ACT_SIG), sizeof(ACT_SIG),
+        RVA_EXP_ACT_RESUME, ACT_RESUME, sizeof(ACT_RESUME),
+        (void*)&GoodsExpenseActualThunk, "GoodsConsumption расходы(факт)");
+
+    static const unsigned char PROJ_SIG[5] = { 0x5F, 0x5E, 0x8B, 0xC3, 0x5B };
+    static const unsigned char PROJ_RESUME[4] = { 0x8B, 0xE5, 0x5D, 0xC2 };
+    g_expProjResume = g_base + RVA_EXP_PROJ_RESUME;
+    bool projOk = WriteJmpSite(RVA_EXP_PROJ_EPILOGUE, PROJ_SIG, sizeof(PROJ_SIG), sizeof(PROJ_SIG),
+        RVA_EXP_PROJ_RESUME, PROJ_RESUME, sizeof(PROJ_RESUME),
+        (void*)&GoodsExpenseProjectedThunk, "GoodsConsumption расходы(расчёт)");
+
+    static const unsigned char HIST_SIG[6] = { 0x8B, 0x54, 0x24, 0x40, 0x2B, 0xD0 };
+    static const unsigned char HIST_RESUME[4] = { 0x8B, 0x44, 0x24, 0x44 };
+    g_topbarHistResume = g_base + RVA_TOPBAR_HIST_RESUME;
+    bool histOk = WriteJmpSite(RVA_TOPBAR_HIST_SITE, HIST_SIG, sizeof(HIST_SIG), sizeof(HIST_SIG),
+        RVA_TOPBAR_HIST_RESUME, HIST_RESUME, sizeof(HIST_RESUME),
+        (void*)&GoodsExpenseTopbarHistThunk, "GoodsConsumption график панели");
+
+    static const unsigned char TEXT_SIG[10] = { 0x2B, 0xCE, 0x8B, 0xB5, 0x28, 0xFF, 0xFF, 0xFF, 0x1B, 0xF0 };
+    static const unsigned char TEXT_RESUME[3] = { 0xB8, 0x0F, 0x00 };
+    g_topbarTextResume = g_base + RVA_TOPBAR_TEXT_RESUME;
+    bool textOk = WriteJmpSite(RVA_TOPBAR_TEXT_SITE, TEXT_SIG, sizeof(TEXT_SIG), sizeof(TEXT_SIG),
+        RVA_TOPBAR_TEXT_RESUME, TEXT_RESUME, sizeof(TEXT_RESUME),
+        (void*)&GoodsExpenseTopbarTextThunk, "GoodsConsumption текст панели");
+
+    InstallBudgetWindowHooks();
+    g_consActive = true;
+
+    static const unsigned char TF_SIG[7] = { 0x8B, 0xBC, 0x24, 0xCC, 0x00, 0x00, 0x00 };
+    static const unsigned char TF_RESUME[7] = { 0x8B, 0xB4, 0x24, 0xC8, 0x00, 0x00, 0x00 };
+    g_tradeFlowUsedResume = g_base + RVA_TRADEFLOW_USED_RESUME;
+    bool tfOk = WriteJmpSite(RVA_TRADEFLOW_USED_SITE, TF_SIG, sizeof(TF_SIG), sizeof(TF_SIG),
+        RVA_TRADEFLOW_USED_RESUME, TF_RESUME, sizeof(TF_RESUME),
+        (void*)&TradeFlowUsedThunk, "GoodsConsumption карточка товара");
+
+    Log("GoodsConsumption: установлен (дневной хук=%d расходы факт=%d расчёт=%d график=%d текст=%d, "
+        "строка бюджета=%d, подсказка=%d, карточка товара=%d, спрос рынка=%d)",
+        (int)dailyOk, (int)actOk, (int)projOk, (int)histOk, (int)textOk,
+        (int)g_budgetUiOk, (int)g_budgetBoxTipOk, (int)tfOk, (int)g_consDemand);
     return true;
 }
 
@@ -16286,6 +17650,8 @@ static bool Install()
 
     if (g_settings.minting)
         InstallMinting();
+
+    InstallGoodsConsumption();
 
     if (g_settings.patchCombatRoll)
         InstallCombatRoll();
