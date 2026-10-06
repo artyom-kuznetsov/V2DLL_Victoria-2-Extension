@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.12"
+#define MOD_VERSION "5.16"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -88,6 +88,12 @@ struct Settings
     bool patchProdTypeGate           = true;
     bool patchHideNoSupplyFactories  = true;
     bool hideNoSupplyDryRun          = false; // файловый подход подтверждён - см. комментарий у g_hideNoSupplyDryRun
+    // Фабрики: накопления уходят владельцам при любом закрытии, а убыточная
+    // несубсидируемая фабрика закрывается сама (срок - в common\defines_v2dll.txt).
+    // См. InstallFactoryClose. DRY_RUN: только лог, ничего не меняется.
+    bool patchFactoryClosePayout     = true;
+    bool patchFactoryAutoClose       = true;
+    bool factoryCloseDryRun          = true;
     // Окно фабрик: не показывать в верхнем ряду фильтров кнопки товаров,
     // чьё имя начинается на "raw_" (см. ComputeGoodsFilterPos).
     bool hideRawGoodsFilter          = true;
@@ -4118,6 +4124,9 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_PROD_TYPE_GATE") == 0)            { g_settings.patchProdTypeGate           = v; return; }
     if (_stricmp(key, "HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES") == 0) { g_settings.patchHideNoSupplyFactories = v; return; }
     if (_stricmp(key, "HIDE_NO_SUPPLY_DRY_RUN") == 0)          { g_settings.hideNoSupplyDryRun          = v; return; }
+    if (_stricmp(key, "PATCH_FACTORY_CLOSE_PAYOUT") == 0)      { g_settings.patchFactoryClosePayout     = v; return; }
+    if (_stricmp(key, "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE") == 0) { g_settings.patchFactoryAutoClose = v; return; }
+    if (_stricmp(key, "FACTORY_CLOSE_DRY_RUN") == 0)           { g_settings.factoryCloseDryRun          = v; return; }
     if (_stricmp(key, "PROD_TYPE_GATE_ALLOW_ALL") == 0)         { g_settings.prodTypeGateAllowAll        = v; return; }
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
     if (_stricmp(key, "PATCH_COMBAT_ROLL") == 0)                { g_settings.patchCombatRoll             = v; return; }
@@ -4298,6 +4307,9 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_PROD_TYPE_GATE=%d\n"
         "PROD_TYPE_GATE_ALLOW_ALL=%d\n"
         "PROD_TYPE_GATE_EXTRA_WHITELIST=%s\n"
+        "PATCH_FACTORY_CLOSE_PAYOUT=%d\n"
+        "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE=%d\n"
+        "FACTORY_CLOSE_DRY_RUN=%d\n"
         "\n",
         (int)g_settings.priceDelta,
         (int)g_settings.patchExponentialPriceDelta,
@@ -4312,7 +4324,10 @@ static void WriteDefaultSettings(const char* path)
         (int)FindExePatchEnabled("build_factory_ignore_uncivilized_can_build"),
         (int)g_settings.patchProdTypeGate,
         (int)g_settings.prodTypeGateAllowAll,
-        extraWhitelistJoined);
+        extraWhitelistJoined,
+        (int)g_settings.patchFactoryClosePayout,
+        (int)g_settings.patchFactoryAutoClose,
+        (int)g_settings.factoryCloseDryRun);
 
     fprintf(f,
         "; UI\n"
@@ -8604,29 +8619,53 @@ static void* GetLocalPlayerCountry()
     }
 }
 
-static bool LoadMintingFormula()
+// ---------------------------------------------------------------
+// <мод>\common\defines_v2dll.txt - настройки DLL, относящиеся к данным
+// мода (а не к машине игрока): они должны совпадать у всех игроков
+// сетевой партии, иначе OOS, поэтому живут рядом с defines.lua, а не
+// в v2dll_settings.ini. Файл создаётся при первом запуске.
+//   factory_unprofitable_close_days - срок автозакрытия убыточной
+//                                     фабрики (InstallFactoryClose), 0 = выкл
+//   minting_formula                 - формула minting (раньше лежала в
+//                                     common\minting.txt как "formula = ...")
+// Если рядом лежит старый minting.txt, его формула переносится в новый
+// файл, а сам он переименовывается в minting.txt.moved (не удаляется).
+// ---------------------------------------------------------------
+
+static int  g_defFactoryCloseDays = 60;
+static char g_defMintingFormula[256] = "";
+static char g_defPath[MAX_PATH] = "";
+static bool g_defLoaded = false;
+
+static void V2dllDefinesPath(const char* fileName, char* out, size_t outSize)
 {
-    char path[MAX_PATH];
     char folder[MAX_PATH];
-
     if (ResolveModFolder(folder, sizeof(folder)))
-        _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\common\\minting.txt", folder);
+        _snprintf_s(out, outSize, _TRUNCATE, "%s\\common\\%s", folder, fileName);
     else
-        _snprintf_s(path, sizeof(path), _TRUNCATE, "common\\minting.txt");
+        _snprintf_s(out, outSize, _TRUNCATE, "common\\%s", fileName);
+}
 
-    static char buf[8192];
-    size_t len = 0;
-    if (!ReadWholeFile(path, buf, sizeof(buf), &len))
-    {
-        Log("Minting: файл формулы '%s' не найден - minting выключен", path);
-        return false;
-    }
+static void TrimSpaces(char* s)
+{
+    char* p = s;
+    while (*p == ' ' || *p == '\t')
+        ++p;
+    if (p != s)
+        memmove(s, p, strlen(p) + 1);
+    size_t n = strlen(s);
+    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r'))
+        s[--n] = 0;
+}
 
-    char* start = buf;
-    if (len >= 3 && (unsigned char)buf[0] == 0xEF && (unsigned char)buf[1] == 0xBB && (unsigned char)buf[2] == 0xBF)
+// Вызывает cb(key, value) для каждой строки "key = value" ('#' - комментарий).
+// Меняет text на месте.
+static void ForEachDefinesLine(char* text, size_t len, void (*cb)(const char* key, const char* value))
+{
+    char* start = text;
+    if (len >= 3 && (unsigned char)text[0] == 0xEF && (unsigned char)text[1] == 0xBB && (unsigned char)text[2] == 0xBF)
         start += 3;
 
-    char* expr = 0;
     for (char* line = start; *line; )
     {
         char* eol = line;
@@ -8639,30 +8678,132 @@ static bool LoadMintingFormula()
         if (hash)
             *hash = 0;
 
-        char* p = line;
-        while (*p == ' ' || *p == '\t')
-            ++p;
-
-        if (_strnicmp(p, "formula", 7) == 0 && !IsIdentChar(p[7]))
+        char* eq = strchr(line, '=');
+        if (eq)
         {
-            p += 7;
-            while (*p == ' ' || *p == '\t')
-                ++p;
-            if (*p == '=')
-            {
-                expr = p + 1;
-                break;
-            }
+            *eq = 0;
+            char* key = line;
+            char* value = eq + 1;
+            TrimSpaces(key);
+            TrimSpaces(value);
+            if (key[0])
+                cb(key, value);
         }
 
         if (!saved)
             break;
         line = eol + 1;
     }
+}
 
-    if (!expr)
+static void DefinesApplyLine(const char* key, const char* value)
+{
+    if (_stricmp(key, "factory_unprofitable_close_days") == 0)
     {
-        Log("Minting: в '%s' нет строки 'formula = ...' - minting выключен", path);
+        int d = atoi(value);
+        g_defFactoryCloseDays = d < 0 ? 0 : (d > 36500 ? 36500 : d);
+    }
+    else if (_stricmp(key, "minting_formula") == 0)
+    {
+        strncpy_s(g_defMintingFormula, sizeof(g_defMintingFormula), value, _TRUNCATE);
+    }
+}
+
+static char g_legacyFormula[256];
+
+static void LegacyMintingLine(const char* key, const char* value)
+{
+    if (_stricmp(key, "formula") == 0 && !g_legacyFormula[0])
+        strncpy_s(g_legacyFormula, sizeof(g_legacyFormula), value, _TRUNCATE);
+}
+
+static void EnsureV2dllDefines()
+{
+    if (g_defLoaded)
+        return;
+    g_defLoaded = true;
+
+    V2dllDefinesPath("defines_v2dll.txt", g_defPath, sizeof(g_defPath));
+
+    static char buf[16384];
+    size_t len = 0;
+    if (ReadWholeFile(g_defPath, buf, sizeof(buf), &len))
+    {
+        ForEachDefinesLine(buf, len, DefinesApplyLine);
+        Log("defines_v2dll: прочитан '%s' (factory_unprofitable_close_days=%d, minting_formula %s)",
+            g_defPath, g_defFactoryCloseDays, g_defMintingFormula[0] ? "задана" : "пуста");
+        return;
+    }
+
+    // Файла нет - создаём. Формулу берём из старого minting.txt, если он есть.
+    char legacyPath[MAX_PATH];
+    V2dllDefinesPath("minting.txt", legacyPath, sizeof(legacyPath));
+    g_legacyFormula[0] = 0;
+    static char lbuf[8192];
+    size_t llen = 0;
+    if (ReadWholeFile(legacyPath, lbuf, sizeof(lbuf), &llen))
+        ForEachDefinesLine(lbuf, llen, LegacyMintingLine);
+    strncpy_s(g_defMintingFormula, sizeof(g_defMintingFormula), g_legacyFormula, _TRUNCATE);
+
+    FILE* f = 0;
+    if (fopen_s(&f, g_defPath, "w") != 0 || !f)
+    {
+        Log("defines_v2dll: не удалось создать '%s' - берутся значения по умолчанию", g_defPath);
+        return;
+    }
+
+    fprintf(f,
+        "# V2DLL settings tied to this mod's game data. Created automatically, edit freely.\n"
+        "# Every player in a multiplayer game must have identical values here, otherwise OOS.\n"
+        "# '#' starts a comment.\n"
+        "\n"
+        "# --- Factories (PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE in v2dll_settings.ini) ---\n"
+        "# A factory that is NOT subsidized and has been unprofitable (sales below the cost of its\n"
+        "# input goods) for this many days in a row is closed automatically, as if closed by hand.\n"
+        "# The money stored in the factory is paid out to the capitalists of its state.\n"
+        "# 0 = never close automatically.\n"
+        "factory_unprofitable_close_days = %d\n"
+        "\n"
+        "# --- Minting (ENABLE_MINTING in v2dll_settings.ini) ---\n"
+        "# Daily income every country gets. Added to the treasury once per day, shown in the budget\n"
+        "# window as \"minting_inc\", included in total income (budget window, topbar chart, tooltips).\n"
+        "#\n"
+        "# minting_formula - evaluated per country, result is pounds per day. Empty = minting is off.\n"
+        "# Variables:\n"
+        "#   industry_score     industrial score of the country (same as industrial_score in scripts)\n"
+        "#   total_population   country population (the number the game stores for the country)\n"
+        "#   any other name     a country variable declared in the game (set_variable = { which = NAME ... }),\n"
+        "#                      e.g. economic_thought_level; its value, or 0 if the country does not have it\n"
+        "# Operators: + - * /   parentheses, decimal numbers (use a dot: 0.01)\n"
+        "minting_formula = %s\n",
+        g_defFactoryCloseDays, g_defMintingFormula);
+    fclose(f);
+
+    Log("defines_v2dll: создан '%s' (minting_formula %s)", g_defPath,
+        g_legacyFormula[0] ? "перенесена из minting.txt" : "пуста");
+
+    if (g_legacyFormula[0])
+    {
+        char movedPath[MAX_PATH];
+        _snprintf_s(movedPath, sizeof(movedPath), _TRUNCATE, "%s.moved", legacyPath);
+        if (MoveFileExA(legacyPath, movedPath, MOVEFILE_REPLACE_EXISTING))
+            Log("defines_v2dll: старый '%s' переименован в '%s'", legacyPath, movedPath);
+        else
+            Log("defines_v2dll: не удалось переименовать '%s' (ошибка %u) - можно удалить вручную",
+                legacyPath, (unsigned)GetLastError());
+    }
+}
+
+static bool LoadMintingFormula()
+{
+    EnsureV2dllDefines();
+
+    const char* path = g_defPath;
+    const char* expr = g_defMintingFormula;
+
+    if (!expr[0])
+    {
+        Log("Minting: в '%s' нет непустой строки 'minting_formula = ...' - minting выключен", path);
         return false;
     }
 
@@ -17736,6 +17877,489 @@ static void LoadEventMusicDll()
     Log("EventMusic: DLL cargada, inicio=%d", (int)ok);
 }
 
+
+// ---------------------------------------------------------------
+// ЗАКРЫТИЕ ФАБРИК: выплата накоплений владельцам при любом закрытии и
+// автозакрытие убыточных (PATCH_FACTORY_CLOSE_PAYOUT,
+// PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE; срок - factory_unprofitable_
+// close_days в common\defines_v2dll.txt).
+//
+// Карта движка (Ghidra + дизассемблер по реальному v2game.exe).
+// Фабрика = CStateBuilding (ESI/EBX/EAX в разных функциях):
+//   +0x18 тип  (+0x12C от него = "definition" владельцев)   +0x1C стейт
+//   +0x20 уровень    +0x150 деньги фабрики (int64)
+//   +0x158 затраты на сырьё за прошлый день (int64)
+//   +0x178 дни убытка подряд (выручка < затрат на сырьё; обновляется
+//          в начале FUN_004F4B30, не используется ничем, кроме ИИ)
+//   +0x180 субсидия (byte)   +0x184 счётчик остановки   +0x188 закрыта (byte)
+// Движок закрывает фабрику не по прибыльности: после 11 дней подряд без
+// единой закупки сырья (деньги кончились) уровень падает на 1, а на
+// уровне 1 фабрика просто перестаёт обрабатываться. Поэтому чем больше
+// MAX_FACTORY_MONEY_SAVE, тем дольше убыточная фабрика проедает накопления.
+//   FUN_004F4B30 (rva F4B30)  финансы, зовётся дневным проходом
+//     FUN_00488080 только для open: уровень>0, +0x184<11, !закрыта. Всё,
+//     что выше MAX_FACTORY_MONEY_SAVE*уровень, она отдаёт владельцам
+//     (капиталистам стейта) через FUN_004CFE20.
+//   FUN_004CFE20 (rva CFE20)  выплата владельцам: EAX=definition, стек:
+//     state, lo, hi, ret 0xC; AL=1 если выплачено, 0 - у стейта нет
+//     попов-владельцев (деньги не выплачены; ванильный вызов в
+//     FUN_004F4B30 вычитает их ДО вызова и результат не проверяет).
+//   FUN_004D03D0 (команда "закрыть/открыть") при закрытии ставит +0x188=1
+//     и зовёт FUN_004F5750 (rva F5750, ESI=фабрика, единственный вызов) -
+//     деньги +0x150 она не трогает, а закрытую фабрику дневной проход
+//     пропускает: накопления замораживаются внутри.
+//   Остановка по счётчику: +0x184 растёт в FUN_004F50C0 (rva F50C0,
+//     EAX=фабрика, [ebp+8]=bool "что-то купили") и ВСТРОЕННО в
+//     FUN_00482FF0 (rva 834C6, EBX=фабрика) - в обоих случаях только
+//     при !субсидия; на уровне 1 при +0x184>=11 фабрика встаёт, деньги
+//     тоже замораживаются.
+// Хуки:
+//   F5750 вход          - выплата всех денег владельцам при закрытии
+//   F50C0 вход, 834C6   - то же в момент остановки по счётчику (уровень 1)
+//   F4B30 вход          - автозакрытие: !субсидия && +0x178 >= N дней ->
+//                         +0x188=1, +0x178=0, зов F5750 (выплата - через
+//                         хук выше), вызов ванильных финансов пропускается
+// Если у стейта нет владельцев (CFE20 вернул 0), деньги остаются в
+// фабрике, а не пропадают. FACTORY_CLOSE_DRY_RUN=1 (по умолчанию): ни
+// закрытия, ни выплаты, только строки "[DRY]" в лог.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_FACTORY_FINANCE               = 0xF4B30;
+static const DWORD RVA_FACTORY_FINANCE_RESUME        = 0xF4B36;
+static const DWORD RVA_FACTORY_COUNTER               = 0xF50C0;
+static const DWORD RVA_FACTORY_COUNTER_RESUME        = 0xF50CA;
+static const DWORD RVA_FACTORY_COUNTER_INLINE        = 0x834C6;
+static const DWORD RVA_FACTORY_COUNTER_INLINE_RESUME = 0x834CC;
+static const DWORD RVA_FACTORY_CLOSE                 = 0xF5750;
+static const DWORD RVA_FACTORY_CLOSE_RESUME          = 0xF5756;
+static const DWORD RVA_OWNER_PAYOUT                  = 0xCFE20;
+
+static const int FAC_OFF_TYPE      = 0x18;
+static const int FAC_OFF_STATE     = 0x1C;
+static const int FAC_OFF_LEVEL     = 0x20;
+static const int FAC_OFF_MONEY     = 0x150;
+static const int FAC_OFF_LOSS_DAYS = 0x178;
+static const int FAC_OFF_SUBSIDY   = 0x180;
+static const int FAC_OFF_STOP_CNT  = 0x184;
+static const int FAC_OFF_CLOSED    = 0x188;
+static const int FAC_TYPE_DEF_OFF  = 0x12C;
+static const int FAC_STOP_DAYS     = 11;
+
+static DWORD g_facFinanceResume       = 0;
+static DWORD g_facCounterResume       = 0;
+static DWORD g_facCounterInlineResume = 0;
+static DWORD g_facCloseResume         = 0;
+static DWORD g_ownerPayoutAddr        = 0;
+static DWORD g_facCloseFnAddr         = 0;
+static const char* g_facCloseReason   = "ручное закрытие";
+static LONG  g_facDryLogged           = 0;
+static void* g_facSeen[512];
+static int   g_facSeenCount           = 0;
+
+// Первые 400 строк за запуск видны в обычном логе и в DRY_RUN, и в боевом
+// режиме (это единственный след того, что патч закрыл/выплатил - иначе
+// первый боевой прогон остаётся слепым); дальше только при DEBUG_LOG.
+static void FacLog(const char* fmt, ...)
+{
+    char msg[320];
+    va_list ap;
+    va_start(ap, fmt);
+    _vsnprintf_s(msg, sizeof(msg), _TRUNCATE, fmt, ap);
+    va_end(ap);
+
+    if (g_facDryLogged < 400)
+    {
+        ++g_facDryLogged;
+        Log("%s", msg);
+    }
+    else
+    {
+        LogDbg("%s", msg);
+    }
+}
+
+// true, если фабрику видим впервые (чтобы DRY_RUN не писал одно и то же каждый день).
+static bool FacSeenFirst(void* f)
+{
+    for (int i = 0; i < g_facSeenCount; ++i)
+        if (g_facSeen[i] == f)
+            return false;
+    if (g_facSeenCount < (int)(sizeof(g_facSeen) / sizeof(g_facSeen[0])))
+        g_facSeen[g_facSeenCount++] = f;
+    return true;
+}
+
+// "TAG тип" для строк лога: тег страны-владельца (state+0x5C = индекс страны,
+// тег по country+0x1C - как у FUN_00523400) и имя типа фабрики (+0x18, имя
+// по +0x20, как у ProdTypeGate). Любая неудача чтения -> "?".
+static void FacDescribe(void* factory, char* out, size_t cap)
+{
+    char tag[8] = "?";
+    char type[40] = "?";
+    __try
+    {
+        unsigned char* f = (unsigned char*)factory;
+        unsigned char* state = *(unsigned char**)(f + FAC_OFF_STATE);
+        if (state)
+        {
+            void* country = GetCountryPtr(*(int*)(state + 0x5C));
+            if (country)
+            {
+                const unsigned char* t = (const unsigned char*)country + 0x1C;
+                if (isupper(t[0]) && isupper(t[1]) && (isupper(t[2]) || isdigit(t[2])))
+                {
+                    tag[0] = (char)t[0];
+                    tag[1] = (char)t[1];
+                    tag[2] = (char)t[2];
+                    tag[3] = 0;
+                }
+            }
+        }
+        // Имя типа - std::string: до 15 символов лежит в самом буфере, длиннее -
+        // по указателю (ResolveProdTypeNamePtr). ReadPlausibleTypeName читает
+        // только буфер, поэтому "machine_parts_factory" и т.п. давали "?".
+        void* typePtr = *(void**)(f + FAC_OFF_TYPE);
+        UINT_PTR tv = (UINT_PTR)typePtr;
+        if (tv >= 0x10000 && tv <= 0xFFFE0000)
+        {
+            const char* nm = ResolveProdTypeNamePtr(typePtr);
+            UINT_PTR nv = (UINT_PTR)nm;
+            if (nv >= 0x10000 && nv <= 0xFFFE0000)
+            {
+                char tn[40];
+                int i = 0;
+                for (; i < (int)sizeof(tn) - 1; ++i)
+                {
+                    unsigned char c = (unsigned char)nm[i];
+                    if (c == 0)
+                        break;
+                    if (c < 0x20 || c > 0x7e)
+                    {
+                        i = 0;
+                        break;
+                    }
+                    tn[i] = (char)c;
+                }
+                if (i > 0 && i < (int)sizeof(tn) - 1)
+                {
+                    tn[i] = 0;
+                    strncpy_s(type, sizeof(type), tn, _TRUNCATE);
+                }
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+    _snprintf_s(out, cap, _TRUNCATE, "%s %s", tag, type);
+}
+
+// Деньги фабрики в тех единицах, что видит игрок: raw / 32768 (fixed15) / 1000.
+static double FacMoneyShown(long long raw)
+{
+    return (double)raw / 32768000.0;
+}
+
+// EAX=definition, стек: state, lo, hi (callee чистит 0xC). Тот же вызов, что в
+// FUN_004F4B30 для выплаты излишка.
+__declspec(naked) static unsigned char __cdecl CallOwnerPayout(void* definition, void* state, DWORD lo, DWORD hi)
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        push dword ptr [ebp + 20]
+        push dword ptr [ebp + 16]
+        push dword ptr [ebp + 12]
+        mov eax, dword ptr [ebp + 8]
+        call dword ptr [g_ownerPayoutAddr]
+        movzx eax, al
+        pop ebp
+        ret
+    }
+}
+
+// ESI=фабрика, аргументов нет (ванильное закрытие, см. FUN_004D03D0).
+__declspec(naked) static void __cdecl CallFactoryCloseVanilla(void* factory)
+{
+    __asm {
+        push esi
+        mov esi, dword ptr [esp + 8]
+        call dword ptr [g_facCloseFnAddr]
+        pop esi
+        ret
+    }
+}
+
+static bool FactoryPayoutAll(void* factory, const char* reason)
+{
+    __try
+    {
+        unsigned char* f = (unsigned char*)factory;
+        long long money = *(long long*)(f + FAC_OFF_MONEY);
+        if (money <= 0)
+            return false;
+
+        void* typeObj = *(void**)(f + FAC_OFF_TYPE);
+        void* state   = *(void**)(f + FAC_OFF_STATE);
+        void* def     = typeObj ? *(void**)((unsigned char*)typeObj + FAC_TYPE_DEF_OFF) : 0;
+        int   level   = *(int*)(f + FAC_OFF_LEVEL);
+        int   loss    = *(int*)(f + FAC_OFF_LOSS_DAYS);
+
+        if (!state || !def)
+        {
+            FacLog("FactoryClose: %s: фабрика %p без стейта/definition (state=%p def=%p) - выплата пропущена",
+                reason, factory, state, def);
+            return false;
+        }
+
+        if (g_settings.factoryCloseDryRun)
+        {
+            char who[64];
+            FacDescribe(factory, who, sizeof(who));
+            FacLog("FactoryClose [DRY]: %s: [%s] фабрика %p, стейт %p, уровень %d, дней убытка %d, деньги %.0f -> была бы выплата владельцам",
+                reason, who, factory, state, level, loss, FacMoneyShown(money));
+            return false;
+        }
+
+        char who[64];
+        FacDescribe(factory, who, sizeof(who));
+        unsigned long long um = (unsigned long long)money;
+        if (CallOwnerPayout(def, state, (DWORD)um, (DWORD)(um >> 32)))
+        {
+            *(long long*)(f + FAC_OFF_MONEY) = 0;
+            FacLog("FactoryClose: %s: [%s] фабрика %p, стейт %p, уровень %d: %.0f выплачено владельцам",
+                reason, who, factory, state, level, FacMoneyShown(money));
+            return true;
+        }
+
+        FacLog("FactoryClose: %s: [%s] фабрика %p, стейт %p: владельцев нет - %.0f остаются в фабрике",
+            reason, who, factory, state, FacMoneyShown(money));
+        return false;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("FactoryClose: исключение при выплате (фабрика %p, %s)", factory, reason);
+        return false;
+    }
+}
+
+static void __cdecl FactoryClosePayoutHook(void* factory)
+{
+    FactoryPayoutAll(factory, g_facCloseReason);
+}
+
+static void FactoryStopCheck(unsigned char* f)
+{
+    int level = *(int*)(f + FAC_OFF_LEVEL);
+    int cnt   = *(int*)(f + FAC_OFF_STOP_CNT);
+    if (level <= 1 && cnt + 1 >= FAC_STOP_DAYS)
+        FactoryPayoutAll(f, "остановка (11 дней без закупок, уровень 1)");
+}
+
+// FUN_004F50C0: arg != 0 сбрасывает счётчик, субсидия - тоже.
+static void __cdecl FactoryCounterObserve(void* factory, int arg)
+{
+    __try
+    {
+        unsigned char* f = (unsigned char*)factory;
+        if (arg || *(f + FAC_OFF_SUBSIDY))
+            return;
+        FactoryStopCheck(f);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Встроенный инкремент в FUN_00482FF0: сюда попадаем только при !субсидия.
+static void __cdecl FactoryInlineCounterObserve(void* factory)
+{
+    __try
+    {
+        FactoryStopCheck((unsigned char*)factory);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Возвращает 1, если фабрика закрыта (ванильные финансы за этот день пропускаем).
+static int __cdecl FactoryAutoCloseCheck(void* factory)
+{
+    __try
+    {
+        int days = g_defFactoryCloseDays;
+        if (days <= 0)
+            return 0;
+
+        unsigned char* f = (unsigned char*)factory;
+        if (*(f + FAC_OFF_SUBSIDY) != 0 || *(f + FAC_OFF_CLOSED) != 0)
+            return 0;
+        if (*(int*)(f + FAC_OFF_LEVEL) <= 0)
+            return 0;
+
+        int loss = *(int*)(f + FAC_OFF_LOSS_DAYS);
+        if (loss < days)
+            return 0;
+
+        char who[64];
+        if (g_settings.factoryCloseDryRun)
+        {
+            if (FacSeenFirst(f))
+            {
+                FacDescribe(factory, who, sizeof(who));
+                FacLog("FactoryClose [DRY]: автозакрытие: [%s] фабрика %p, стейт %p, уровень %d, дней убытка %d (порог %d), деньги %.0f",
+                    who, factory, *(void**)(f + FAC_OFF_STATE), *(int*)(f + FAC_OFF_LEVEL), loss, days,
+                    FacMoneyShown(*(long long*)(f + FAC_OFF_MONEY)));
+            }
+            return 0;
+        }
+
+        FacDescribe(factory, who, sizeof(who));
+        FacLog("FactoryClose: автозакрытие: [%s] фабрика %p, стейт %p, уровень %d, дней убытка %d (порог %d)",
+            who, factory, *(void**)(f + FAC_OFF_STATE), *(int*)(f + FAC_OFF_LEVEL), loss, days);
+
+        *(f + FAC_OFF_CLOSED) = 1;
+        *(int*)(f + FAC_OFF_LOSS_DAYS) = 0;
+        g_facCloseReason = "автозакрытие";
+        CallFactoryCloseVanilla(factory);
+        g_facCloseReason = "ручное закрытие";
+        return 1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        g_facCloseReason = "ручное закрытие";
+        return 0;
+    }
+}
+
+// Вход FUN_004F5750: 55 8B EC 83 EC 0C (ESI = фабрика).
+__declspec(naked) static void FactoryCloseThunk()
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        sub esp, 0xc
+        pushad
+        push esi
+        call FactoryClosePayoutHook
+        add esp, 4
+        popad
+        jmp dword ptr [g_facCloseResume]
+    }
+}
+
+// Вход FUN_004F50C0: 55 8B EC 80 B8 80 01 00 00 00 (EAX = фабрика, [ebp+8] = arg).
+__declspec(naked) static void FactoryCounterThunk()
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        pushad
+        push dword ptr [ebp + 8]
+        push eax
+        call FactoryCounterObserve
+        add esp, 8
+        popad
+        cmp byte ptr [eax + 0x180], 0
+        jmp dword ptr [g_facCounterResume]
+    }
+}
+
+// Встроенный "inc dword ptr [ebx+0x184]" в FUN_00482FF0 (EBX = фабрика).
+__declspec(naked) static void FactoryCounterInlineThunk()
+{
+    __asm {
+        pushad
+        push ebx
+        call FactoryInlineCounterObserve
+        add esp, 4
+        popad
+        inc dword ptr [ebx + 0x184]
+        jmp dword ptr [g_facCounterInlineResume]
+    }
+}
+
+// Вход FUN_004F4B30: 55 8B EC 83 E4 F8; [ebp+8] = фабрика; ret 0x20.
+__declspec(naked) static void FactoryFinanceThunk()
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        and esp, 0xfffffff8
+        pushad
+        push dword ptr [ebp + 8]
+        call FactoryAutoCloseCheck
+        add esp, 4
+        mov dword ptr [esp + 28], eax
+        popad
+        test eax, eax
+        jnz skip
+        jmp dword ptr [g_facFinanceResume]
+    skip:
+        mov esp, ebp
+        pop ebp
+        ret 0x20
+    }
+}
+
+static bool InstallFactoryClose()
+{
+    EnsureV2dllDefines();
+
+    g_ownerPayoutAddr = g_base + RVA_OWNER_PAYOUT;
+    g_facCloseFnAddr  = g_base + RVA_FACTORY_CLOSE;
+
+    static const unsigned char PAYOUT_SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x48 };
+    if (memcmp((const void*)(DWORD_PTR)g_ownerPayoutAddr, PAYOUT_SIG, sizeof(PAYOUT_SIG)) != 0)
+    {
+        Log("FactoryClose: сигнатура FUN_004CFE20 не совпала - не патчим");
+        return false;
+    }
+
+    bool closeOk = false, counterOk = false, inlineOk = false, financeOk = false;
+
+    if (g_settings.patchFactoryClosePayout)
+    {
+        static const unsigned char CLOSE_SIG[6]    = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C };
+        static const unsigned char CLOSE_RESUME[6] = { 0x8B, 0x86, 0x10, 0x02, 0x00, 0x00 };
+        g_facCloseResume = g_base + RVA_FACTORY_CLOSE_RESUME;
+        closeOk = WriteJmpSite(RVA_FACTORY_CLOSE, CLOSE_SIG, sizeof(CLOSE_SIG), 6,
+            RVA_FACTORY_CLOSE_RESUME, CLOSE_RESUME, sizeof(CLOSE_RESUME),
+            (void*)&FactoryCloseThunk, "FactoryClose(закрытие)");
+
+        static const unsigned char CNT_SIG[10]    = { 0x55, 0x8B, 0xEC, 0x80, 0xB8, 0x80, 0x01, 0x00, 0x00, 0x00 };
+        static const unsigned char CNT_RESUME[2]  = { 0x75, 0x23 };
+        g_facCounterResume = g_base + RVA_FACTORY_COUNTER_RESUME;
+        counterOk = WriteJmpSite(RVA_FACTORY_COUNTER, CNT_SIG, sizeof(CNT_SIG), 10,
+            RVA_FACTORY_COUNTER_RESUME, CNT_RESUME, sizeof(CNT_RESUME),
+            (void*)&FactoryCounterThunk, "FactoryClose(счётчик)");
+
+        static const unsigned char INL_SIG[6]    = { 0xFF, 0x83, 0x84, 0x01, 0x00, 0x00 };
+        static const unsigned char INL_RESUME[3] = { 0x8B, 0x43, 0x20 };
+        g_facCounterInlineResume = g_base + RVA_FACTORY_COUNTER_INLINE_RESUME;
+        inlineOk = WriteJmpSite(RVA_FACTORY_COUNTER_INLINE, INL_SIG, sizeof(INL_SIG), 6,
+            RVA_FACTORY_COUNTER_INLINE_RESUME, INL_RESUME, sizeof(INL_RESUME),
+            (void*)&FactoryCounterInlineThunk, "FactoryClose(встроенный счётчик)");
+    }
+
+    if (g_settings.patchFactoryAutoClose)
+    {
+        static const unsigned char FIN_SIG[6]    = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
+        static const unsigned char FIN_RESUME[6] = { 0x64, 0xA1, 0x00, 0x00, 0x00, 0x00 };
+        g_facFinanceResume = g_base + RVA_FACTORY_FINANCE_RESUME;
+        financeOk = WriteJmpSite(RVA_FACTORY_FINANCE, FIN_SIG, sizeof(FIN_SIG), 6,
+            RVA_FACTORY_FINANCE_RESUME, FIN_RESUME, sizeof(FIN_RESUME),
+            (void*)&FactoryFinanceThunk, "FactoryClose(финансы)");
+    }
+
+    Log("FactoryClose: установлен (выплата при закрытии=%d, остановка по счётчику=%d/%d, автозакрытие=%d, порог %d дн.)%s",
+        (int)closeOk, (int)counterOk, (int)inlineOk, (int)financeOk, g_defFactoryCloseDays,
+        g_settings.factoryCloseDryRun ? " - РЕЖИМ DRY RUN: только лог [DRY], ничего не меняется (FACTORY_CLOSE_DRY_RUN=0 включает)" : "");
+    return closeOk || counterOk || inlineOk || financeOk;
+}
+
+
 static bool Install()
 {
     LoadSettings();
@@ -17960,6 +18584,9 @@ static bool Install()
 
     if (g_settings.patchHideNoSupplyFactories)
         InstallHideNoSupplyFactoriesHook();
+
+    if (g_settings.patchFactoryClosePayout || g_settings.patchFactoryAutoClose)
+        InstallFactoryClose();
 
     if (g_settings.EventSounds)
         LoadEventMusicDll();
