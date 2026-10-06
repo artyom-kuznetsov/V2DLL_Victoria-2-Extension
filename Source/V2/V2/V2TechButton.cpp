@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.11"
+#define MOD_VERSION "5.12"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -13547,14 +13547,25 @@ static void TypeClipboardAsKeystrokes()
 {
     HWND foreground = GetForegroundWindow();
     DWORD foregroundPid = 0;
-    if (!foreground ||
-        !GetWindowThreadProcessId(foreground, &foregroundPid) ||
-        foregroundPid != GetCurrentProcessId())
-    {
+    DWORD foregroundThread = foreground
+        ? GetWindowThreadProcessId(foreground, &foregroundPid) : 0;
+    if (!foregroundThread || foregroundPid != GetCurrentProcessId())
         return;
-    }
 
-    char text[512];
+    // El layout se consulta en el hilo de la ventana destino (no en el hilo
+    // auxiliar que procesa Ctrl+V). Los eventos Unicode no dependen de que
+    // ese layout sea EN, ES, RU u otro.
+    HKL layout = GetKeyboardLayout(foregroundThread);
+    LANGID lang = LOWORD((ULONG_PTR)layout);
+    wchar_t language[64] = L"";
+    LCID locale = MAKELCID(lang, SORT_DEFAULT);
+    if (!GetLocaleInfoW(locale, LOCALE_SENGLANGUAGE, language,
+                       (int)(sizeof(language) / sizeof(language[0]))))
+        wcscpy_s(language, L"Unknown");
+    Log("ClipboardPaste: layout activo %ls (LANGID=%04X, HKL=%p)",
+        language, (unsigned)lang, (void*)layout);
+
+    wchar_t text[1024];
     unsigned len = 0;
     if (OpenClipboard(NULL))
     {
@@ -13562,13 +13573,11 @@ static void TypeClipboardAsKeystrokes()
         const wchar_t* wide = data ? (const wchar_t*)GlobalLock(data) : 0;
         if (wide)
         {
-            for (unsigned i = 0; wide[i] && len < sizeof(text) - 1; ++i)
+            while (wide[len] && len < (unsigned)(sizeof(text) / sizeof(text[0]) - 1) &&
+                   wide[len] != L'\r' && wide[len] != L'\n')
             {
-                wchar_t ch = wide[i];
-                if (ch == L'\r' || ch == L'\n')
-                    break;
-                if (ch >= 32 && ch <= 126)
-                    text[len++] = (char)ch;
+                text[len] = wide[len];
+                ++len;
             }
             GlobalUnlock(data);
         }
@@ -13578,13 +13587,19 @@ static void TypeClipboardAsKeystrokes()
             const char* ansi = data ? (const char*)GlobalLock(data) : 0;
             if (ansi)
             {
-                for (unsigned i = 0; ansi[i] && len < sizeof(text) - 1; ++i)
+                int converted = MultiByteToWideChar(CP_ACP, 0, ansi, -1,
+                                                     text, (int)(sizeof(text) / sizeof(text[0])));
+                if (converted > 1)
                 {
-                    unsigned char ch = (unsigned char)ansi[i];
-                    if (ch == '\r' || ch == '\n')
-                        break;
-                    if (ch >= 32 && ch <= 126)
-                        text[len++] = (char)ch;
+                    len = (unsigned)converted - 1;
+                    for (unsigned i = 0; i < len; ++i)
+                    {
+                        if (text[i] == L'\r' || text[i] == L'\n')
+                        {
+                            len = i;
+                            break;
+                        }
+                    }
                 }
                 GlobalUnlock(data);
             }
@@ -13596,19 +13611,19 @@ static void TypeClipboardAsKeystrokes()
 
     INPUT inputs[2048];
     UINT count = 0;
-    for (unsigned i = 0; i < len; ++i)
+    for (unsigned i = 0; i < len && count + 2 <= 2048; ++i)
     {
-        SHORT mapped = VkKeyScanA(text[i]);
-        if (mapped == -1)
-            continue;
-        WORD vk = (WORD)(mapped & 0xFF);
-        bool shift = ((mapped >> 8) & 1) != 0;
-        if (shift)
-            AppendKeyInput(inputs, &count, VK_SHIFT, true);
-        AppendKeyInput(inputs, &count, vk, true);
-        AppendKeyInput(inputs, &count, vk, false);
-        if (shift)
-            AppendKeyInput(inputs, &count, VK_SHIFT, false);
+        INPUT& down = inputs[count++];
+        memset(&down, 0, sizeof(down));
+        down.type = INPUT_KEYBOARD;
+        down.ki.wScan = (WORD)text[i];
+        down.ki.dwFlags = KEYEVENTF_UNICODE;
+
+        INPUT& up = inputs[count++];
+        memset(&up, 0, sizeof(up));
+        up.type = INPUT_KEYBOARD;
+        up.ki.wScan = (WORD)text[i];
+        up.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
     }
     if (count)
     {
