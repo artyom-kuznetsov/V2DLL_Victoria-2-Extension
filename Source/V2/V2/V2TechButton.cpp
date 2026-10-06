@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "4.98"
+#define MOD_VERSION "5.10"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -53,7 +53,6 @@ struct Settings
     bool localModConfig = false;
 
     bool log            = true;  // лог в Logs\v2dll.log (много записей на тик, для раздачи ставить 0)
-    bool debugLog       = false; // DEBUG_LOG: отладочные записи (LogDbg) - см. определение рядом с Log
     bool buttons        = true;   // кнопки, запускающие решения
     bool decisionFilter = true;   // скрытие решений из окна политики
     bool priceDelta     = true;  // процентный шаг изменения цен
@@ -106,6 +105,8 @@ struct Settings
     // "случайных" чисел из непроинициализированной памяти стека
     // (см. InstallMusicFairRandom).
     bool musicFairRandom             = true;
+    bool EventSounds             = true;
+
     // Ежедневный доход "minting" по формуле из <мод>\common\minting.txt
     // (см. InstallMinting). Без файла формулы ничего не делает.
     bool minting                     = true;
@@ -291,14 +292,6 @@ static void Log(const char* fmt, ...)
     if (g_logCsInit)
         LeaveCriticalSection(&g_logCs);
 }
-
-// Отладочный лог: диагностика, которую мы заводили при разработке отдельных
-// фич (покадровые/по событию записи, зонды, дампы). По умолчанию выключен
-// (DEBUG_LOG=0 в v2dll_settings.ini): иначе лог растёт на десятки мегабайт.
-// Строки установки патчей и ошибок (сигнатура не совпала, исключения) идут
-// через обычный Log и остаются всегда. Аргументы при выключенном режиме не
-// вычисляются.
-#define LogDbg(...) do { if (g_settings.debugLog) Log(__VA_ARGS__); } while (0)
 
 
 // ---------------------------------------------------------------
@@ -486,7 +479,6 @@ static const char* GStrText(void* str)
     const char* data = (res > 15) ? *(const char**)p : (const char*)p;
     return data ? data : "";
 }
-
 
 // Записать текст в существующую std::string, не превышая ёмкости.
 static void GStrSet(void* str, const char* text)
@@ -965,7 +957,7 @@ static void __cdecl OnPlayerNextClicked()
         DWORD before = *(DWORD*)(g_base + RVA_MUSIC_STATE);
         VCall0(music, VT_MUSIC_STOP);
         DWORD after = *(DWORD*)(g_base + RVA_MUSIC_STATE);
-        LogDbg("PlayerNext: трек пропущен (состояние плеера %u -> %u)", before, after);
+        Log("PlayerNext: трек пропущен (состояние плеера %u -> %u)", before, after);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -1004,7 +996,7 @@ static void __cdecl OnPlayerPauseClicked()
         void* ctl = *(void**)(g_base + RVA_MUSIC_MEDIACTL);
         if (gameState != 1 || !ctl || SafeIsBadReadPtr(ctl, 4))
         {
-            LogDbg("PlayerPause: игнорируем клик (состояние плеера %u, IMediaControl=%08X)",
+            Log("PlayerPause: игнорируем клик (состояние плеера %u, IMediaControl=%08X)",
                 gameState, (DWORD)(DWORD_PTR)ctl);
             return;
         }
@@ -1021,16 +1013,16 @@ static void __cdecl OnPlayerPauseClicked()
         if (filterState == 2)
         {
             LONG hr = ((tMcNoArgs)mcVt[VT_MC_PAUSE / 4])(ctl);
-            LogDbg("PlayerPause: пауза (hr=%08X)", (unsigned)hr);
+            Log("PlayerPause: пауза (hr=%08X)", (unsigned)hr);
         }
         else if (filterState == 1)
         {
             LONG hr = ((tMcNoArgs)mcVt[VT_MC_RUN / 4])(ctl);
-            LogDbg("PlayerPause: продолжение (hr=%08X)", (unsigned)hr);
+            Log("PlayerPause: продолжение (hr=%08X)", (unsigned)hr);
         }
         else
         {
-            LogDbg("PlayerPause: граф в состоянии %d - ничего не делаем", (int)filterState);
+            Log("PlayerPause: граф в состоянии %d - ничего не делаем", (int)filterState);
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1161,7 +1153,7 @@ static void __cdecl OnVolumeSliderChanged(void* slider)
         g_volPushToMenu = true;      // окно настроек подхватит при ближайшем Update
 
         if (InterlockedIncrement(&g_volLogCount) <= 40)
-            LogDbg("PlayerVolume: ползунок topbar -> громкость музыки %.1f", v);
+            Log("PlayerVolume: ползунок topbar -> громкость музыки %.1f", v);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -1254,7 +1246,7 @@ static void MirrorOptionsToSlider(const char* who)
     g_volSeen = vol;
     SliderSetInternal(slider, vol);
     if (InterlockedIncrement(&g_volLogCount) <= 40)
-        LogDbg("PlayerVolume: настройки -> ползунок topbar %.1f (%s)", vol, who);
+        Log("PlayerVolume: настройки -> ползунок topbar %.1f (%s)", vol, who);
 }
 
 static void RestoreEmbarkMarksIfDue();   // v4.77: определена в блоке SAVE_EMBARKED_ALLY_ARMIES
@@ -1267,7 +1259,7 @@ static void __cdecl OnFramePump()
     void* slider = g_volSlider;
 
     if (calls == 1 || calls == 300 || calls == 3000)
-        LogDbg("PlayerVolume: покадровый хук жив, вызовов=%d slider=%08X", (int)calls,
+        Log("PlayerVolume: покадровый хук жив, вызовов=%d slider=%08X", (int)calls,
             (DWORD)(DWORD_PTR)slider);
 
     if (!slider)
@@ -1323,7 +1315,7 @@ static void __fastcall ApplyVolumesHook(void* self, void* edx)
         bool haveMenu = menuSlider && !SafeIsBadReadPtr(menuSlider, 0x60);
 
         if (n <= 3 || n == 100 || n == 1000)
-            LogDbg("SettingsApply: вызов #%d this=%08X настройки=%.1f ползунок окна=%.1f push=%d",
+            Log("SettingsApply: вызов #%d this=%08X настройки=%.1f ползунок окна=%.1f push=%d",
                 (int)n, (DWORD)(DWORD_PTR)self, p ? *p : -1.0f,
                 haveMenu ? SliderGetValue(menuSlider) : -1.0f, (int)g_volPushToMenu);
 
@@ -1332,7 +1324,7 @@ static void __fastcall ApplyVolumesHook(void* self, void* edx)
             SliderSetValue(menuSlider, *p);
             g_volPushToMenu = false;
             if (InterlockedIncrement(&g_volLogCount) <= 40)
-                LogDbg("PlayerVolume: ползунок topbar -> ползунок окна настроек %.1f", *p);
+                Log("PlayerVolume: ползунок topbar -> ползунок окна настроек %.1f", *p);
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1732,7 +1724,7 @@ static DWORD __cdecl MusicFairRandom()
     DWORD r = 1 + z % 200000;
     LONG n = InterlockedIncrement(&g_musicRndCalls);
     if (n <= 6)
-        LogDbg("MusicFairRandom: вызов #%d r=%u", (int)n, r);
+        Log("MusicFairRandom: вызов #%d r=%u", (int)n, r);
     return r * 1000;
 }
 
@@ -1936,8 +1928,6 @@ static DWORD g_goodsFilterCtorTailResume = 0;
 
 static void __cdecl LogGoodsFilterConstructed(void* self)
 {
-    if (!g_settings.debugLog)
-        return;
     __try
     {
         if (!self || SafeIsBadReadPtr(self, 0x14))
@@ -1949,7 +1939,7 @@ static void __cdecl LogGoodsFilterConstructed(void* self)
             return;
 
         void* winPtr = *(void**)((char*)self + 4);
-        LogDbg("GoodsFilterRaw: idx=%d name=%s self=%p winPtr=%p", goodIndex, name, self, winPtr);
+        Log("GoodsFilterRaw: idx=%d name=%s self=%p winPtr=%p", goodIndex, name, self, winPtr);
         if (!winPtr || SafeIsBadReadPtr(winPtr, 0x60))
             return;
 
@@ -1962,11 +1952,11 @@ static void __cdecl LogGoodsFilterConstructed(void* self)
             sprintf_s(tmp, "%02X ", buf[i]);
             strcat_s(hex, sizeof(hex), tmp);
         }
-        LogDbg("GoodsFilterRaw:   win hex=%s", hex);
+        Log("GoodsFilterRaw:   win hex=%s", hex);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        LogDbg("GoodsFilterRaw: исключение при чтении self=%p", self);
+        Log("GoodsFilterRaw: исключение при чтении self=%p", self);
     }
 }
 
@@ -2077,7 +2067,7 @@ static DWORD __cdecl ComputeGoodsFilterPos(DWORD packedXY, int byteOffset)
         if (name && _strnicmp(name, "raw_", 4) == 0)
         {
             if (InterlockedIncrement(&g_goodsFilterHideLogged) <= 40)
-                LogDbg("HideRawGoodsFilter: idx=%d %s спрятан (был x=%d y=%d)",
+                Log("HideRawGoodsFilter: idx=%d %s спрятан (был x=%d y=%d)",
                     goodIndex, name, (int)(short)(packedXY & 0xFFFF),
                     (int)(short)((packedXY >> 16) & 0xFFFF));
             unsigned short hiddenX = (unsigned short)(short)-2000;
@@ -2108,7 +2098,7 @@ static DWORD __cdecl ObserveGoodsFilterPos2(DWORD packedXY, int byteOffset)
         {
             int goodIndex = byteOffset / 20;
             const char* name = ResolveGoodNameByIndex(goodIndex);
-            LogDbg("GoodsFilterPos2: hit#%d idx=%d name=%s x=%d y=%d",
+            Log("GoodsFilterPos2: hit#%d idx=%d name=%s x=%d y=%d",
                 (int)hit, goodIndex, name ? name : "?",
                 (int)(short)(packedXY & 0xFFFF), (int)(short)((packedXY >> 16) & 0xFFFF));
         }
@@ -2346,7 +2336,7 @@ static void FilterLogRebuildStart(void* view)
             }
         }
     }
-    LogDbg("FilterShowAll: перестройка #%d mode=%d кнопок=%d включено=%d [%s]",
+    Log("FilterShowAll: перестройка #%d mode=%d кнопок=%d включено=%d [%s]",
         (int)grp, mode, n, on, names);
 }
 
@@ -2394,7 +2384,7 @@ static int __cdecl FilterPredHook(void* view, void* factoryArg, char* node)
                 }
                 g_filterForce = pass > 0;
                 if (g_filterGroup >= 3 && InterlockedIncrement(&g_filterRegionLogged) <= 120)
-                    LogDbg("FilterShowAll: регион state=%p фабрик=%d прошло=%d (оригинал=%d) валидных=%d force=%d [%s]",
+                    Log("FilterShowAll: регион state=%p фабрик=%d прошло=%d (оригинал=%d) валидных=%d force=%d [%s]",
                         state, n, pass, origPass, valid, g_filterForce, det);
             }
         }
@@ -2760,7 +2750,7 @@ static void ParseProductionTypes(const char* text, size_t len)
                             g_productionTypeCount = index + 1;
                         }
 
-                        LogDbg("  [%d] %.*s limit=%d good=%s", index, (int)nameLen, text + nameStart,
+                        Log("  [%d] %.*s limit=%d good=%s", index, (int)nameLen, text + nameStart,
                             hasLimitFlag ? 1 : 0, goodName[0] ? goodName : "-");
 
                         ++index;
@@ -2963,7 +2953,7 @@ static void LoadProvinceGoods()
     DWORD vanillaAttrs = GetFileAttributesA(vanillaDir);
     if (vanillaAttrs != INVALID_FILE_ATTRIBUTES && (vanillaAttrs & FILE_ATTRIBUTE_DIRECTORY))
     {
-        LogDbg("LoadProvinceGoods: сканирую ванильную '%s'", vanillaDir);
+        Log("LoadProvinceGoods: сканирую ванильную '%s'", vanillaDir);
         ScanProvinceGoodsInDir(vanillaDir);
     }
     else
@@ -2976,7 +2966,7 @@ static void LoadProvinceGoods()
     DWORD modAttrs = GetFileAttributesA(modDir);
     if (modAttrs != INVALID_FILE_ATTRIBUTES && (modAttrs & FILE_ATTRIBUTE_DIRECTORY))
     {
-        LogDbg("LoadProvinceGoods: сканирую мод '%s' (перекрывает ванильные id)", modDir);
+        Log("LoadProvinceGoods: сканирую мод '%s' (перекрывает ванильные id)", modDir);
         ScanProvinceGoodsInDir(modDir);
     }
 
@@ -3261,8 +3251,6 @@ static int  g_hideNoSupplyLogCount = 0;
 
 static void LogHideNoSupplyResult(const char* name, int result)
 {
-    if (!g_settings.debugLog)
-        return;
     for (int i = 0; i < g_hideNoSupplyLogCount; ++i)
     {
         if (strcmp(g_hideNoSupplyLogName[i], name) == 0)
@@ -3270,7 +3258,7 @@ static void LogHideNoSupplyResult(const char* name, int result)
             if (g_hideNoSupplyLogResult[i] == result)
                 return;
             g_hideNoSupplyLogResult[i] = result;
-            LogDbg("HideNoSupply: %s -> hide=%d (изменился)", name, result);
+            Log("HideNoSupply: %s -> hide=%d (изменился)", name, result);
             return;
         }
     }
@@ -3280,7 +3268,7 @@ static void LogHideNoSupplyResult(const char* name, int result)
         g_hideNoSupplyLogResult[g_hideNoSupplyLogCount] = result;
         ++g_hideNoSupplyLogCount;
     }
-    LogDbg("HideNoSupply: %s -> hide=%d (впервые)", name, result);
+    Log("HideNoSupply: %s -> hide=%d (впервые)", name, result);
 }
 
 // Отдельная задача "скрыть fishery, если регион не прибрежный" (не
@@ -3466,7 +3454,7 @@ static void OnViewUpdate(int viewIndex, void* view)
     if (g_updateSeen[viewIndex] < 2)
     {
         ++g_updateSeen[viewIndex];
-        LogDbg("Update[%s]: вызван, view=%08X",
+        Log("Update[%s]: вызван, view=%08X",
             VIEWS[viewIndex].name, (DWORD)(DWORD_PTR)view);
     }
 
@@ -4097,7 +4085,6 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "LOCAL_MOD_CONFIG") == 0)             { g_settings.localModConfig = v; return; }
 
     if (_stricmp(key, "ENABLE_LOG") == 0)                  { g_settings.log            = v; return; }
-    if (_stricmp(key, "DEBUG_LOG") == 0)                   { g_settings.debugLog       = v; return; }
     if (_stricmp(key, "ENABLE_BUTTONS") == 0)               { g_settings.buttons        = v; return; }
     if (_stricmp(key, "ENABLE_DECISION_FILTER") == 0)       { g_settings.decisionFilter = v; return; }
     if (_stricmp(key, "ENABLE_PRICE_DELTA") == 0)           { g_settings.priceDelta     = v; return; }
@@ -4179,6 +4166,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "FILTER_PRODUCERS_ONLY") == 0)            { g_settings.filterProducersOnly         = v; return; }
     if (_stricmp(key, "PLAYER_BUTTONS") == 0)               { g_settings.playerButtons            = v; return; }
     if (_stricmp(key, "MUSIC_FAIR_RANDOM") == 0)                { g_settings.musicFairRandom             = v; return; }
+    if (_stricmp(key, "ENABLE_EVENT_SOUNDS") == 0)               { g_settings.EventSounds                 = v; return; }
     if (_stricmp(key, "ENABLE_MINTING") == 0)                   { g_settings.minting                     = v; return; }
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "GOODS_CONSUMPTION_MARKET_DEMAND") == 0)  { g_settings.goodsConsumptionDemand      = v; return; }
@@ -4345,6 +4333,7 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_ALLOW_UNCIV_TECH_RESEARCH=%d\n"
         "PATCH_ARISTOCRAT_INCOME_SHARE=%d\n"
         "MUSIC_FAIR_RANDOM=%d\n"
+        "ENABLE_EVENT_SOUNDS=%d\n"
         "PATCH_TECH_NULL_CHECK_FIXES=%d\n"
         "PATCH_SUPPLY_SOURCE_NULL_CHECK=%d\n"
         "ENABLE_MINTING=%d\n"
@@ -4358,6 +4347,7 @@ static void WriteDefaultSettings(const char* path)
         (int)FindExePatchEnabled("allow_unciv_tech_research"),
         (int)FindExePatchEnabled("aristocrat_income_share_patch_1"),
         (int)g_settings.musicFairRandom,
+        (int)g_settings.EventSounds,
         (int)g_settings.patchTechNullCheckFixes,
         (int)g_settings.patchSupplySourceNullCheck,
         (int)g_settings.minting,
@@ -4417,7 +4407,6 @@ static void WriteDefaultSettings(const char* path)
     fprintf(f,
         "; Diagnostics\n"
         "ENABLE_LOG=%d\n"
-        "DEBUG_LOG=%d\n"
         "PATCH_FACTORY_DUMP_SCAN=%d\n"
         "PATCH_CHECKSUM_DIAGNOSTIC=%d\n"
         "ENABLE_OOS_LOG=%d\n"
@@ -4425,7 +4414,6 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_CRASH_DUMP=%d\n"
         "HIDE_NO_SUPPLY_DRY_RUN=%d\n",
         (int)g_settings.log,
-        (int)g_settings.debugLog,
         (int)g_settings.patchFactoryDumpScan,
         (int)g_settings.patchChecksumDiagnostic,
         (int)g_settings.enableOosLog,
@@ -5065,8 +5053,6 @@ static void MaybeDumpAfterLoad();   // v4.76: определена ниже (б�
 static LONG g_provTableLogged = 0;
 static void LogProvinceTableOnce()
 {
-    if (!g_settings.debugLog)
-        return;
     if (InterlockedCompareExchange(&g_provTableLogged, 1, 0) != 0)
         return;
     __try
@@ -5074,19 +5060,19 @@ static void LogProvinceTableOnce()
         char* owner = *(char**)(g_base + 0xE5870C);
         if (!owner)
         {
-            LogDbg("ProvTable: владелец таблицы = null");
+            Log("ProvTable: владелец таблицы = null");
             return;
         }
         if (g_fnIsBadReadPtr && g_fnIsBadReadPtr(owner + 0x2238, 12))
         {
-            LogDbg("ProvTable: владелец %p нечитаем", owner);
+            Log("ProvTable: владелец %p нечитаем", owner);
             return;
         }
         DWORD begin = *(DWORD*)(owner + 0x2238);
         DWORD end   = *(DWORD*)(owner + 0x223C);
         DWORD cap   = *(DWORD*)(owner + 0x2240);
         int count   = (end >= begin) ? (int)((end - begin) / 4) : -1;
-        LogDbg("ProvTable: владелец=%p begin=%08X end=%08X cap=%08X count(end-begin)=%d",
+        Log("ProvTable: владелец=%p begin=%08X end=%08X cap=%08X count(end-begin)=%d",
             owner, begin, end, cap, count);
 
         int probe[8] = { 0, 1, 2, 100, count - 1, count, count + 1, count + 50 };
@@ -5097,19 +5083,19 @@ static void LogProvinceTableOnce()
             DWORD slot = begin + (DWORD)i * 4;
             if (g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)slot, 4))
             {
-                LogDbg("ProvTable: [%d] слот %08X нечитаем", i, slot);
+                Log("ProvTable: [%d] слот %08X нечитаем", i, slot);
                 continue;
             }
             DWORD prov = *(DWORD*)slot;
             int id = -1;
             if (prov && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)(prov + 0x58), 4)))
                 id = *(int*)(prov + 0x58);
-            LogDbg("ProvTable: [%d] province*=%08X +0x58=%d", i, prov, id);
+            Log("ProvTable: [%d] province*=%08X +0x58=%d", i, prov, id);
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        LogDbg("ProvTable: исключение при чтении");
+        Log("ProvTable: исключение при чтении");
     }
 }
 
@@ -5153,7 +5139,7 @@ static int __cdecl IsOwnerAllied(int countryIdxA, int countryIdxB)
     }
 
     if (InterlockedIncrement(&g_embarkAlliedLogged) <= 60)
-        LogDbg("AllyEmbark: %d/%d союз=%s суб(A/B)=%s суб(B/A)=%s -> %s",
+        Log("AllyEmbark: %d/%d союз=%s суб(A/B)=%s суб(B/A)=%s -> %s",
             countryIdxA, countryIdxB, TriStr(allied), TriStr(subAB), TriStr(subBA),
             result ? "союзники" : "не союзники");
     return result;
@@ -5281,7 +5267,7 @@ static void RestoreEmbarkMarksNow()
         __except (EXCEPTION_EXECUTE_HANDLER) { }
     }
     if (g_embarkMarkCount)
-        LogDbg("SaveEmbark: метки expeditionary_owner сняты (%d)", g_embarkMarkCount);
+        Log("SaveEmbark: метки expeditionary_owner сняты (%d)", g_embarkMarkCount);
     g_embarkMarkCount = 0;
 }
 
@@ -5427,7 +5413,7 @@ static void ScanAndSaveForeignEmbarks(const char* saveFilename)
                                             if (found <= 3)
                                             {
                                                 int dl = 0;
-                                                LogDbg("SaveEmbark: бригады армии %p (владелец %d) ПЕРЕД сохранением:", army, armyOwner);
+                                                Log("SaveEmbark: бригады армии %p (владелец %d) ПЕРЕД сохранением:", army, armyOwner);
                                                 DumpArmyRegiments(army, &dl);
                                             }
 
@@ -5563,7 +5549,7 @@ static void __cdecl OnPhysfsOpenReadFilename(const char* filename)
         InterlockedExchange(&g_afterLoadDumpPending, 1);
         InterlockedExchange(&g_embarkRepairApplied, 0);
         if (InterlockedIncrement(&g_openReadLogCount) <= 40)
-            LogDbg("LoadEmbark: открыт на чтение '%s'", b);
+            Log("LoadEmbark: открыт на чтение '%s'", b);
     }
     __except (EXCEPTION_EXECUTE_HANDLER) { }
 }
@@ -5625,7 +5611,7 @@ static void DumpArmyRegiments(void* army, int* lines)
     {
         if (!army || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)army + 0x190, 4)))
             return;
-        LogDbg("LoadDump:   армия %p +0x188=%08X +0x18C=%d +0xC8=%08X +0xCC=%d",
+        Log("LoadDump:   армия %p +0x188=%08X +0x18C=%d +0xC8=%08X +0xCC=%d",
             army, *(DWORD*)((char*)army + 0x188), *(int*)((char*)army + 0x18C),
             *(DWORD*)((char*)army + 0xC8), *(int*)((char*)army + 0xCC));
         ++*lines;
@@ -5642,19 +5628,19 @@ static void DumpArmyRegiments(void* army, int* lines)
                 DWORD rt = *(DWORD*)(reg + 0x60);
                 char rtag[5] = { (char)rt, (char)(rt >> 8), (char)(rt >> 16), 0, 0 };
                 char* pop = *(char**)(reg + 0x30);
-                LogDbg("LoadDump:     рег %p +60=%s +64=%d pop=%p", reg, rtag, *(int*)(reg + 0x64), pop);
+                Log("LoadDump:     рег %p +60=%s +64=%d pop=%p", reg, rtag, *(int*)(reg + 0x64), pop);
                 ++*lines;
                 if (pop && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pop + 0x58, 0x24)))
                 {
                     DWORD* d = (DWORD*)(pop + 0x58);
-                    LogDbg("LoadDump:       pop+58..78: %08X %08X %08X %08X %08X %08X %08X %08X %08X",
+                    Log("LoadDump:       pop+58..78: %08X %08X %08X %08X %08X %08X %08X %08X %08X",
                         d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8]);
                     ++*lines;
                     char* pv = *(char**)(pop + 0x64);
                     if (pv && !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pv + 0x58, 4)) &&
                         !(g_fnIsBadReadPtr && g_fnIsBadReadPtr(pv + 0x128, 0x10)))
                     {
-                        LogDbg("LoadDump:       pop+64=%p: +58=%d +128=%08X +12C=%d +130=%08X +134=%d",
+                        Log("LoadDump:       pop+64=%p: +58=%d +128=%08X +12C=%d +130=%08X +134=%d",
                             pv, *(int*)(pv + 0x58), *(DWORD*)(pv + 0x128), *(int*)(pv + 0x12C),
                             *(DWORD*)(pv + 0x130), *(int*)(pv + 0x134));
                         ++*lines;
@@ -5679,7 +5665,7 @@ static void DumpUnitLine(int provId, void* unit, int* lines)
         int rawOwner = *(int*)((char*)unit + 0xCC);
         if (!special || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(special, SE_OFF_FLEET_EMBARKED_LIST + 4)))
         {
-            LogDbg("LoadDump: пров=%d unit=%p флот=%d rawOwner=%d special=%p (нечитаем)",
+            Log("LoadDump: пров=%d unit=%p флот=%d rawOwner=%d special=%p (нечитаем)",
                 provId, unit, (int)isNavy, rawOwner, special);
             ++*lines;
             return;
@@ -5693,7 +5679,7 @@ static void DumpUnitLine(int provId, void* unit, int* lines)
             tCountArmyBrigades countArmy = (tCountArmyBrigades)(g_base + RVA_ARMY_COUNT_BRIGADES);
             __try { brig = countArmy(special); } __except (EXCEPTION_EXECUTE_HANDLER) { brig = -2; }
         }
-        LogDbg("LoadDump: пров=%d unit=%p флот=%d rawOwner(+CC)=%d special=%p owner(+C4)=%d тег=%s бригад=%d",
+        Log("LoadDump: пров=%d unit=%p флот=%d rawOwner(+CC)=%d special=%p owner(+C4)=%d тег=%s бригад=%d",
             provId, unit, (int)isNavy, rawOwner, special, owner, tag, brig);
         ++*lines;
 
@@ -5715,7 +5701,7 @@ static void DumpUnitLine(int provId, void* unit, int* lines)
                     int ab = -1;
                     tCountArmyBrigades countArmy = (tCountArmyBrigades)(g_base + RVA_ARMY_COUNT_BRIGADES);
                     __try { ab = countArmy(army); } __except (EXCEPTION_EXECUTE_HANDLER) { ab = -2; }
-                    LogDbg("LoadDump:   на борту: army=%p owner=%d тег=%s бригад=%d", army, ao, at, ab);
+                    Log("LoadDump:   на борту: army=%p owner=%d тег=%s бригад=%d", army, ao, at, ab);
                     ++*lines;
                     DumpArmyRegiments(army, lines);
                 }
@@ -5742,7 +5728,7 @@ static void MaybeDumpAfterLoad()
         FILE* f = 0;
         if (_wfopen_s(&f, pathW, L"r") != 0 || !f)
         {
-            LogDbg("LoadDump: компаньон-файла для '%s' нет", g_lastOpenedV2);
+            Log("LoadDump: компаньон-файла для '%s' нет", g_lastOpenedV2);
             return;
         }
 
@@ -5752,14 +5738,14 @@ static void MaybeDumpAfterLoad()
         DWORD arrEnd   = *(DWORD*)((char*)owner + 0x223C);
         int provCount  = (arrEnd > arrBegin) ? (int)((arrEnd - arrBegin) / 4) : 0;
 
-        LogDbg("LoadDump: дамп по компаньон-файлу '%s' (таблица провинций: %d)", g_lastOpenedV2, provCount);
+        Log("LoadDump: дамп по компаньон-файлу '%s' (таблица провинций: %d)", g_lastOpenedV2, provCount);
         int lines = 0;
         int fo, prov, ao, br;
         char ft[8], at[8];
         while (lines < 200 &&
                fscanf_s(f, "%d %3s %d %d %3s %d", &fo, ft, 8u, &prov, &ao, at, 8u, &br) == 6)
         {
-            LogDbg("LoadDump: запись: флот %d/%s пров=%d армия %d/%s бригад=%d", fo, ft, prov, ao, at, br);
+            Log("LoadDump: запись: флот %d/%s пров=%d армия %d/%s бригад=%d", fo, ft, prov, ao, at, br);
             if (prov < 1 || prov >= provCount) continue;
             if (g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)(arrBegin + prov * 4), 4)) continue;
             char* province = *(char**)(arrBegin + prov * 4);
@@ -5778,11 +5764,11 @@ static void MaybeDumpAfterLoad()
             }
         }
         fclose(f);
-        LogDbg("LoadDump: готово (%d строк)", lines);
+        Log("LoadDump: готово (%d строк)", lines);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        LogDbg("LoadDump: исключение");
+        Log("LoadDump: исключение");
     }
 }
 
@@ -5978,7 +5964,7 @@ static int __cdecl RepairEmbarkedArmyOwner(void* army, int navyOwner)
             Log("LoadRepair: [вывод не удался] армия %p владелец флота %d, бригад %d, без вывода %d (pop ещё не привязан?)",
                 army, navyOwner, regs, bad);
         else if (total <= 5)
-            LogDbg("LoadRepair: армия %p владелец флота %d, бригад %d, по бригадам %d (совпало или не отличается)",
+            Log("LoadRepair: армия %p владелец флота %d, бригад %d, по бригадам %d (совпало или не отличается)",
                 army, navyOwner, regs, derived);
         return -1;
     }
@@ -6079,8 +6065,6 @@ static LONG g_embarkCacheLogCount = 0;  // v4.57: ограничивает ди�
 
 static void __cdecl LogEmbarkFleetState(void* fleetObj, void* armyObj)
 {
-    if (!g_settings.debugLog)
-        return;
     __try
     {
         int ownerFleet = *(int*)((char*)fleetObj + 0xC4);
@@ -6099,7 +6083,7 @@ static void __cdecl LogEmbarkFleetState(void* fleetObj, void* armyObj)
 
         bool ok = combat == 0 && routeCount <= 0 && flag104 == 0 && (already + mine) <= capacity;
 
-        LogDbg("AllyEmbark: владелец флота/армии %d/%d бой=%d маршрут_флота=%d флаг104=%d "
+        Log("AllyEmbark: владелец флота/армии %d/%d бой=%d маршрут_флота=%d флаг104=%d "
             "вместимость=%d занято=%d+%d -> %s",
             ownerFleet, ownerArmy, combat, routeCount, (int)flag104,
             capacity, already, mine, ok ? "должна пройти" : "ОСТАЛЬНОЕ УСЛОВИЕ НЕ ПРОШЛО");
@@ -6135,7 +6119,7 @@ static void __cdecl LogEmbarkFleetState(void* fleetObj, void* armyObj)
                 }
                 __except (EXCEPTION_EXECUTE_HANDLER) { }
             }
-            LogDbg("AllyEmbark: скан armyObj=%p на совпадение с fleetObj=%p -> смещения:%s (найдено %d)",
+            Log("AllyEmbark: скан armyObj=%p на совпадение с fleetObj=%p -> смещения:%s (найдено %d)",
                 armyObj, fleetObj, found[0] ? found : " нет", hits);
         }
 
@@ -6150,7 +6134,7 @@ static void __cdecl LogEmbarkFleetState(void* fleetObj, void* armyObj)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        LogDbg("AllyEmbark: исключение при диагностике состояния флота");
+        Log("AllyEmbark: исключение при диагностике состояния флота");
     }
 }
 
@@ -6284,10 +6268,10 @@ static void __cdecl UpdateEmbarkedTagsCacheFromCapturedFleet()
         }
 
         if (InterlockedIncrement(&g_fleetCaptureCount) <= 20)
-            LogDbg("FleetCapture: fleetSpecial=%p владелец=%d итог='%s'", fleetSpecial, ownerFleet, fresh);
+            Log("FleetCapture: fleetSpecial=%p владелец=%d итог='%s'", fleetSpecial, ownerFleet, fresh);
 
         if (strcmp(g_cachedEmbarkedTags, fresh) != 0)
-            LogDbg("FleetCapture: кэш тултипа обновлён: '%s' -> '%s'", g_cachedEmbarkedTags, fresh);
+            Log("FleetCapture: кэш тултипа обновлён: '%s' -> '%s'", g_cachedEmbarkedTags, fresh);
         strcpy_s(g_cachedEmbarkedTags, sizeof(g_cachedEmbarkedTags), fresh);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -6587,7 +6571,7 @@ static void OnUnitButtonsTooltip(void* thisObj, void* retBuf, void* element)
         // лимит лога раньше, чем до́ходит до реальных кнопок - исключаем
         // его из логирования, лимит для остальных поднят.
         if (strcmp(name, "select_land") != 0 && InterlockedIncrement(&g_tooltipHookLogCount) <= 100)
-            LogDbg("FleetPassengerTooltip: элемент='%s' кэш='%s'", name, g_cachedEmbarkedTags);
+            Log("FleetPassengerTooltip: элемент='%s' кэш='%s'", name, g_cachedEmbarkedTags);
 
         // v4.62: пользователь прямо сказал - индикатор на панели АРМИИ
         // (unload_button/load_button) не нужен, нужен на панели ФЛОТА.
@@ -6705,8 +6689,6 @@ static const int MAPICON_PROBE_LOG_CAP = 40;
 // объекта назначен один из ТРЁХ ОСТАЛЬНЫХ, а не именно 0xC.
 static void __cdecl LogMapIconProbeHit(void* thisPtr, int slotIndex)
 {
-    if (!g_settings.debugLog)
-        return;
     if (slotIndex >= 0 && slotIndex < MAPICON_PROBE_SLOTS &&
         InterlockedIncrement(&g_mapIconProbeLogCount[slotIndex]) <= MAPICON_PROBE_LOG_CAP)
     {
@@ -6717,12 +6699,12 @@ static void __cdecl LogMapIconProbeHit(void* thisPtr, int slotIndex)
             __try { cbC  = *(void**)((char*)thisPtr + 0xC); }  __except (EXCEPTION_EXECUTE_HANDLER) { cbC  = (void*)(DWORD_PTR)-1; }
             __try { cb10 = *(void**)((char*)thisPtr + 0x10); } __except (EXCEPTION_EXECUTE_HANDLER) { cb10 = (void*)(DWORD_PTR)-1; }
             __try { cb20 = *(void**)((char*)thisPtr + 0x20); } __except (EXCEPTION_EXECUTE_HANDLER) { cb20 = (void*)(DWORD_PTR)-1; }
-            LogDbg("MapIconProbe: слот=%d this=%p cb(+8)=%p cb(+C)=%p cb(+10)=%p cb(+20)=%p",
+            Log("MapIconProbe: слот=%d this=%p cb(+8)=%p cb(+C)=%p cb(+10)=%p cb(+20)=%p",
                 slotIndex, thisPtr, cb8, cbC, cb10, cb20);
         }
         else
         {
-            LogDbg("MapIconProbe: слот=%d this=%p", slotIndex, thisPtr);
+            Log("MapIconProbe: слот=%d this=%p", slotIndex, thisPtr);
         }
     }
 }
@@ -6759,7 +6741,7 @@ static bool InstallMapIconProbe()
 {
     bool allOk = true;
     allOk = PatchSlot(RVA_MAPICON_VTABLE, 8, (void*)&MapIconProbe8, &g_mapIconOrig8) && allOk;
-    LogDbg("MapIconProbe: установлен (vtable rva %06X, слот 8 ТОЛЬКО) = %d",
+    Log("MapIconProbe: установлен (vtable rva %06X, слот 8 ТОЛЬКО) = %d",
         RVA_MAPICON_VTABLE, (int)allOk);
     return allOk;
 }
@@ -7653,7 +7635,7 @@ static void RegisterFoundNode(void* node, const char* typeName)
     int slot = g_factoryNodeCount++;
     g_factoryNodes[slot] = node;
     strcpy_s(g_factoryNodeNames[slot], typeName);
-    LogDbg("FactoryScan: найден узел node=%08X type=%s (всего найдено %d)",
+    Log("FactoryScan: найден узел node=%08X type=%s (всего найдено %d)",
         (unsigned)(DWORD_PTR)node, typeName, g_factoryNodeCount);
     DumpFactoryNodeNow(node, typeName);
 }
@@ -7873,7 +7855,7 @@ static DWORD WINAPI FactoryScanThreadProc(LPVOID)
                 char name[64];
                 if (!SafeCheckTypeName(*(void**)((char*)g_factoryNodes[i] + 0x18), name, sizeof(name)))
                 {
-                    LogDbg("FactoryScan: узел node=%08X (%s) больше не читается - похоже, снесён",
+                    Log("FactoryScan: узел node=%08X (%s) больше не читается - похоже, снесён",
                         (unsigned)(DWORD_PTR)g_factoryNodes[i], g_factoryNodeNames[i]);
                     continue;
                 }
@@ -8728,7 +8710,7 @@ static void MintingDailyCredit(void* country)
                     sl->month = monthKey;
                     if ((newMonth || (before == 0 && sl->value != 0)) && country == GetLocalPlayerCountry() &&
                         InterlockedIncrement(&g_mintMonthLogged) <= 24)
-                        LogDbg("Minting: месяц %d, ставка игрока %s: %.2f в день", monthKey,
+                        Log("Minting: месяц %d, ставка игрока %s: %.2f в день", monthKey,
                             newMonth ? "пересчитана" : "стала ненулевой",
                             (double)sl->value / 32768.0);
                 }
@@ -8758,7 +8740,7 @@ static void MintingDailyCredit(void* country)
         if ((isPlayer && InterlockedIncrement(&g_mintDailyPlayerLogged) <= 5) ||
             InterlockedIncrement(&g_mintDailyAnyLogged) == 1)
         {
-            LogDbg("Minting: день, страна %p%s, +%.1f в казну (industry_score %.1f, население %d, казна %.1f)",
+            Log("Minting: день, страна %p%s, +%.1f в казну (industry_score %.1f, население %d, казна %.1f)",
                 country, isPlayer ? " (игрок)" : "", (double)fx / 32768.0,
                 (double)*(long long*)((char*)country + OFF_COUNTRY_INDUSTRY_SCORE) / 32768.0,
                 *(int*)((char*)country + OFF_COUNTRY_POPULATION),
@@ -9119,7 +9101,7 @@ static void SetBudgetBoxText(void* view, const char* boxName, long long fixedVal
         void* box = VCall1(container, VT_FIND_TEXTBOX, &name);
 
         if (InterlockedIncrement(logCounter) <= 3)
-            LogDbg("Окно бюджета: %s %s, значение %.1f",
+            Log("Окно бюджета: %s %s, значение %.1f",
                 boxName, box ? "найден" : "НЕ найден", (double)fixedValue / 32768.0);
 
         if (!box)
@@ -9725,7 +9707,7 @@ static bool ConsScanLevels(void* country, long long* rawSum)
                 }
 
                 if (InterlockedIncrement(&g_consLevelLogged) <= 5)
-                    LogDbg("GoodsConsumption: '%s' в провинции %u, сырой уровень %d = %.3f",
+                    Log("GoodsConsumption: '%s' в провинции %u, сырой уровень %d = %.3f",
                         g_consBuildings[i].name, (unsigned)id, raw, (double)raw / 1000.0);
 
                 rawSum[i] += raw;
@@ -9808,7 +9790,7 @@ static double ConsMarketRatio(char* market, int g)
         S = *(long long*)(sv + sS * 8);
 
     if (InterlockedIncrement(&g_consRatioLogged) <= 8)
-        LogDbg("GoodsConsumption: рынок, товар %d: спрос %.1f, предложение %.1f", g,
+        Log("GoodsConsumption: рынок, товар %d: спрос %.1f, предложение %.1f", g,
             (double)D / 32768.0, (double)S / 32768.0);
 
     if (S <= 0)
@@ -9939,7 +9921,7 @@ __declspec(noinline) static void ConsEvaluate(void* country, bool addDemand, Con
             double world = worldPart[g] > 0.0 ? ConsMarketRatio(market, g) : 1.0;
             ratio[g] = (fromDomestic + worldPart[g] * world) / qty[g];
             if (country == GetLocalPlayerCountry() && InterlockedIncrement(&g_consDomLogged) <= 60)
-                LogDbg("GoodsConsumption: страна %d, товар %d: произведено(saved_country_supply) %.2f, продано внутри %.2f, излишек %.2f, domestic_supply_pool %.2f, нужно %.2f, доля купленного %.2f",
+                Log("GoodsConsumption: страна %d, товар %d: произведено(saved_country_supply) %.2f, продано внутри %.2f, излишек %.2f, domestic_supply_pool %.2f, нужно %.2f, доля купленного %.2f",
                     cidx, g, produced, soldHere, surplus, pool, qty[g], ratio[g]);
             if (pr > 0.0)
             {
@@ -10130,7 +10112,7 @@ static const char* ConsLoc(const char* key, const char* fallback)
     ConsLocEntry& e = g_consLoc[g_consLocCount++];
     strncpy_s(e.key, sizeof(e.key), key, _TRUNCATE);
     strncpy_s(e.text, sizeof(e.text), ok ? found : fallback, _TRUNCATE);
-    LogDbg("GoodsConsumption: локализация '%s' -> %s", e.key, ok ? "найдена в csv" : "нет, запасной текст");
+    Log("GoodsConsumption: локализация '%s' -> %s", e.key, ok ? "найдена в csv" : "нет, запасной текст");
     return e.text;
 }
 
@@ -10238,7 +10220,7 @@ static void GoodsConsumptionDaily(void* country)
         *hi = (unsigned)(cur >> 32);
 
         if (country == GetLocalPlayerCountry() && InterlockedIncrement(&g_consDailyLogged) <= 5)
-            LogDbg("GoodsConsumption: день, страна игрока %p, куплено на %.2f из %.2f (казна %.1f)",
+            Log("GoodsConsumption: день, страна игрока %p, куплено на %.2f из %.2f (казна %.1f)",
                 country, (double)r.paid / 32768.0, (double)r.required / 32768.0,
                 (double)(long long)cur / 32768.0);
     }
@@ -10854,12 +10836,12 @@ static void __cdecl LogChecksumCompute(void* param1)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        LogDbg("ChecksumCompute[%d]: param1=%08X - память +0x30 не читается",
+        Log("ChecksumCompute[%d]: param1=%08X - память +0x30 не читается",
             g_checksumHookHits, (unsigned)(DWORD_PTR)param1);
         return;
     }
 
-    LogDbg("ChecksumCompute[%d]: param1=%08X value=%d (%08X)",
+    Log("ChecksumCompute[%d]: param1=%08X value=%d (%08X)",
         g_checksumHookHits, (unsigned)(DWORD_PTR)param1, checksum, (unsigned)checksum);
 }
 
@@ -10937,7 +10919,7 @@ static void __cdecl LogLobbyEntry(void* pObj)
 
     if (g_checksumAppPtr == 0)
     {
-        LogDbg("LobbyEntry[%d]: pObj=%08X raw130=%08X (g_checksumAppPtr ещё не установлен)",
+        Log("LobbyEntry[%d]: pObj=%08X raw130=%08X (g_checksumAppPtr ещё не установлен)",
             g_lobbyEntryHits, (unsigned)(DWORD_PTR)pObj, raw);
         return;
     }
@@ -10946,12 +10928,12 @@ static void __cdecl LogLobbyEntry(void* pObj)
     __try { accum = *(int*)((char*)g_checksumAppPtr + 0x30); }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        LogDbg("LobbyEntry[%d]: pObj=%08X raw130=%08X, аккумулятор (%08X+0x30) не читается",
+        Log("LobbyEntry[%d]: pObj=%08X raw130=%08X, аккумулятор (%08X+0x30) не читается",
             g_lobbyEntryHits, (unsigned)(DWORD_PTR)pObj, raw, (unsigned)(DWORD_PTR)g_checksumAppPtr);
         return;
     }
 
-    LogDbg("LobbyEntry[%d]: pObj=%08X raw130=%08X, аккумулятор сейчас=%d (%08X)",
+    Log("LobbyEntry[%d]: pObj=%08X raw130=%08X, аккумулятор сейчас=%d (%08X)",
         g_lobbyEntryHits, (unsigned)(DWORD_PTR)pObj, raw, accum, (unsigned)accum);
 }
 
@@ -11980,6 +11962,18 @@ typedef BOOL (WINAPI* tPeekMessageA)(LPMSG, HWND, UINT, UINT, UINT);
 typedef LRESULT (WINAPI* tDispatchMessageA)(const MSG*);
 static tPeekMessageA       g_realPeekMessageA = 0;
 static tDispatchMessageA   g_realDispatchMessageA = 0;
+// Estado del pegado: se inyectan pulsaciones cuando Ctrl+V ya se soltó.
+static bool g_clipboardPasteArmed = false;
+static volatile LONG g_clipboardWorkerStop = 0;
+static volatile LONG g_clipboardWorkerThreadId = 0;
+static HHOOK g_clipboardKeyboardHook = 0;
+static bool g_clipboardHookCtrlL = false;
+static bool g_clipboardHookCtrlR = false;
+static bool g_clipboardHookCtrlGeneric = false;
+static bool g_clipboardHookV = false;
+static bool g_clipboardHookCtrlPressedFirst = false;
+static bool g_clipboardHookArmed = false;
+static const UINT WM_CLIPBOARD_PASTE = WM_APP + 0x73;
 static DWORD               g_seenSleepRva[24];
 static DWORD               g_seenSleepMs[24];
 static LONG                g_seenSleepN = 0;
@@ -12722,7 +12716,7 @@ static HRESULT WINAPI HookPresent(void* device, const void* src, const void* des
         DWORD ret = (DWORD)(DWORD_PTR)_ReturnAddress();
         DWORD rva = (g_base && ret >= g_base && ret < g_base + g_imageSize) ? ret - g_base : ret;
         g_seenPresentRva = rva;
-        LogDbg("Present: caller rva %08X", rva);
+        Log("Present: caller rva %08X", rva);
     }
     if (!stamp)
     {
@@ -12980,7 +12974,7 @@ static HRESULT WINAPI HookPresent(void* device, const void* src, const void* des
             dt = 1;
         if (frames < 1)
             frames = 1;
-        LogDbg("Present: tid=%u %d кадр / %u мс (~%u fps), inside %u/%u мс, sleep %d/%d мс, tgt=%d sel=%d/%d/%d "
+        Log("Present: tid=%u %d кадр / %u мс (~%u fps), inside %u/%u мс, sleep %d/%d мс, tgt=%d sel=%d/%d/%d "
             "recv=%d/%d wfso=%d/%d qpc=%d eu3=%d/%d nudge=%d/%d ing=%d/%d/%d stall=%u/%u dirty=%d/%d/%d pick=%d/%d move=%d/%d proj=%d/%d projskip=%d uv=%d/%d reuse=%d pool=%d/%d ntf=%d/%d skiprb=%d skiploc=%d "
             "evt=%d/%d dlg=%d/%d inf=%d/%d map=%d/%d winreuse=%d ovl=%d/%d/%d cam=%d/%d/%d mtx=%d/%d/%d vw=%d/%d/%d ico=%d/%d/%d gfx=%d/%d/%d pre=%d/%d/%d gui2=%d/%d/%d cln=%d/%d/%d tail=%d/%d/%d hd=%d/%d/%d aft=%d/%d/%d lkp=%d/%d/%d str=%d/%d/%d clu=%d/%d/%d pump=%d/%d/%d chk=%d/%d/%d wck=%d/%d/%d wskip=%d cskip=%d "
             "da8=%u rw=%d bb0=%d/%d/%d bb0h=%d/%d/%d bb0t=%d/%d/%d rorg=%d/%d/%d rbld=%d/%d/%d "
@@ -13478,9 +13472,9 @@ static void NoteSleep(DWORD rva, DWORD ret, DWORD origMs, DWORD newMs)
     g_seenSleepRva[idx] = rva;
     g_seenSleepMs[idx] = origMs;
     if (rva)
-        LogDbg("SleepIat: Sleep(%u) rva %06X -> %u", origMs, rva, newMs);
+        Log("SleepIat: Sleep(%u) rva %06X -> %u", origMs, rva, newMs);
     else
-        LogDbg("SleepIat: Sleep(%u) from %08X -> %u", origMs, ret, newMs);
+        Log("SleepIat: Sleep(%u) from %08X -> %u", origMs, ret, newMs);
 }
 
 static bool ShouldClampSleep(DWORD ms)
@@ -13514,6 +13508,204 @@ static void WINAPI HookSleep(DWORD ms)
     InterlockedExchangeAdd(&g_sleepSumMs, (LONG)ms);
     if (g_realSleep)
         g_realSleep(ms);
+}
+
+static void AppendKeyInput(INPUT* inputs, UINT* count, WORD vk, bool down)
+{
+    if (*count >= 2048)
+        return;
+    INPUT& input = inputs[(*count)++];
+    memset(&input, 0, sizeof(input));
+    input.type = INPUT_KEYBOARD;
+    input.ki.wVk = vk;
+    input.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
+}
+
+static void TypeClipboardAsKeystrokes()
+{
+    HWND foreground = GetForegroundWindow();
+    DWORD foregroundPid = 0;
+    if (!foreground ||
+        !GetWindowThreadProcessId(foreground, &foregroundPid) ||
+        foregroundPid != GetCurrentProcessId())
+    {
+        return;
+    }
+
+    char text[512];
+    unsigned len = 0;
+    if (OpenClipboard(NULL))
+    {
+        HANDLE data = GetClipboardData(CF_UNICODETEXT);
+        const wchar_t* wide = data ? (const wchar_t*)GlobalLock(data) : 0;
+        if (wide)
+        {
+            for (unsigned i = 0; wide[i] && len < sizeof(text) - 1; ++i)
+            {
+                wchar_t ch = wide[i];
+                if (ch == L'\r' || ch == L'\n')
+                    break;
+                if (ch >= 32 && ch <= 126)
+                    text[len++] = (char)ch;
+            }
+            GlobalUnlock(data);
+        }
+        else
+        {
+            data = GetClipboardData(CF_TEXT);
+            const char* ansi = data ? (const char*)GlobalLock(data) : 0;
+            if (ansi)
+            {
+                for (unsigned i = 0; ansi[i] && len < sizeof(text) - 1; ++i)
+                {
+                    unsigned char ch = (unsigned char)ansi[i];
+                    if (ch == '\r' || ch == '\n')
+                        break;
+                    if (ch >= 32 && ch <= 126)
+                        text[len++] = (char)ch;
+                }
+                GlobalUnlock(data);
+            }
+        }
+        CloseClipboard();
+    }
+    if (!len)
+        return;
+
+    INPUT inputs[2048];
+    UINT count = 0;
+    for (unsigned i = 0; i < len; ++i)
+    {
+        SHORT mapped = VkKeyScanA(text[i]);
+        if (mapped == -1)
+            continue;
+        WORD vk = (WORD)(mapped & 0xFF);
+        bool shift = ((mapped >> 8) & 1) != 0;
+        if (shift)
+            AppendKeyInput(inputs, &count, VK_SHIFT, true);
+        AppendKeyInput(inputs, &count, vk, true);
+        AppendKeyInput(inputs, &count, vk, false);
+        if (shift)
+            AppendKeyInput(inputs, &count, VK_SHIFT, false);
+    }
+    if (count)
+    {
+        UINT sent = SendInput(count, inputs, sizeof(INPUT));
+        if (sent != count)
+            Log("ClipboardPaste: SendInput aceptó %u de %u eventos (error %lu)",
+                sent, count, GetLastError());
+    }
+}
+
+static void PollClipboardPaste()
+{
+    bool ctrlV = (GetAsyncKeyState(VK_CONTROL) & 0x8000) &&
+                 (GetAsyncKeyState('V') & 0x8000);
+    if (ctrlV)
+    {
+        g_clipboardPasteArmed = true;
+        return;
+    }
+    if (g_clipboardPasteArmed &&
+        !(GetAsyncKeyState(VK_CONTROL) & 0x8000) &&
+        !(GetAsyncKeyState('V') & 0x8000))
+    {
+        g_clipboardPasteArmed = false;
+        TypeClipboardAsKeystrokes();
+    }
+}
+
+static LRESULT CALLBACK ClipboardKeyboardProc(int code, WPARAM wParam, LPARAM lParam)
+{
+    if (code == HC_ACTION)
+    {
+        const KBDLLHOOKSTRUCT* key = (const KBDLLHOOKSTRUCT*)lParam;
+        if (key && !(key->flags & LLKHF_INJECTED))
+        {
+            bool down = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
+            bool up = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
+            if (down || up)
+            {
+                bool value = down;
+                bool vBefore = g_clipboardHookV;
+                switch (key->vkCode)
+                {
+                case VK_LCONTROL:
+                    g_clipboardHookCtrlL = value;
+                    if (down && !vBefore)
+                        g_clipboardHookCtrlPressedFirst = true;
+                    break;
+                case VK_RCONTROL:
+                    g_clipboardHookCtrlR = value;
+                    if (down && !vBefore)
+                        g_clipboardHookCtrlPressedFirst = true;
+                    break;
+                case VK_CONTROL:
+                    g_clipboardHookCtrlGeneric = value;
+                    if (down && !vBefore)
+                        g_clipboardHookCtrlPressedFirst = true;
+                    break;
+                case 'V':
+                    g_clipboardHookV = value;
+                    break;
+                }
+
+                bool ctrl = g_clipboardHookCtrlL || g_clipboardHookCtrlR ||
+                            g_clipboardHookCtrlGeneric;
+                if (down && key->vkCode == 'V' && ctrl &&
+                    g_clipboardHookCtrlPressedFirst)
+                    g_clipboardHookArmed = true;
+                if (up && g_clipboardHookArmed && !ctrl && !g_clipboardHookV)
+                {
+                    g_clipboardHookArmed = false;
+                    g_clipboardHookCtrlPressedFirst = false;
+                    DWORD threadId = (DWORD)InterlockedCompareExchange(
+                        &g_clipboardWorkerThreadId, 0, 0);
+                    if (threadId)
+                        PostThreadMessageA(threadId, WM_CLIPBOARD_PASTE, 0, 0);
+                }
+                if (!ctrl && !g_clipboardHookV && !g_clipboardHookArmed)
+                    g_clipboardHookCtrlPressedFirst = false;
+            }
+        }
+    }
+    return CallNextHookEx(g_clipboardKeyboardHook, code, wParam, lParam);
+}
+
+static DWORD WINAPI ClipboardPasteWorker(LPVOID)
+{
+    InterlockedExchange(&g_clipboardWorkerThreadId, (LONG)GetCurrentThreadId());
+    g_clipboardKeyboardHook = SetWindowsHookExA(
+        WH_KEYBOARD_LL, ClipboardKeyboardProc, g_selfModule, 0);
+    if (g_clipboardKeyboardHook)
+    {
+        Log("ClipboardPaste: hook de teclado activo (Ctrl+V), sin espera de sondeo");
+        MSG msg;
+        while (!InterlockedCompareExchange(&g_clipboardWorkerStop, 0, 0) &&
+               GetMessageA(&msg, 0, 0, 0) > 0)
+        {
+            if (msg.message == WM_CLIPBOARD_PASTE)
+                TypeClipboardAsKeystrokes();
+            else
+            {
+                TranslateMessage(&msg);
+                DispatchMessageA(&msg);
+            }
+        }
+        UnhookWindowsHookEx(g_clipboardKeyboardHook);
+        g_clipboardKeyboardHook = 0;
+    }
+    else
+    {
+        Log("ClipboardPaste: hook no disponible (%lu); usando sondeo de respaldo", GetLastError());
+        while (!InterlockedCompareExchange(&g_clipboardWorkerStop, 0, 0))
+        {
+            PollClipboardPaste();
+            Sleep(10);
+        }
+    }
+    InterlockedExchange(&g_clipboardWorkerThreadId, 0);
+    return 0;
 }
 
 static BOOL WINAPI HookPeekMessageA(LPMSG msg, HWND wnd, UINT min, UINT max, UINT remove)
@@ -13623,7 +13815,7 @@ static void NoteSelect(DWORD rva, long sec, long usec, int clamped)
     if (idx < 0 || idx >= (LONG)(sizeof(g_seenSelectRva) / sizeof(g_seenSelectRva[0])))
         return;
     g_seenSelectRva[idx] = rva;
-    LogDbg("Select: rva %06X timeout %ld.%06ld%s",
+    Log("Select: rva %06X timeout %ld.%06ld%s",
         rva, sec, usec, clamped ? " -> 1мс" : "");
 }
 
@@ -13643,7 +13835,7 @@ static int WINAPI HookSelect(int nfds, void* r, void* w, void* e, SockTimeVal* t
     {
         static LONG loggedNull = 0;
         if (InterlockedCompareExchange(&loggedNull, 1, 0) == 0)
-            LogDbg("Select: NULL timeout (блокирующий) rva %06X", rva);
+            Log("Select: NULL timeout (блокирующий) rva %06X", rva);
     }
     // 3.24: только микшер 0x68B47D / диапазон 689C00-68C000.
     // Таймаут копируем — поле timeval в объекте игры не трогаем.
@@ -13711,7 +13903,7 @@ static void NoteWfso(DWORD rva, DWORD origMs, DWORD newMs)
         return;
     g_seenWfsoRva[idx] = rva;
     g_seenWfsoMs[idx] = origMs;
-    LogDbg("WFSO: timeout %u rva %06X -> %u", origMs, rva, newMs);
+    Log("WFSO: timeout %u rva %06X -> %u", origMs, rva, newMs);
 }
 
 static DWORD WINAPI HookWaitForSingleObject(HANDLE h, DWORD ms)
@@ -13765,7 +13957,7 @@ static void NoteRecv(DWORD rva, DWORD dt, int result)
     if (idx < 0 || idx >= (LONG)(sizeof(g_seenRecvRva) / sizeof(g_seenRecvRva[0])))
         return;
     g_seenRecvRva[idx] = rva;
-    LogDbg("Recv: rva %06X dt=%u ret=%d", rva, dt, result);
+    Log("Recv: rva %06X dt=%u ret=%d", rva, dt, result);
 }
 
 static int WINAPI HookRecv(UINT s, char* buf, int len, int flags)
@@ -13975,7 +14167,7 @@ static void __fastcall HookIdleIngame(void* self, void* edx, int arg)
         gapCO = 0;
     if (midOvl < 0)
         midOvl = 0;
-    LogDbg("IdleSpike: %u мс leftover=%d head=%d aft=%d cam=%d ovl=%d ico=%d pre=%d str=%d clu=%d gui2=%d "
+    Log("IdleSpike: %u мс leftover=%d head=%d aft=%d cam=%d ovl=%d ico=%d pre=%d str=%d clu=%d gui2=%d "
         "lkp=%d cln=%d tail=%d dirty=%d dlg=%d inf=%d map=%d evt=%d sleep=%d wfso=%d present=%d "
         "camN=%d ovlN=%d gapCO=%d midOvl=%d camL=%d ovlE=%d "
         "nest=%d dmax=%d pCam=%d pOvl=%d pElse=%d ovlGap=%d peek=%d/%d disp=%d/%d "
@@ -14035,7 +14227,7 @@ static bool StealToTrampoline(DWORD rva, unsigned steal, unsigned char* tramp, i
     VirtualProtect(src, steal, old, &old);
     FlushInstructionCache(GetCurrentProcess(), src, steal);
     FlushInstructionCache(GetCurrentProcess(), tramp, trampSize);
-    LogDbg("%s: idle rva %06X", tag, rva);
+    Log("%s: idle rva %06X", tag, rva);
     return true;
 }
 
@@ -14062,7 +14254,7 @@ static bool PlantMidJump(DWORD rva, unsigned n, const unsigned char* expect, voi
     memcpy(src, jmp, n);
     VirtualProtect(src, n, old, &old);
     FlushInstructionCache(GetCurrentProcess(), src, n);
-    LogDbg("%s: mid rva %06X n=%u", tag, rva, n);
+    Log("%s: mid rva %06X n=%u", tag, rva, n);
     return true;
 }
 
@@ -14573,7 +14765,7 @@ static void __stdcall UvTimeCall393290(void* panel, DWORD retaddr)
     static LONG logged = 0;
     LONG n = InterlockedIncrement(&logged);
     if (n <= 16)
-        LogDbg("ArmySelect: 393290 run ret=%06X", rva);
+        Log("ArmySelect: 393290 run ret=%06X", rva);
     LONGLONG t0 = QpcNow();
     void* fn = g_real393290;
     __asm {
@@ -14608,7 +14800,7 @@ static void __stdcall UvNoteList7c(void* fn)
 {
     if (InterlockedCompareExchange(&g_list7cLogged, 1, 0) != 0)
         return;
-    LogDbg("ArmySelect: list +0x7C rva %06X (ждём 5B2750 = Update детей listbox)",
+    Log("ArmySelect: list +0x7C rva %06X (ждём 5B2750 = Update детей listbox)",
         ExeRvaOf((DWORD)(DWORD_PTR)fn));
 }
 
@@ -14631,7 +14823,7 @@ static void __stdcall UvNoteChild24(void* fn)
                 tag = "attach/detach";
             else if (rva == 0x38AF00)
                 tag = "list-sync";
-            LogDbg("ArmySelect: list child +0x24 rva %06X (%s)", rva, tag);
+            Log("ArmySelect: list child +0x24 rva %06X (%s)", rva, tag);
             return;
         }
     }
@@ -14734,12 +14926,12 @@ static void __stdcall UvTimeSyncMissEnter(void* outer)
             DWORD parent = *(DWORD*)(inner + 0x0C);
             DWORD cached = parent ? *(DWORD*)(parent + 0x40) : 0;
             DWORD count = (end >= begin) ? ((end - begin) / 40u) : 0;
-            LogDbg("ArmySelect: sync-miss #%d vec=%u cached=%u delta=%d outer=%p parent=%p",
+            Log("ArmySelect: sync-miss #%d vec=%u cached=%u delta=%d outer=%p parent=%p",
                 (int)n, count, cached, (int)count - (int)cached, outer, (void*)parent);
         }
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
-            LogDbg("ArmySelect: sync-miss #%d (read AV)", (int)n);
+            Log("ArmySelect: sync-miss #%d (read AV)", (int)n);
         }
     }
     g_bb0rbT0 = QpcNow();
@@ -14883,7 +15075,7 @@ static void __stdcall UvTimeEqVInner(void* self, void* thunk)
             if (g_eqVSeen[i] == 0)
             {
                 g_eqVSeen[i] = rva;
-                LogDbg("ArmySelect: eqV thunk rva %06X (ванильный 5B1FA0)", rva);
+                Log("ArmySelect: eqV thunk rva %06X (ванильный 5B1FA0)", rva);
                 break;
             }
         }
@@ -14906,7 +15098,7 @@ static void __stdcall UvTimeEqVInner(void* self, void* thunk)
     {
         g_eqVActive = 0;
         g_eqVSlice = -1;
-        LogDbg("ArmySelect: eqV inner AV");
+        Log("ArmySelect: eqV inner AV");
     }
 }
 
@@ -14965,7 +15157,7 @@ static void __stdcall UvTimeTbChild(void* self, void* fn)
         if (g_tbFnSeen[i] == 0)
         {
             g_tbFnSeen[i] = frva;
-            LogDbg("ArmySelect: Tb child +0x34 rva %06X%s", frva,
+            Log("ArmySelect: Tb child +0x34 rva %06X%s", frva,
                 frva == 0x5E4490 ? " (Show 5E4490 recurse!)" : "");
             break;
         }
@@ -14977,7 +15169,7 @@ static void __stdcall UvTimeTbChild(void* self, void* fn)
         if (g_tbVtSeen[i] == 0)
         {
             g_tbVtSeen[i] = vrva;
-            LogDbg("ArmySelect: Tb child vt rva %06X", vrva);
+            Log("ArmySelect: Tb child vt rva %06X", vrva);
             break;
         }
     }
@@ -15013,7 +15205,7 @@ static void __stdcall UvTimeTbChild(void* self, void* fn)
                 if (g_tbNstFnSeen[i] == 0)
                 {
                     g_tbNstFnSeen[i] = nfrva;
-                    LogDbg("ArmySelect: Tb nested +0x34 rva %06X (via [child+0x94])", nfrva);
+                    Log("ArmySelect: Tb nested +0x34 rva %06X (via [child+0x94])", nfrva);
                     break;
                 }
             }
@@ -15024,7 +15216,7 @@ static void __stdcall UvTimeTbChild(void* self, void* fn)
                 if (g_tbNstVtSeen[i] == 0)
                 {
                     g_tbNstVtSeen[i] = nvrva;
-                    LogDbg("ArmySelect: Tb nested vt rva %06X", nvrva);
+                    Log("ArmySelect: Tb nested vt rva %06X", nvrva);
                     break;
                 }
             }
@@ -15059,7 +15251,7 @@ static void __stdcall UvTimeTbChild(void* self, void* fn)
                             if (g_nstASeen[i] == 0)
                             {
                                 g_nstASeen[i] = arva;
-                                LogDbg("ArmySelect: nstA [+0x150]+0x2C rva %06X", arva);
+                                Log("ArmySelect: nstA [+0x150]+0x2C rva %06X", arva);
                                 break;
                             }
                         }
@@ -15080,7 +15272,7 @@ static void __stdcall UvTimeTbChild(void* self, void* fn)
                         if (g_nstBSeen[i] == 0)
                         {
                             g_nstBSeen[i] = brva;
-                            LogDbg("ArmySelect: nstB self vt+0xCC rva %06X", brva);
+                            Log("ArmySelect: nstB self vt+0xCC rva %06X", brva);
                             break;
                         }
                     }
@@ -15117,7 +15309,7 @@ static void __stdcall UvTimeTbChild(void* self, void* fn)
         }
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
-            LogDbg("ArmySelect: Tb 5C43C0 expand AV");
+            Log("ArmySelect: Tb 5C43C0 expand AV");
         }
         AccUs(&g_bb0eqTbCN, &g_bb0eqTbCUs, &g_bb0eqTbCMax, t0);
         return;
@@ -16650,7 +16842,7 @@ static void InstallDestroyHide(DWORD rva, const char* tag)
     neu[8] = 0x90;
     neu[9] = 0x90;
     if (PatchBytes(rva, expect, neu, 10, tag))
-        LogDbg("WinReuse: %s rva %06X Destroy GUI -> Hide", tag, rva);
+        Log("WinReuse: %s rva %06X Destroy GUI -> Hide", tag, rva);
 }
 
 static void InstallWindowFps()
@@ -16661,72 +16853,72 @@ static void InstallWindowFps()
 
     if (StealToTrampoline(0x240680, 5, g_trampDlgCtor, sizeof(g_trampDlgCtor),
         sigDlg, (void*)HookDlgCtor, (void**)&g_realDlgCtor, "DlgCtorTime"))
-        LogDbg("WinReuse: таймер CEU3Dialog ctor rva 240680");
+        Log("WinReuse: таймер CEU3Dialog ctor rva 240680");
     if (StealToTrampoline(0x240B90, 8, g_trampInflate, sizeof(g_trampInflate),
         sigInf, (void*)HookInflate, (void**)&g_realInflate, "InflateTime"))
-        LogDbg("WinReuse: таймер inflate DefaultDialog rva 240B90");
+        Log("WinReuse: таймер inflate DefaultDialog rva 240B90");
     if (StealToTrampoline(0x41A450, 6, g_trampMapFn, sizeof(g_trampMapFn),
         sigMap, (void*)HookMapFn, (void**)&g_realMapFn, "MapTime"))
-        LogDbg("WinReuse: таймер map follow-up rva 41A450");
+        Log("WinReuse: таймер map follow-up rva 41A450");
 
     static const unsigned char sigIdle[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
     if (StealToTrampoline(0x254D80, 6, g_trampIdleIngame, sizeof(g_trampIdleIngame),
         sigIdle, (void*)HookIdleIngame, (void**)&g_realIdleIngame, "IdleInGame"))
-        LogDbg("MapScroll: таймер IdleInGame rva 254D80 (ing= QPC мкс)");
+        Log("MapScroll: таймер IdleInGame rva 254D80 (ing= QPC мкс)");
 
     static const unsigned char sigOvl[5] = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
     if (StealToTrampoline(0x257B60, 5, g_trampOverlay, sizeof(g_trampOverlay),
         sigOvl, (void*)HookOverlay, (void**)&g_realOverlay, "MapOverlay"))
-        LogDbg("MapScroll: таймер overlay/input rva 257B60 (ovl=)");
+        Log("MapScroll: таймер overlay/input rva 257B60 (ovl=)");
     if (StealToTrampoline(0x2592F0, 5, g_trampCam, sizeof(g_trampCam),
         sigOvl, (void*)HookCam, (void**)&g_realCam, "MapCamera"))
-            LogDbg("MapScroll: таймер camera/view rva 2592F0 (cam=) PATCH_CAM_STILL=%d",
+            Log("MapScroll: таймер camera/view rva 2592F0 (cam=) PATCH_CAM_STILL=%d",
                 (int)g_settings.patchCamStill);
 
     static const unsigned char sigMtx[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
     if (StealToTrampoline(0x5AE320, 6, g_trampMtx, sizeof(g_trampMtx),
         sigMtx, (void*)HookMtx, (void**)&g_realMtx, "MapMtx"))
-        LogDbg("MapScroll: таймер matrix rva 5AE320 (mtx=)");
+        Log("MapScroll: таймер matrix rva 5AE320 (mtx=)");
     static const unsigned char sigVw[9] =
         { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x08, 0x01, 0x00, 0x00 };
     if (StealToTrampoline(0x5EB7C0, 9, g_trampVw, sizeof(g_trampVw),
         sigVw, (void*)HookVw, (void**)&g_realVw, "MapView"))
-        LogDbg("MapScroll: таймер view rva 5EB7C0 (vw=)");
+        Log("MapScroll: таймер view rva 5EB7C0 (vw=)");
     if (StealToTrampoline(0x3F7CE0, 5, g_trampIco, sizeof(g_trampIco),
         sigOvl, (void*)HookIco, (void**)&g_realIco, "MapIcons"))
-        LogDbg("MapScroll: таймер map objects rva 3F7CE0 (ico=)");
+        Log("MapScroll: таймер map objects rva 3F7CE0 (ico=)");
     if (StealToTrampoline(0x59C370, 6, g_trampGfx, sizeof(g_trampGfx),
         sigMtx, (void*)HookGfx, (void**)&g_realGfx, "MapGfx"))
-        LogDbg("MapScroll: таймер gfx tick rva 59C370 (gfx=)");
+        Log("MapScroll: таймер gfx tick rva 59C370 (gfx=)");
 
     static const unsigned char sigPre[9] =
         { 0x55, 0x8B, 0xEC, 0x64, 0xA1, 0x00, 0x00, 0x00, 0x00 };
     if (StealToTrampoline(0x254620, 9, g_trampPre, sizeof(g_trampPre),
         sigPre, (void*)HookPreCam, (void**)&g_realPre, "IdlePre"))
-        LogDbg("MapScroll: таймер pre-cam rva 254620 (pre=)");
+        Log("MapScroll: таймер pre-cam rva 254620 (pre=)");
     if (StealToTrampoline(0x248460, 9, g_trampGui2, sizeof(g_trampGui2),
         sigPre, (void*)HookGui2, (void**)&g_realGui2, "IdleGui2"))
-        LogDbg("MapScroll: таймер post-ovl GUI rva 248460 (gui2=)");
+        Log("MapScroll: таймер post-ovl GUI rva 248460 (gui2=)");
     if (StealToTrampoline(0x1F7A50, 5, g_trampCln, sizeof(g_trampCln),
         sigOvl, (void*)HookCln, (void**)&g_realCln, "IdleCln"))
-        LogDbg("MapScroll: таймер idle cleanup rva 1F7A50 (cln=)");
+        Log("MapScroll: таймер idle cleanup rva 1F7A50 (cln=)");
     if (StealToTrampoline(0x24F350, 5, g_trampTail, sizeof(g_trampTail),
         sigOvl, (void*)HookTail, (void**)&g_realTail, "IdleTail"))
-        LogDbg("MapScroll: таймер idle tail rva 24F350 (tail=)");
+        Log("MapScroll: таймер idle tail rva 24F350 (tail=)");
     static const unsigned char sigLkp[9] =
         { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xE8, 0x09, 0x00, 0x00 };
     if (StealToTrampoline(0x055290, 9, g_trampLkp, sizeof(g_trampLkp),
         sigLkp, (void*)HookLkp, (void**)&g_realLkp, "IdleLkp"))
-        LogDbg("MapScroll: таймер lookup rva 055290 (lkp=)");
+        Log("MapScroll: таймер lookup rva 055290 (lkp=)");
     static const unsigned char sigStr[5] = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
     if (StealToTrampoline(0x588F20, 5, g_trampStr, sizeof(g_trampStr),
         sigStr, (void*)HookStr, (void**)&g_realStr, "CamStr"))
-        LogDbg("MapScroll: таймер string rva 588F20 ESI (str=)");
+        Log("MapScroll: таймер string rva 588F20 ESI (str=)");
     static const unsigned char sigClu[7] =
         { 0x51, 0x8B, 0x86, 0xB4, 0x0D, 0x00, 0x00 };
     if (StealToTrampoline(0x254530, 7, g_trampClu, sizeof(g_trampClu),
         sigClu, (void*)HookClu, (void**)&g_realClu, "IdleClu"))
-        LogDbg("MapScroll: таймер dirty-кластер rva 254530 ESI (clu=)");
+        Log("MapScroll: таймер dirty-кластер rva 254530 ESI (clu=)");
     {
         unsigned char sigPump[8];
         memcpy(sigPump, (void*)(g_base + 0x5DF2B0), 8);
@@ -16734,7 +16926,7 @@ static void InstallWindowFps()
         {
             if (StealToTrampoline(0x5DF2B0, 8, g_trampPump, sizeof(g_trampPump),
                 sigPump, (void*)HookPump, (void**)&g_realPump, "IdlePump"))
-                LogDbg("MapScroll: таймер насоса Peek/Dispatch rva 5DF2B0 ESI (pump=)");
+                Log("MapScroll: таймер насоса Peek/Dispatch rva 5DF2B0 ESI (pump=)");
         }
         else
             Log("MapScroll: насос 5DF2B0 сигнатура не совпала (%02X %02X %02X %02X)",
@@ -16744,23 +16936,23 @@ static void InstallWindowFps()
         static const unsigned char sigWck[5] = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
         if (StealToTrampoline(0x2859C0, 5, g_trampWck, sizeof(g_trampWck),
             sigWck, (void*)HookWck, (void**)&g_realWck, "IdleWck"))
-            LogDbg("MapScroll: таймер 2859C0 дневной тик (wck=); skip выкл");
+            Log("MapScroll: таймер 2859C0 дневной тик (wck=); skip выкл");
     }
     if (HookIat(GetModuleHandleA(NULL), "user32.dll", "PeekMessageA",
         (void*)HookPeekMessageA, (void**)&g_realPeekMessageA))
-        LogDbg("MapScroll: PeekMessageA IAT, счёт только внутри IdleInGame");
+        Log("MapScroll: PeekMessageA IAT, счёт только внутри IdleInGame");
     else
         Log("MapScroll: PeekMessageA IAT не найден");
     if (HookIat(GetModuleHandleA(NULL), "user32.dll", "DispatchMessageA",
         (void*)HookDispatchMessageA, (void**)&g_realDispatchMessageA))
-        LogDbg("MapScroll: DispatchMessageA IAT, счёт только внутри IdleInGame");
+        Log("MapScroll: DispatchMessageA IAT, счёт только внутри IdleInGame");
     else
         Log("MapScroll: DispatchMessageA IAT не найден");
-    LogDbg("MapScroll: IdleSpike pump 5DF2B0. 285620 EDI+XMM не хукаем. 2592F0 skip только через +0x1e08");
+    Log("MapScroll: IdleSpike pump 5DF2B0. 285620 EDI+XMM не хукаем. 2592F0 skip только через +0x1e08");
 
     // 3.45: Hide GUI + delete C++ = UAF в тике CEU3Gui (5C3758 / 241BA6).
     // Пул как у unitpanel можно вернуть только вместе с C++-объектом диалога.
-    LogDbg("WinReuse: пул GUI выключен (таймеры dlg/inf/map живы, Hide-keep нет)");
+    Log("WinReuse: пул GUI выключен (таймеры dlg/inf/map живы, Hide-keep нет)");
 }
 
 static void InstallArmySelectDiag()
@@ -16773,19 +16965,19 @@ static void InstallArmySelectDiag()
             RVA_PROV_DIRTY, dirty[0], dirty[1], dirty[2], dirty[3]);
     else if (StealToTrampoline(RVA_PROV_DIRTY, 10, g_trampProvDirty, sizeof(g_trampProvDirty),
         dirty, (void*)HookProvDirty, (void**)&g_realProvDirty, "ProvDirtyTime"))
-        LogDbg("ArmySelect: таймер FUN_007FC360 rva %06X", RVA_PROV_DIRTY);
+        Log("ArmySelect: таймер FUN_007FC360 rva %06X", RVA_PROV_DIRTY);
     if (StealToTrampoline(RVA_ARMY_PICK, 6, g_trampArmyPick, sizeof(g_trampArmyPick),
         sigThis, (void*)HookArmyPick, (void**)&g_realArmyPick, "ArmyPickTime"))
-        LogDbg("ArmySelect: таймер army_selected rva %06X", RVA_ARMY_PICK);
+        Log("ArmySelect: таймер army_selected rva %06X", RVA_ARMY_PICK);
     if (StealToTrampoline(RVA_ARMY_MOVE, 6, g_trampArmyMove, sizeof(g_trampArmyMove),
         sigThis, (void*)HookArmyMove, (void**)&g_realArmyMove, "ArmyMoveTime"))
-        LogDbg("ArmySelect: таймер army_move rva %06X", RVA_ARMY_MOVE);
+        Log("ArmySelect: таймер army_move rva %06X", RVA_ARMY_MOVE);
     if (StealToTrampoline(0x26A7F0, 6, g_trampIdlerNotify, sizeof(g_trampIdlerNotify),
         sigThis, (void*)HookIdlerNotify, (void**)&g_realIdlerNotify, "IdlerNotifyTime"))
-        LogDbg("ArmySelect: таймер CInGameIdler notify rva 26A7F0");
+        Log("ArmySelect: таймер CInGameIdler notify rva 26A7F0");
     if (StealToTrampoline(RVA_SEL_PROJ, 6, g_trampSelProj, sizeof(g_trampSelProj),
         sigThis, (void*)HookSelProj, (void**)&g_realSelProj, "SelProjTime"))
-        LogDbg("ArmySelect: таймер mesh selection_projection rva %06X (skip=%d)",
+        Log("ArmySelect: таймер mesh selection_projection rva %06X (skip=%d)",
             RVA_SEL_PROJ, (int)g_settings.patchSkipSelProj);
 
     // 3.32 skip 1D4540 не убрал хитч: pick всё ещё 24–65 мс, stall max ~200–280 мс.
@@ -16815,7 +17007,7 @@ static void InstallArmySelectDiag()
                 p[5] = 0x90;
                 VirtualProtect(p, 6, old, &old);
                 FlushInstructionCache(GetCurrentProcess(), p, 6);
-                LogDbg("ArmySelect: GFX-jump rva 1CC5B0 -> 1CCA3B (без 3E08E0, хвост notify/звук)");
+                Log("ArmySelect: GFX-jump rva 1CC5B0 -> 1CCA3B (без 3E08E0, хвост notify/звук)");
             }
         }
     }
@@ -16827,7 +17019,7 @@ static void InstallArmySelectDiag()
         static const unsigned char sigUv[5] = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
         if (StealToTrampoline(0x398A50, 5, g_trampUnitViewCtor, sizeof(g_trampUnitViewCtor),
             sigUv, (void*)HookUnitViewCtor, (void**)&g_realUnitViewCtor, "UnitViewReuse"))
-            LogDbg("ArmySelect: reuse CUnitView rva 398A50 (пул %d, Hide/Show unitpanel)", UV_POOL_MAX);
+            Log("ArmySelect: reuse CUnitView rva 398A50 (пул %d, Hide/Show unitpanel)", UV_POOL_MAX);
 
         unsigned char* loc = (unsigned char*)(g_base + 0x26A958);
         static const unsigned char expectLoc[6] = { 0x8B, 0x87, 0xA8, 0x0D, 0x00, 0x00 };
@@ -16849,7 +17041,7 @@ static void InstallArmySelectDiag()
                 loc[5] = 0x90;
                 VirtualProtect(loc, 6, old, &old);
                 FlushInstructionCache(GetCurrentProcess(), loc, 6);
-                LogDbg("ArmySelect: skip GetLoc ARMIES/NAVIES при da8>2");
+                Log("ArmySelect: skip GetLoc ARMIES/NAVIES при da8>2");
             }
         }
 
@@ -16882,20 +17074,20 @@ static void InstallArmySelectDiag()
                 dtor[9] = 0x90;
                 VirtualProtect(dtor, 10, old, &old);
                 FlushInstructionCache(GetCurrentProcess(), dtor, 10);
-                LogDbg("ArmySelect: UnitView dtor-skip rva 26AE98 (кэш панели не destroy)");
+                Log("ArmySelect: UnitView dtor-skip rva 26AE98 (кэш панели не destroy)");
             }
         }
 
         static const unsigned char sigRefresh[5] = { 0x51, 0x56, 0x57, 0x8B, 0xF0 };
         if (StealToTrampoline(0x393510, 5, g_trampPanelRefresh, sizeof(g_trampPanelRefresh),
             sigRefresh, (void*)Hook393510, &g_real393510, "PanelRefresh"))
-            LogDbg("ArmySelect: 393510 отложен до idle/Present (не на стеке pick)");
+            Log("ArmySelect: 393510 отложен до idle/Present (не на стеке pick)");
 
         static const unsigned char sigRebuild[9] =
             { 0x55, 0x8B, 0xEC, 0x64, 0xA1, 0x00, 0x00, 0x00, 0x00 };
         if (StealToTrampoline(0x393290, 9, g_trampPanelRebuild, sizeof(g_trampPanelRebuild),
             sigRebuild, (void*)Hook393290, &g_real393290, "PanelRebuild"))
-            LogDbg("ArmySelect: 393290 хук (reuse; skip выключен)");
+            Log("ArmySelect: 393290 хук (reuse; skip выключен)");
 
         g_afterListClear = (void*)(g_base + 0x393336);
         {
@@ -16903,19 +17095,19 @@ static void InstallArmySelectDiag()
                 { 0x8B, 0x17, 0x8B, 0x42, 0x5C, 0x8B, 0xCF, 0xFF, 0xD0 };
             if (StealToTrampoline(0x39332D, 9, g_trampListClear, sizeof(g_trampListClear),
                 sigListClr, (void*)Hook393ListClear, &g_realListClear, "ListClearSkip"))
-                LogDbg("ArmySelect: Hide list не panel+4; после 393510 Show+layout list");
+                Log("ArmySelect: Hide list не panel+4; после 393510 Show+layout list");
         }
 
         static const unsigned char sigBb0[5] = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
         if (StealToTrampoline(0x391BB0, 5, g_trampBb0, sizeof(g_trampBb0),
             sigBb0, (void*)Hook391BB0, &g_real391BB0, "IdleBrigade"))
-            LogDbg("ArmySelect: 391BB0 жив (иконки); skip только NeedRebuild; таймер bb0/bb0h/bb0t");
+            Log("ArmySelect: 391BB0 жив (иконки); skip только NeedRebuild; таймер bb0/bb0h/bb0t");
 
         {
             static const unsigned char sigRorg[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
             if (StealToTrampoline(0x3810A0, 6, g_trampRorg, sizeof(g_trampRorg),
                 sigRorg, (void*)Hook3810A0, &g_real3810A0, "ReorgIdlePanel"))
-                LogDbg("ArmySelect: 3810A0 таймер (idle при окне реорга 1644)");
+                Log("ArmySelect: 3810A0 таймер (idle при окне реорга 1644)");
         }
 
         g_bb0Epilogue = (void*)(g_base + 0x39240C);
@@ -16926,14 +17118,14 @@ static void InstallArmySelectDiag()
             if (sigTail[0] == 0x8B && sigTail[1] == 0x15 &&
                 StealToTrampoline(0x391C6E, 6, g_trampBb0Tail, sizeof(g_trampBb0Tail),
                     sigTail, (void*)Hook391C6E, &g_real391C6E, "IdleBrigadeTail"))
-                LogDbg("ArmySelect: skip CUnitStatusEntry 391C6E -> 39240C (как reorg/1644)");
+                Log("ArmySelect: skip CUnitStatusEntry 391C6E -> 39240C (как reorg/1644)");
         }
 
         static const unsigned char sigHide[5] = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
         static void* unusedHide = 0;
         if (StealToTrampoline(0x393570, 5, g_trampPanelHide, sizeof(g_trampPanelHide),
             sigHide, (void*)Hook393570, &unusedHide, "PanelHideKeep"))
-            LogDbg("ArmySelect: 393570 Hide без destroy детей list");
+            Log("ArmySelect: 393570 Hide без destroy детей list");
     }
 
     // 3.76: окно ванильное. Таймеры 391BB0 / 393290 / 3810A0 без skip.
@@ -16943,19 +17135,19 @@ static void InstallArmySelectDiag()
         if (!g_real393290 &&
             StealToTrampoline(0x393290, 9, g_trampPanelRebuild, sizeof(g_trampPanelRebuild),
             sigRebuild, (void*)Hook393290, &g_real393290, "PanelRebuildTime"))
-            LogDbg("ArmySelect: таймер 393290 (ваниль, без skip)");
+            Log("ArmySelect: таймер 393290 (ваниль, без skip)");
 
         static const unsigned char sigBb0[5] = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
         if (!g_real391BB0 &&
             StealToTrampoline(0x391BB0, 5, g_trampBb0, sizeof(g_trampBb0),
             sigBb0, (void*)Hook391BB0, &g_real391BB0, "IdleBrigadeTime"))
-            LogDbg("ArmySelect: таймер 391BB0 bb0/bb0h/bb0t (ваниль, без skip)");
+            Log("ArmySelect: таймер 391BB0 bb0/bb0h/bb0t (ваниль, без skip)");
 
         static const unsigned char sigRorg[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
         if (!g_real3810A0 &&
             StealToTrampoline(0x3810A0, 6, g_trampRorg, sizeof(g_trampRorg),
             sigRorg, (void*)Hook3810A0, &g_real3810A0, "ReorgIdlePanelTime"))
-            LogDbg("ArmySelect: таймер 3810A0 (реорг)");
+            Log("ArmySelect: таймер 3810A0 (реорг)");
 
         g_bb0Epilogue = (void*)(g_base + 0x39240C);
         if (!g_real391C6E)
@@ -16966,7 +17158,7 @@ static void InstallArmySelectDiag()
             if (sigTail[0] == 0x8B && sigTail[1] == 0x15 &&
                 StealToTrampoline(0x391C6E, 6, g_trampBb0Tail, sizeof(g_trampBb0Tail),
                     sigTail, (void*)Hook391C6E, &g_real391C6E, "IdleBrigadeTailTime"))
-                LogDbg("ArmySelect: таймер хвоста 391C6E (без skip)");
+                Log("ArmySelect: таймер хвоста 391C6E (без skip)");
         }
 
         if (!g_fn009350)
@@ -16991,7 +17183,7 @@ static void InstallArmySelectDiag()
                 n++;
             if (PlantMidJump(0x391C44, 5, sigHash, (void*)Hook391C44_Hash, "Bb0Hash19C160"))
                 n++;
-            LogDbg("ArmySelect: split-таймеры 391BB0 %d/4 (s=009350 f=FindChild l=list+7C g=hash o=остаток)", n);
+            Log("ArmySelect: split-таймеры 391BB0 %d/4 (s=009350 f=FindChild l=list+7C g=hash o=остаток)", n);
         }
 
         if (!g_real5B2750)
@@ -16999,11 +17191,11 @@ static void InstallArmySelectDiag()
             static const unsigned char sigUpd[6] = { 0x56, 0x8B, 0x71, 0x60, 0x85, 0xF6 };
             if (StealToTrampoline(0x5B2750, 6, g_trampListUpd, sizeof(g_trampListUpd),
                 sigUpd, (void*)Hook5B2750, &g_real5B2750, "ListboxUpdate5B2750"))
-                LogDbg("ArmySelect: таймер 5B2750 listbox Update детей (bb0u)");
+                Log("ArmySelect: таймер 5B2750 listbox Update детей (bb0u)");
             static const unsigned char sigCh[5] = { 0x8B, 0x50, 0x24, 0xFF, 0xD2 };
             g_bb0ContChild = (void*)(g_base + 0x5B2761);
             if (PlantMidJump(0x5B275C, 5, sigCh, (void*)Hook5B275C_Child, "ListboxChild24"))
-                LogDbg("ArmySelect: таймер child +0x24 внутри 5B2750 (bb0ch)");
+                Log("ArmySelect: таймер child +0x24 внутри 5B2750 (bb0ch)");
         }
 
         if (!g_fn38B4C0)
@@ -17013,7 +17205,7 @@ static void InstallArmySelectDiag()
             // E8 rel32 к 38B4C0: rel = 0x38B4C0 - (0x38AF3A+5) = 0x581
             static const unsigned char sigSync[5] = { 0xE8, 0x81, 0x05, 0x00, 0x00 };
             if (PlantMidJump(0x38AF3A, 5, sigSync, (void*)Hook38AF3A_Sync, "ListSyncCall38AF3A"))
-                LogDbg("ArmySelect: call 38B4C0 @38AF3A с ESI (bb0rb/syncm), без C++ wrap");
+                Log("ArmySelect: call 38B4C0 @38AF3A с ESI (bb0rb/syncm), без C++ wrap");
         }
         if (!g_fn38B2E0)
         {
@@ -17022,7 +17214,7 @@ static void InstallArmySelectDiag()
             // E8 rel32 к 38B2E0: rel = 0x38B2E0 - (0x38AF44+5) = 0x397
             static const unsigned char sigEqA[5] = { 0xE8, 0x97, 0x03, 0x00, 0x00 };
             if (PlantMidJump(0x38AF44, 5, sigEqA, (void*)Hook38AF44_EqA, "ListEqCall38B2E0"))
-                LogDbg("ArmySelect: таймер call 38B2E0 @38AF44 (bb0eqA scrollbar)");
+                Log("ArmySelect: таймер call 38B2E0 @38AF44 (bb0eqA scrollbar)");
         }
         if (!g_fn38B140)
         {
@@ -17031,7 +17223,7 @@ static void InstallArmySelectDiag()
             // E8 rel32 к 38B140: rel = 0x38B140 - (0x38AF49+5) = 0x1F2
             static const unsigned char sigEqB[5] = { 0xE8, 0xF2, 0x01, 0x00, 0x00 };
             if (PlantMidJump(0x38AF49, 5, sigEqB, (void*)Hook38AF49_EqB, "ListEqCall38B140"))
-                LogDbg("ArmySelect: skip Show на equal-path (eqVskip); rebuild = ванильный 5B1FA0");
+                Log("ArmySelect: skip Show на equal-path (eqVskip); rebuild = ванильный 5B1FA0");
         }
         if (!g_fn731C00)
         {
@@ -17042,14 +17234,14 @@ static void InstallArmySelectDiag()
                 0x53, 0x57, 0xFF, 0xD2, 0xE8, 0xA5, 0x6A, 0x3A, 0x00
             };
             if (PlantMidJump(0x38B152, 9, sigEqH, (void*)Hook38B152_EqH, "ListEqHead38B152"))
-                LogDbg("ArmySelect: таймер head 38B140 @38B152 (bb0eqH)");
+                Log("ArmySelect: таймер head 38B140 @38B152 (bb0eqH)");
         }
         if (!g_bb0ContEqV)
         {
             g_bb0ContEqV = (void*)(g_base + 0x38B188);
             static const unsigned char sigEqV[5] = { 0x83, 0xC1, 0x1C, 0xFF, 0xD0 };
             if (PlantMidJump(0x38B183, 5, sigEqV, (void*)Hook38B183_EqV, "ListEqVcall38B183"))
-                LogDbg("ArmySelect: eqV @38B183 skip или call EAX=5B1FA0 (bb0eqV)");
+                Log("ArmySelect: eqV @38B183 skip или call EAX=5B1FA0 (bb0eqV)");
         }
         if (!g_eqVSlicesOn)
         {
@@ -17092,10 +17284,10 @@ static void InstallArmySelectDiag()
             if (n == 8)
             {
                 g_eqVSlicesOn = 1;
-                LogDbg("ArmySelect: срезы 5E4490 p/v/l/Ta-Td/w/x gated");
+                Log("ArmySelect: срезы 5E4490 p/v/l/Ta-Td/w/x gated");
             }
             else
-                LogDbg("ArmySelect: срезы 5E4490 частичные %d/8", n);
+                Log("ArmySelect: срезы 5E4490 частичные %d/8", n);
         }
         if (!g_bb0ContEqTbC)
         {
@@ -17104,7 +17296,7 @@ static void InstallArmySelectDiag()
                 0x8B, 0x11, 0x8B, 0x42, 0x34, 0xFF, 0xD0
             };
             if (PlantMidJump(0x5E46C9, 7, sigTbC, (void*)Hook5E46C9_TbC, "EqVTbChild34"))
-                LogDbg("ArmySelect: таймер Tb child vt+0x34 @46C9 (bb0eqTbC/tbCnt)");
+                Log("ArmySelect: таймер Tb child vt+0x34 @46C9 (bb0eqTbC/tbCnt)");
         }
         if (!g_fn008ED0)
         {
@@ -17112,7 +17304,7 @@ static void InstallArmySelectDiag()
             g_bb0ContEqS = (void*)(g_base + 0x38B1C7);
             static const unsigned char sigEqS[5] = { 0xE8, 0x09, 0xDD, 0xC7, 0xFF };
             if (PlantMidJump(0x38B1C2, 5, sigEqS, (void*)Hook38B1C2_EqS, "ListEqStr38B1C2"))
-                LogDbg("ArmySelect: таймер call 008ED0 @38B1C2 (bb0eqS)");
+                Log("ArmySelect: таймер call 008ED0 @38B1C2 (bb0eqS)");
         }
         if (!g_fn38A4D0)
         {
@@ -17120,9 +17312,9 @@ static void InstallArmySelectDiag()
             g_bb0ContEqR = (void*)(g_base + 0x38B1D2);
             static const unsigned char sigEqR[5] = { 0xE8, 0xFE, 0xF2, 0xFF, 0xFF };
             if (PlantMidJump(0x38B1CD, 5, sigEqR, (void*)Hook38B1CD_EqR, "ListEqRow38B1CD"))
-                LogDbg("ArmySelect: таймер call 38A4D0 @38B1CD (bb0eqR)");
+                Log("ArmySelect: таймер call 38A4D0 @38B1CD (bb0eqR)");
         }
-        LogDbg("ArmySelect: патч окна СНЯТ — ищем утечку FPS на ванили");
+        Log("ArmySelect: патч окна СНЯТ — ищем утечку FPS на ванили");
     }
     InstallWindowFps();
 }
@@ -17486,6 +17678,27 @@ static bool InstallMpClientSleep()
     return true;
 }
 
+static HMODULE g_eventMusicModule = 0;
+static void LoadEventMusicDll()
+{
+    wchar_t path[MAX_PATH] = {};
+    DWORD n = GetModuleFileNameW(NULL, path, MAX_PATH);
+    if (!n || n >= MAX_PATH) { Log("EventMusic: no se pudo obtener la ruta del juego"); return; }
+    wchar_t* slash = wcsrchr(path, L'\\');
+    if (!slash) { Log("EventMusic: ruta del juego no valida"); return; }
+    wcscpy_s(slash + 1, MAX_PATH - (size_t)(slash + 1 - path), L"eventmusic.dll");
+    g_eventMusicModule = LoadLibraryW(path);
+    if (!g_eventMusicModule) { Log("EventMusic: no se pudo cargar eventmusic.dll (error %u)", GetLastError()); return; }
+    typedef BOOL (WINAPI* tStart)(BOOL);
+    tStart start = (tStart)GetProcAddress(g_eventMusicModule, "EventMusic_Start");
+    // En x86, WINAPI decora los exports C como _Nombre@bytes. Acepta también
+    // ese nombre para DLLs compiladas sin un archivo .def que lo des-decore.
+    if (!start) start = (tStart)GetProcAddress(g_eventMusicModule, "_EventMusic_Start@4");
+    if (!start) { Log("EventMusic: falta el export EventMusic_Start"); return; }
+    BOOL ok = start(g_settings.log ? TRUE : FALSE);
+    Log("EventMusic: DLL cargada, inicio=%d", (int)ok);
+}
+
 static bool Install()
 {
     LoadSettings();
@@ -17711,6 +17924,9 @@ static bool Install()
     if (g_settings.patchHideNoSupplyFactories)
         InstallHideNoSupplyFactoriesHook();
 
+    if (g_settings.EventSounds)
+        LoadEventMusicDll();
+
     // Оба патча целят один и тот же адрес - взаимоисключающе.
     if (g_settings.priceDelta && g_settings.patchExponentialPriceDelta)
         Log("PriceDelta: ENABLE_PRICE_DELTA и PATCH_EXPONENTIAL_PRICE_DELTA "
@@ -17742,6 +17958,14 @@ static bool Install()
     }
 
     InstallOosWatch();
+    HANDLE pasteThread = CreateThread(0, 0, ClipboardPasteWorker, 0, 0, 0);
+    if (pasteThread)
+    {
+        CloseHandle(pasteThread);
+        Log("ClipboardPaste: hilo independiente iniciado (Ctrl+V)");
+    }
+    else
+        Log("ClipboardPaste: no se pudo iniciar el hilo independiente (%lu)", GetLastError());
     Log("IdleSkipNested: PATCH_SKIP_NESTED_IDLE=%d FIX_ARMY_WINDOW_LAG=%d PATCH_SKIP_CHK_WIN=%d PATCH_CAM_STILL=%d",
         (int)g_settings.patchSkipNestedIdle, (int)g_settings.patchFixArmyWindowLag,
         (int)g_settings.patchSkipChkWin, (int)g_settings.patchCamStill);
@@ -18775,6 +18999,13 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
         }
         Log("DllMain: attach, Install = %d", (int)ok);
         InterlockedExchange(&g_dllReady, 1);
+    }
+    else if (reason == DLL_PROCESS_DETACH)
+    {
+        InterlockedExchange(&g_clipboardWorkerStop, 1);
+        DWORD threadId = (DWORD)InterlockedCompareExchange(&g_clipboardWorkerThreadId, 0, 0);
+        if (threadId)
+            PostThreadMessageA(threadId, WM_QUIT, 0, 0);
     }
     return TRUE;
 }
