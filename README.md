@@ -171,7 +171,9 @@ Prioritizes the game process. Supposed a marginal performance gain (made by av21
   
 ### Diagnostics
 #### 1. ENABLE_LOG
-Just the log used for debugging the .dll
+Just the log used for debugging the .dll. By default it only gets patch install lines, errors and a few one-time status lines.
+#### 1a. DEBUG_LOG
+Off by default. Turns on the verbose development diagnostics (per-frame / per-event records, probes, dumps: `Present` frame statistics, `IdleSpike`, ally-embark and army-selection traces, goods-filter probes, goods consumption market numbers, ...). With it on the log grows by tens of megabytes; turn it on only to investigate a problem.
 #### 2. PATCH_FACTORY_DUMP_SCAN
 I used this to debug overflow related to Economic №3 (didn't help much).
 #### 3. ENABLE_OOS_LOG

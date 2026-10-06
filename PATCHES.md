@@ -111,7 +111,7 @@ Key | Default | Kind | Address(es) | Section
 `FIX_SFX_MIXER_LAG` | on | IAT | `ws2_32!select` (ordinal 18) | 7
 `FIX_ARMY_WINDOW_LAG` / `PATCH_SKIP_NESTED_IDLE` | on / off | ENTRY | `0x254D80` | 7
 `PATCH_SKIP_SEL_PROJ`, `PATCH_REUSE_UNIT_VIEW`, `PATCH_SKIP_ARMY_IDLE`, `PATCH_REUSE_WINDOWS`, `PATCH_SKIP_CHK_WIN`, `PATCH_CAM_STILL` | all off (three are forced off) | – | see 7.13 | 7
-`ENABLE_LOG`, `PATCH_FACTORY_DUMP_SCAN`, `PATCH_CHECKSUM_DIAGNOSTIC`, `ENABLE_OOS_LOG`, `ENABLE_CRASH_LOG`, `ENABLE_CRASH_DUMP` | on, off, off, on, on, off | mixed | see 8 | 8
+`ENABLE_LOG`, `DEBUG_LOG`, `PATCH_FACTORY_DUMP_SCAN`, `PATCH_CHECKSUM_DIAGNOSTIC`, `ENABLE_OOS_LOG`, `ENABLE_CRASH_LOG`, `ENABLE_CRASH_DUMP` | on, off, off, off, on, on, off | mixed | see 8 | 8
 
 ---
 
@@ -439,7 +439,8 @@ Exe import `ws2_32!select` (ordinal 18) → `HookSelect`. Calls from the mixer r
 
 | Key | Default | Kind / address | Behaviour |
 |---|---|---|---|
-| `ENABLE_LOG` | on | – | `Logs\v2dll.log` (many lines per tick; turn off for release). |
+| `ENABLE_LOG` | on | – | `Logs\v2dll.log`: patch install lines, errors ("signature mismatch", exceptions) and a few one-time status lines. |
+| `DEBUG_LOG` | off | – | (4.98) Enables the `LogDbg(...)` records (macro next to `Log()`: `if (g_settings.debugLog) Log(...)`): the development diagnostics that used to dominate the log (a 40 MB `v2dll.log` was 60 % `Present` frame statistics, 15 % `IdleSpike`, then ally-embark / army-select / goods-filter / probe traces). About 155 call sites were moved from `Log` to `LogDbg`; install lines and failures stay on `Log`. The pure-diagnostic helpers (`LogGoodsFilterConstructed`, `LogEmbarkFleetState`, `LogMapIconProbeHit`, `LogProvinceTableOnce`, `LogHideNoSupplyResult`) return immediately when it is off. |
 | `PATCH_FACTORY_DUMP_SCAN` | off | scans `MEM_PRIVATE` heap regions | Debug dump of factory structures. Do not widen to `MEM_IMAGE/MAPPED` (it once broke device creation). |
 | `PATCH_CHECKSUM_DIAGNOSTIC` | off | HOOK `0x238A40` (VA `0x638A40`) (11 bytes `53 6A 0C C6 84 24 D4 03 00 00 30`; resume `0x238A4B`) + lobby HOOK `0x36B4F6` (VA `0x76B4F6`) (6 bytes `8B 80 30 01 00 00`; resume `0x36B4FC`) | Logs `ECX` and `*(ECX+0x30)` (the checksum accumulator) before the game builds `"Checksum is …"`, and the lobby copy. |
 | `ENABLE_OOS_LOG` | on | ENTRY `0x282EC0` (VA `0x682EC0`) (`FUN_00682EC0`, 5 bytes `55 8B EC 6A FF`; also checks `sub esp,0x140` at `+24`) — **always installed** | Writes `Logs\v2dll_oos.log` when the "Games out of synch" dialog fires; also counts SYNC/OOS hits. |
