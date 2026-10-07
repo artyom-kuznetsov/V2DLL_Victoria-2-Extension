@@ -459,6 +459,7 @@ Exe import `ws2_32!select` (ordinal 18) → `HookSelect`. Calls from the mixer r
 | `ENABLE_CRASH_LOG` | on | vectored handler + `SetUnhandledExceptionFilter` + IAT hook of it + `SIGABRT` + invalid-parameter handler | `Logs\v2dll_crash.log` and `v2dll_crash_hint.txt`. |
 | `ENABLE_CRASH_DUMP` | off | same handlers | Adds `v2dll_crash_*.dmp` (tens of MB each). Requires `ENABLE_CRASH_LOG=1`. |
 | `HIDE_NO_SUPPLY_DRY_RUN` | off | see 5.6 | Log only. |
+| `FACTORY_EXPAND_TRACE` | on | ENTRY `0xD02E0` (VA `0x4D02E0`, `FUN_004D02E0`; 5 bytes `8B 49 60 85 C0`; resume `0xD02E5`, `74 09`) (added 5.17) | Observer only, changes nothing. `FUN_004D02E0` (ECX = state, EAX = factory index) sets `factory+0x17C` = build time when a planner project (`state+0x1C8`) completes — its only caller is `FUN_004A4CB0`, so every expansion passes here. Appends one line per start to `Logs\v2dll_expand.log` (game date, `[TAG type]`, level, staffing = `+0x128 / (def+0x128 × level)`, state staffing, money, loss days, subsidy; capped at 50000) plus a staffing histogram every 100 events. Purpose: show whether factories are expanded while unstaffed (the vanilla candidate test `FUN_004A75B0` needs ~90 %). |
 
 Live log path: `I:\Vic2_Dev\V2BDSM\Logs\v2dll.log`.
 

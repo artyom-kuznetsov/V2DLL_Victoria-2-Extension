@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.16"
+#define MOD_VERSION "5.17"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -94,6 +94,10 @@ struct Settings
     bool patchFactoryClosePayout     = true;
     bool patchFactoryAutoClose       = true;
     bool factoryCloseDryRun          = true;
+    // FACTORY_EXPAND_TRACE: только наблюдение. На старте каждого расширения
+    // фабрики пишет в Logs\v2dll_expand.log уровень, занятость и тип (чтобы
+    // понять, как вырастают "пустые" гиганты). Игру не меняет.
+    bool factoryExpandTrace          = true;
     // Окно фабрик: не показывать в верхнем ряду фильтров кнопки товаров,
     // чьё имя начинается на "raw_" (см. ComputeGoodsFilterPos).
     bool hideRawGoodsFilter          = true;
@@ -219,6 +223,9 @@ static void LoadSettings();
 
 static bool g_logStarted = false;
 static bool g_oosLogStarted = false;
+static bool g_expandLogStarted = false;
+// Игровая дата последнего дневного прохода OosWatch (для строк FactoryExpand).
+static char g_lastGameDate[32] = "?";
 static CRITICAL_SECTION g_logCs;
 static bool g_logCsInit = false;
 
@@ -226,6 +233,7 @@ static HMODULE g_selfModule = 0;
 static wchar_t g_logsDir[MAX_PATH];
 static wchar_t g_logFile[MAX_PATH];
 static wchar_t g_oosLogFile[MAX_PATH];
+static wchar_t g_expandLogFile[MAX_PATH];
 static wchar_t g_crashLogFile[MAX_PATH];
 static wchar_t g_crashDumpFile[MAX_PATH];
 static bool g_logDirReady = false;
@@ -259,6 +267,7 @@ static void InitLogDir()
 
     swprintf_s(g_logFile, L"%s\\v2dll.log", g_logsDir);
     swprintf_s(g_oosLogFile, L"%s\\v2dll_oos.log", g_logsDir);
+    swprintf_s(g_expandLogFile, L"%s\\v2dll_expand.log", g_logsDir);
     swprintf_s(g_crashLogFile, L"%s\\v2dll_crash.log", g_logsDir);
     swprintf_s(g_crashDumpFile, L"%s\\v2dll_crash.dmp", g_logsDir);
     g_logDirReady = true;
@@ -4127,6 +4136,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_FACTORY_CLOSE_PAYOUT") == 0)      { g_settings.patchFactoryClosePayout     = v; return; }
     if (_stricmp(key, "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE") == 0) { g_settings.patchFactoryAutoClose = v; return; }
     if (_stricmp(key, "FACTORY_CLOSE_DRY_RUN") == 0)           { g_settings.factoryCloseDryRun          = v; return; }
+    if (_stricmp(key, "FACTORY_EXPAND_TRACE") == 0)            { g_settings.factoryExpandTrace          = v; return; }
     if (_stricmp(key, "PROD_TYPE_GATE_ALLOW_ALL") == 0)         { g_settings.prodTypeGateAllowAll        = v; return; }
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
     if (_stricmp(key, "PATCH_COMBAT_ROLL") == 0)                { g_settings.patchCombatRoll             = v; return; }
@@ -4442,7 +4452,8 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_OOS_LOG=%d\n"
         "ENABLE_CRASH_LOG=%d\n"
         "ENABLE_CRASH_DUMP=%d\n"
-        "HIDE_NO_SUPPLY_DRY_RUN=%d\n",
+        "HIDE_NO_SUPPLY_DRY_RUN=%d\n"
+        "FACTORY_EXPAND_TRACE=%d\n",
         (int)g_settings.log,
         (int)g_settings.debugLog,
         (int)g_settings.patchFactoryDumpScan,
@@ -4450,7 +4461,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.enableOosLog,
         (int)g_settings.enableCrashLog,
         (int)g_settings.enableCrashDump,
-        (int)g_settings.hideNoSupplyDryRun);
+        (int)g_settings.hideNoSupplyDryRun,
+        (int)g_settings.factoryExpandTrace);
 
     fclose(f);
 }
@@ -11615,7 +11627,10 @@ static void __cdecl ReportOos(void* a0, void* a1)
         }
     }
     if (dateOk)
+    {
         FormatVic2Date(dateRaw, dateBuf, sizeof(dateBuf));
+        strncpy_s(g_lastGameDate, sizeof(g_lastGameDate), dateBuf, _TRUNCATE);
+    }
 
     unsigned char oosFlag = 0;
     int oosFlagOk = 0;
@@ -18359,6 +18374,161 @@ static bool InstallFactoryClose()
     return closeOk || counterOk || inlineOk || financeOk;
 }
 
+// ---------------------------------------------------------------
+// FactoryExpand: наблюдатель за началом расширения фабрики (только лог).
+//
+// FUN_004D02E0 (__fastcall, ECX = state, EAX = индекс фабрики в списке
+// state+0x60) выставляет фабрике +0x17C = время стройки. Единственный вызов -
+// FUN_004A4CB0, завершение проекта планировщика (state+0x1C8), то есть любое
+// расширение (капиталистами или за деньги государства) проходит здесь.
+// Хук ничего не меняет: пишет в Logs\v2dll_expand.log уровень, занятость
+// (+0x128 / (workforce типа * уровень)), тип и дату, раз в 100 событий -
+// гистограмму заполнения. Нужен, чтобы увидеть, расширяются ли фабрики без
+// рабочих (ванильный предикат FUN_004A75B0 требует ~90 %).
+// ---------------------------------------------------------------
+
+static const DWORD RVA_FACTORY_EXPAND_START        = 0xD02E0;
+static const DWORD RVA_FACTORY_EXPAND_START_RESUME = 0xD02E5;
+static const int FAC_OFF_EMPLOYEES   = 0x128;
+static const int FAC_OFF_LIST_NEXT   = 0x224;
+static const int STATE_OFF_FACTORIES = 0x60;
+static const int STATE_OFF_FAC_COUNT = 0x68;
+static const int TYPE_OFF_DEF        = 0x12C;
+static const int DEF_OFF_WORKFORCE   = 0x128;
+
+static DWORD g_facExpandResume = 0;
+static int   g_facExpandCount  = 0;
+static int   g_facExpandBig    = 0;
+static int   g_facExpandHist[5] = { 0, 0, 0, 0, 0 };   // <50, 50-79, 80-89, 90-99, >=100 %
+
+static void LogExpandFile(const char* fmt, ...)
+{
+    InitLogDir();
+
+    if (g_logCsInit)
+        EnterCriticalSection(&g_logCs);
+
+    FILE* f = 0;
+    if (_wfopen_s(&f, g_expandLogFile, g_expandLogStarted ? L"a" : L"w") != 0 || !f)
+    {
+        if (g_logCsInit)
+            LeaveCriticalSection(&g_logCs);
+        return;
+    }
+    g_expandLogStarted = true;
+
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fprintf(f, "\n");
+    fclose(f);
+
+    if (g_logCsInit)
+        LeaveCriticalSection(&g_logCs);
+}
+
+static int FacWorkforceOf(unsigned char* f)
+{
+    unsigned char* type = *(unsigned char**)(f + FAC_OFF_TYPE);
+    if (!type)
+        return 0;
+    unsigned char* def = *(unsigned char**)(type + TYPE_OFF_DEF);
+    if (!def)
+        return 0;
+    return *(int*)(def + DEF_OFF_WORKFORCE);
+}
+
+static void __cdecl FactoryExpandObserve(void* state, int index)
+{
+    if (!g_settings.factoryExpandTrace || g_facExpandCount >= 50000)
+        return;
+    __try
+    {
+        unsigned char* st = (unsigned char*)state;
+        unsigned char* f = *(unsigned char**)(st + STATE_OFF_FACTORIES);
+        for (int i = index; i > 0 && f; --i)
+            f = *(unsigned char**)(f + FAC_OFF_LIST_NEXT);
+        if (!f)
+            return;
+
+        int level = *(int*)(f + FAC_OFF_LEVEL);
+        int emp   = *(int*)(f + FAC_OFF_EMPLOYEES);
+        int wf    = FacWorkforceOf(f);
+        long long maxEmp = (long long)wf * level;
+        int fillPct = (maxEmp > 0) ? (int)((long long)emp * 100 / maxEmp) : -1;
+
+        // Занятость по всем фабрикам этого региона (как "свободные руки" региона).
+        int nFac = *(int*)(st + STATE_OFF_FAC_COUNT);
+        long long sumEmp = 0, sumMax = 0;
+        unsigned char* g = *(unsigned char**)(st + STATE_OFF_FACTORIES);
+        for (int k = 0; g && k < 64; ++k)
+        {
+            int lv = *(int*)(g + FAC_OFF_LEVEL);
+            if (lv > 0)
+            {
+                sumEmp += *(int*)(g + FAC_OFF_EMPLOYEES);
+                sumMax += (long long)FacWorkforceOf(g) * lv;
+            }
+            g = *(unsigned char**)(g + FAC_OFF_LIST_NEXT);
+        }
+        int stFill = (sumMax > 0) ? (int)(sumEmp * 100 / sumMax) : -1;
+
+        char who[64];
+        FacDescribe(f, who, sizeof(who));
+
+        ++g_facExpandCount;
+        if (level >= 20)
+            ++g_facExpandBig;
+        int b = (fillPct < 50) ? 0 : (fillPct < 80) ? 1 : (fillPct < 90) ? 2 : (fillPct < 100) ? 3 : 4;
+        ++g_facExpandHist[b];
+
+        LogExpandFile("#%d %s [%s] ур.%d->%d занятость %d%% (%d из %lld) | регион: %d фабр., занятость %d%% | деньги %.0f, убыт.дн. %d, субсидия %d",
+            g_facExpandCount, g_lastGameDate, who, level, level + 1, fillPct, emp, maxEmp,
+            nFac, stFill,
+            FacMoneyShown(*(long long*)(f + FAC_OFF_MONEY)),
+            *(int*)(f + FAC_OFF_LOSS_DAYS), (int)*(f + FAC_OFF_SUBSIDY));
+
+        if (g_facExpandCount % 100 == 0)
+        {
+            LogExpandFile("== итого %d стартов расширения: занятость <50%%: %d, 50-79%%: %d, 80-89%%: %d, 90-99%%: %d, >=100%%: %d; с уровня >=20: %d",
+                g_facExpandCount, g_facExpandHist[0], g_facExpandHist[1], g_facExpandHist[2],
+                g_facExpandHist[3], g_facExpandHist[4], g_facExpandBig);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Вход FUN_004D02E0: 8B 49 60 (mov ecx,[ecx+0x60]); 85 C0 (test eax,eax); дальше 74 09.
+__declspec(naked) static void FactoryExpandStartThunk()
+{
+    __asm {
+        pushad
+        push eax
+        push ecx
+        call FactoryExpandObserve
+        add esp, 8
+        popad
+        mov ecx, dword ptr [ecx + 0x60]
+        test eax, eax
+        jmp dword ptr [g_facExpandResume]
+    }
+}
+
+static bool InstallFactoryExpandTrace()
+{
+    static const unsigned char SIG[5]    = { 0x8B, 0x49, 0x60, 0x85, 0xC0 };
+    static const unsigned char RESUME[2] = { 0x74, 0x09 };
+    g_facExpandResume = g_base + RVA_FACTORY_EXPAND_START_RESUME;
+    bool ok = WriteJmpSite(RVA_FACTORY_EXPAND_START, SIG, sizeof(SIG), 5,
+        RVA_FACTORY_EXPAND_START_RESUME, RESUME, sizeof(RESUME),
+        (void*)&FactoryExpandStartThunk, "FactoryExpand(старт)");
+    Log("FactoryExpand: наблюдатель %s (только лог, Logs\\v2dll_expand.log)", ok ? "установлен" : "НЕ установлен");
+    return ok;
+}
+
 
 static bool Install()
 {
@@ -18587,6 +18757,9 @@ static bool Install()
 
     if (g_settings.patchFactoryClosePayout || g_settings.patchFactoryAutoClose)
         InstallFactoryClose();
+
+    if (g_settings.factoryExpandTrace)
+        InstallFactoryExpandTrace();
 
     if (g_settings.EventSounds)
         LoadEventMusicDll();
