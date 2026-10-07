@@ -1,0 +1,377 @@
+SHELVED PATCH: ENABLE_COUNTRY_GDP (was v5.19, removed from the main DLL in v5.20 at the user's request; to be returned to later)
+=====================================================================================================
+Source: V2TechButton.cpp. Description / engine map: see memory project_country_gdp.md and the PATCHES.md section 4.11 text kept in
+Patches\shelved_country_gdp_PATCHES_section.md. Status when shelved: built and deployed, NEVER seen in game.
+
+HOW TO RE-APPLY (all edits were in V2TechButton.cpp)
+1. Settings struct (after `bool goodsConsumptionDemand = true;`):
+       bool countryGdp = true;
+2. Ini parser (after the GOODS_CONSUMPTION_MARKET_DEMAND line):
+       if (_stricmp(key, "ENABLE_COUNTRY_GDP") == 0) { g_settings.countryGdp = v; return; }
+3. Default ini writer (the "; Miscellaneous" fprintf): add "ENABLE_COUNTRY_GDP=%d
+" after GOODS_CONSUMPTION_MARKET_DEMAND and the argument
+   (int)g_settings.countryGdp after (int)g_settings.goodsConsumptionDemand.
+4. Paste PART A below right before the line `// ---- общий дневной хук страны (minting + закупка товаров) ----`.
+5. In CountryDailyHook add `CountryGdpDaily(country);` after GoodsConsumptionDaily(country);
+6. Paste PART B below right before `static bool InstallGoodsConsumption()`.
+7. In the install sequence after `InstallGoodsConsumption();` add
+       if (g_settings.countryGdp)
+           InstallCountryGdp();
+8. Bump MOD_VERSION. Docs: README item 13a + PATCHES.md index row + section 4.11 (text saved in the sibling shelf file).
+
+Open points to verify when it comes back: (1) is saved_country_supply the whole day's production (RGO+factories+artisans);
+(2) does factory +0x158 include the efficiency (maintenance) goods. Check with DEBUG_LOG=1 lines "CountryGdp: игрок ...".
+
+===================================== PART A =====================================
+// ---------------------------------------------------------------
+// COUNTRY_GDP (ENABLE_COUNTRY_GDP) - "ВВП" страны за прошлый месяц в
+// textbox "fe_country_gdp" окна topbar (ранги выбранной страны, рядом с
+// "country_economic").
+//
+//   ВВП = стоимость произведённых товаров - затраты фабрик на сырьё и
+//         содержание (efficiency-товары шаблона) за месяц.
+//
+// Выпуск: за день - сумма по товарам "saved_country_supply страны" (то, что
+// страна произвела за день: РГО, фабрики, ремесленники; market+0x7D4, см.
+// ConsCountryHolder) * текущая цена товара. Затраты: у каждой открытой
+// фабрики страны (country+0xE44 - список стейтов, state+0x60 - список
+// фабрик, +0x224 - следующая) поле +0x158 "затраты на покупку товаров за
+// прошлый день" (int64, 15 дробных бит, масштаб x1000: FUN_00482FF0 пишет
+// туда сумму * DAT_00F0ADE0 = 1000; в сейве это last_spending). Дневные
+// значения копятся с начала месяца (по стране, кэш по указателю); на смене
+// месяца накопленное становится "прошлым месяцем" и показывается. Месяц, у
+// которого не набралось все дни (загрузка посреди месяца), не
+// публикуется - до конца следующего полного месяца показывается "-".
+// Ничего в игровом состоянии не меняется - только чтение, поэтому OOS в
+// мультиплеере не создаёт (накопление идёт в дневном тике страны).
+//
+// Показ: хук внутри FUN_0070EC60 (обновление topbar) сразу после записи
+// "country_economic" (rva 0x3125FC, 6 байт lea ecx,[ebp-0x16C]; EDI = страна
+// выбранных рангов, EBX = topbar, [ebx+0x20] = окно).
+// ---------------------------------------------------------------
+
+static const DWORD RVA_GDP_TOPBAR_SITE   = 0x3125FC;
+static const DWORD RVA_GDP_TOPBAR_RESUME = 0x312602;
+static const int   GDP_OFF_COUNTRY_STATES = 0xE44;    // список узлов {state*, ?, next@+8}
+static const int   GDP_OFF_STATE_FACTORIES = 0x60;
+static const int   GDP_OFF_FAC_NEXT       = 0x224;
+static const int   GDP_OFF_FAC_LEVEL      = 0x20;
+static const int   GDP_OFF_FAC_SPENDING   = 0x158;    // затраты на товары за прошлый день (x1000, 15 бит)
+static const int   GDP_OFF_FAC_REVENUE    = 0x160;    // выручка за прошлый день (то же масштаб) - только для лога
+static const int   GDP_OFF_FAC_CLOSED     = 0x188;
+static const int   GDP_OFF_TOPBAR_WINDOW  = 0x20;
+
+struct GdpSlot
+{
+    void*  country;
+    int    month;        // номер месяца, который копится (-2 - слот новый)
+    int    lastHours;    // часы мира последнего учтённого дня (защита от двойного учёта)
+    int    days;         // сколько дней месяца учтено
+    double accOut, accCost;
+    bool   haveLast;
+    int    lastMonth;
+    double lastOut, lastCost;
+};
+static const int GDP_SLOTS = 1024;
+static GdpSlot g_gdpSlots[GDP_SLOTS];
+static bool    g_gdpActive = false;
+static DWORD   g_gdpTopbarResume = 0;
+static LONG    g_gdpMonthLogged = 0;
+static LONG    g_gdpUiLogged = 0;
+
+static GdpSlot* GdpFindSlot(void* country, bool create)
+{
+    unsigned h = ((unsigned)(DWORD_PTR)country >> 4) * 2654435761u;
+    for (int i = 0; i < GDP_SLOTS; ++i)
+    {
+        GdpSlot& sl = g_gdpSlots[(h + i) & (GDP_SLOTS - 1)];
+        if (sl.country == country)
+            return &sl;
+        if (!sl.country)
+        {
+            if (!create)
+                return 0;
+            memset(&sl, 0, sizeof(sl));
+            sl.country = country;
+            sl.month = -2;
+            return &sl;
+        }
+    }
+    return 0;
+}
+
+// Как MintingTimeNow, плюс длина текущего месяца (в днях) и номер дня в нём.
+static bool GdpTimeNow(int* hours, int* monthKey, int* dayOfMonth, int* monthLen)
+{
+    __try
+    {
+        void* world = *(void**)(g_base + RVA_WORLD_PTR);
+        if (!world)
+            return false;
+        int t = *(int*)((char*)world + OFF_WORLD_TIME);
+        if (t <= 0)
+            return false;
+        int days = t / 24;
+        int doy = days % 365;
+        const int* len = (const int*)(g_base + RVA_MONTH_LENGTHS);
+        int m = 0;
+        while (m < 11 && doy >= len[m])
+        {
+            doy -= len[m];
+            ++m;
+        }
+        *hours = t;
+        *monthKey = (days / 365) * 12 + m;
+        *dayOfMonth = doy;
+        *monthLen = len[m];
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+// Дневные выпуск (в фунтах по текущим ценам) и затраты фабрик страны.
+static bool GdpSampleDay(void* country, double* outValue, double* cost, double* factoryRevenue, int* factories)
+{
+    *outValue = 0.0;
+    *cost = 0.0;
+    *factoryRevenue = 0.0;
+    *factories = 0;
+    __try
+    {
+        char* session = *(char**)(g_base + RVA_WORLD_PTR);
+        char* market = session ? *(char**)(session + OFF_SESSION_MARKET) : 0;
+        if (!market)
+            return false;
+
+        int cidx = *(int*)((char*)country + 0x20);
+        for (int g = 0; g < CONS_MAX_GOODS; ++g)
+        {
+            double supply = ConsCountryHolder(market, OFF_MARKET_DOMESTIC_SUPPLY, cidx, g);
+            if (supply <= 0.0)
+                continue;
+            double price = ConsPriceOf(g);
+            if (price > 0.0)
+                *outValue += supply * price;
+        }
+
+        char* node = *(char**)((char*)country + GDP_OFF_COUNTRY_STATES);
+        for (int ns = 0; node && ns < 4096; ++ns)
+        {
+            char* state = *(char**)node;
+            node = *(char**)(node + 8);
+            if (!state)
+                continue;
+            char* f = *(char**)(state + GDP_OFF_STATE_FACTORIES);
+            for (int nf = 0; f && nf < 256; ++nf)
+            {
+                if (*(int*)(f + GDP_OFF_FAC_LEVEL) > 0 && *(unsigned char*)(f + GDP_OFF_FAC_CLOSED) == 0)
+                {
+                    *cost += (double)*(long long*)(f + GDP_OFF_FAC_SPENDING) / 32768.0 / 1000.0;
+                    *factoryRevenue += (double)*(long long*)(f + GDP_OFF_FAC_REVENUE) / 32768.0 / 1000.0;
+                    ++*factories;
+                }
+                f = *(char**)(f + GDP_OFF_FAC_NEXT);
+            }
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static void CountryGdpDaily(void* country)
+{
+    if (!g_gdpActive || !country)
+        return;
+
+    __try
+    {
+        static int s_lastHours = 0;
+        static bool s_timeKnown = false;
+        int hours = 0, monthKey = 0, dom = 0, mlen = 0;
+        if (!GdpTimeNow(&hours, &monthKey, &dom, &mlen))
+            return;
+
+        if (s_timeKnown && hours != s_lastHours && hours != s_lastHours + 24)
+        {
+            memset(g_gdpSlots, 0, sizeof(g_gdpSlots));
+            LogDbg("CountryGdp: время мира %d -> %d, накопления сброшены (загрузка/новая игра)", s_lastHours, hours);
+        }
+        s_lastHours = hours;
+        s_timeKnown = true;
+
+        GdpSlot* sl = GdpFindSlot(country, true);
+        if (!sl || sl->lastHours == hours)
+            return;
+
+        bool isPlayer = (country == GetLocalPlayerCountry());
+        if (sl->month != monthKey)
+        {
+            // Смена месяца: накопленное за прошлый - публикуем, если учтены все его дни.
+            if (sl->month >= 0 && sl->days > 0)
+            {
+                int prevLen = 0;
+                {
+                    int pm = sl->month % 12;
+                    const int* len = (const int*)(g_base + RVA_MONTH_LENGTHS);
+                    prevLen = len[pm];
+                }
+                if (sl->days >= prevLen)
+                {
+                    sl->haveLast = true;
+                    sl->lastMonth = sl->month;
+                    sl->lastOut = sl->accOut;
+                    sl->lastCost = sl->accCost;
+                    if (isPlayer && InterlockedIncrement(&g_gdpMonthLogged) <= 60)
+                        LogDbg("CountryGdp: игрок, месяц %d завершён: выпуск %.1f - затраты %.1f = ВВП %.1f (дней %d)",
+                            sl->month, sl->lastOut, sl->lastCost, sl->lastOut - sl->lastCost, sl->days);
+                }
+                else if (isPlayer)
+                {
+                    LogDbg("CountryGdp: игрок, месяц %d неполный (%d из %d дней) - не публикуем",
+                        sl->month, sl->days, prevLen);
+                }
+            }
+            sl->month = monthKey;
+            sl->days = 0;
+            sl->accOut = 0.0;
+            sl->accCost = 0.0;
+        }
+
+        double outValue, cost, facRevenue;
+        int facCount;
+        if (!GdpSampleDay(country, &outValue, &cost, &facRevenue, &facCount))
+            return;
+
+        sl->accOut += outValue;
+        sl->accCost += cost;
+        sl->days += 1;
+        sl->lastHours = hours;
+
+        static LONG s_dayLogged = 0;
+        if (isPlayer && InterlockedIncrement(&s_dayLogged) <= 12)
+            LogDbg("CountryGdp: игрок, день: выпуск %.2f, затраты фабрик %.2f (%d фабрик, их выручка %.2f)",
+                outValue, cost, facCount, facRevenue);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Пишет text в textbox с именем boxName контейнера (окно topbar).
+static void SetContainerBoxText(void* container, const char* boxName, const char* text, LONG* logCounter)
+{
+    __try
+    {
+        if (!container)
+            return;
+
+        char nameStore[32];
+        GStr name;
+        MakeStr(&name, nameStore, sizeof(nameStore), boxName);
+        void* box = VCall1(container, VT_FIND_TEXTBOX, &name);
+
+        if (InterlockedIncrement(logCounter) <= 3)
+            LogDbg("CountryGdp: textbox %s %s", boxName, box ? "найден" : "НЕ найден");
+        if (!box)
+            return;
+
+        char textStore[64];
+        GStr str;
+        MakeStr(&str, textStore, sizeof(textStore), text);
+
+        ((tStrAssign)(g_base + RVA_STR_ASSIGN))((char*)box + OFF_TEXTBOX_STR, 0, &str, 0, 0xFFFFFFFFu);
+
+        void* inner = *(void**)((char*)box + OFF_TEXTBOX_INNER);
+        if (!inner)
+            return;
+
+        DWORD fn = g_base + RVA_TEXT_SETTEXT;
+        void* pStr = &str;
+        __asm {
+            push esi
+            push 0
+            push pStr
+            mov esi, inner
+            call fn
+            pop esi
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Вызывается из FUN_0070EC60 после записи country_economic.
+static void __cdecl CountryGdpTopbarUpdate(void* topbar, void* country)
+{
+    if (!g_gdpActive || !topbar || !country)
+        return;
+
+    __try
+    {
+        void* window = *(void**)((char*)topbar + GDP_OFF_TOPBAR_WINDOW);
+        if (!window)
+            return;
+
+        char text[48];
+        GdpSlot* sl = GdpFindSlot(country, false);
+        if (sl && sl->haveLast)
+            // 0xA4 - знак валюты (тот же, что в строках бюджета).
+            _snprintf_s(text, sizeof(text), _TRUNCATE, "%.0f\xA4", sl->lastOut - sl->lastCost);
+        else
+            _snprintf_s(text, sizeof(text), _TRUNCATE, "-");
+
+        SetContainerBoxText(window, "fe_country_gdp", text, &g_gdpUiLogged);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Оригинал: lea ecx,[ebp-0x16C] (8D 8D 94 FE FF FF). Вызов C-функции -
+// одним блоком pushad/popad до повтора затёртой инструкции.
+__declspec(naked) static void CountryGdpTopbarThunk()
+{
+    __asm {
+        pushad
+        push edi
+        push ebx
+        call CountryGdpTopbarUpdate
+        add esp, 8
+        popad
+        lea ecx, [ebp - 0x16C]
+        jmp dword ptr [g_gdpTopbarResume]
+    }
+}
+
+
+===================================== PART B =====================================
+static bool InstallCountryGdp()
+{
+    g_fnIsBadReadPtr = SafeIsBadReadPtr;
+
+    if (!InstallCountryDailyCall())
+    {
+        Log("CountryGdp: дневной хук не встал - ВВП выключен");
+        return false;
+    }
+
+    static const unsigned char GDP_SIG[6] = { 0x8D, 0x8D, 0x94, 0xFE, 0xFF, 0xFF };
+    static const unsigned char GDP_RESUME[1] = { 0xE8 };
+    g_gdpTopbarResume = g_base + RVA_GDP_TOPBAR_RESUME;
+    if (!WriteJmpSite(RVA_GDP_TOPBAR_SITE, GDP_SIG, sizeof(GDP_SIG), sizeof(GDP_SIG),
+            RVA_GDP_TOPBAR_RESUME, GDP_RESUME, sizeof(GDP_RESUME),
+            (void*)&CountryGdpTopbarThunk, "CountryGdp текст панели"))
+        return false;
+
+    g_gdpActive = true;
+    Log("CountryGdp: установлен (textbox fe_country_gdp в topbar, ВВП за прошлый месяц)");
+    return true;
+}
+

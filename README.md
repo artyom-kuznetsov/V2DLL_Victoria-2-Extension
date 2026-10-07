@@ -180,7 +180,9 @@ Creates Windows memory dump on game crash (made by av213238).
 #### 5. HIDE_NO_SUPPLY_DRY_RUN
 Used for debugging Economic №6.
 #### 6. FACTORY_EXPAND_TRACE
-On by default. Observer only, changes nothing in the game: writes `Logs\v2dll_expand.log`, one line each time a factory starts to expand (date, country and factory type, level, how many of its workers are employed, the same for the whole state). Used to find out how oversized, understaffed factories come about.
+On by default. Observer only, changes nothing in the game: writes `Logs\v2dll_expand.log`, one line each time a factory starts to expand (date, country and factory type, level, how many of its workers are employed, the same for the whole state), separately for capitalist projects and for direct expansions by countries (AI or player). Used to find out how oversized, understaffed factories come about.
+#### 7. PATCH_AI_EXPAND_STAFFING
+On by default. AI countries expand an existing factory only if enough of its jobs are filled with workers. The vanilla AI builds the most profitable factory type up to huge levels with almost no workers (it looks at the unemployed share of the whole state, not at free craftsmen). The required share is `ai_factory_expand_min_staffing` (percent, default 90, `0` = vanilla behaviour) in `<mod>\common\defines_v2dll.txt`; capitalists need about 90 % in vanilla already. The player is not affected. All players of a multiplayer game need the same DLL and the same value.
   
   
 Russian Victoria 2 community: https://discord.gg/f3dpWFt2bR  

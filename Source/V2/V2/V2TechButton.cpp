@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.17"
+#define MOD_VERSION "5.20"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -98,6 +98,10 @@ struct Settings
     // фабрики пишет в Logs\v2dll_expand.log уровень, занятость и тип (чтобы
     // понять, как вырастают "пустые" гиганты). Игру не меняет.
     bool factoryExpandTrace          = true;
+    // PATCH_AI_EXPAND_STAFFING: ИИ-страна расширяет существующую фабрику
+    // (FUN_00857530, выбор региона) только если она укомплектована рабочими
+    // не меньше ai_factory_expand_min_staffing % (common\defines_v2dll.txt).
+    bool patchAiExpandStaffing       = true;
     // Окно фабрик: не показывать в верхнем ряду фильтров кнопки товаров,
     // чьё имя начинается на "raw_" (см. ComputeGoodsFilterPos).
     bool hideRawGoodsFilter          = true;
@@ -4137,6 +4141,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE") == 0) { g_settings.patchFactoryAutoClose = v; return; }
     if (_stricmp(key, "FACTORY_CLOSE_DRY_RUN") == 0)           { g_settings.factoryCloseDryRun          = v; return; }
     if (_stricmp(key, "FACTORY_EXPAND_TRACE") == 0)            { g_settings.factoryExpandTrace          = v; return; }
+    if (_stricmp(key, "PATCH_AI_EXPAND_STAFFING") == 0)        { g_settings.patchAiExpandStaffing       = v; return; }
     if (_stricmp(key, "PROD_TYPE_GATE_ALLOW_ALL") == 0)         { g_settings.prodTypeGateAllowAll        = v; return; }
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
     if (_stricmp(key, "PATCH_COMBAT_ROLL") == 0)                { g_settings.patchCombatRoll             = v; return; }
@@ -4320,6 +4325,7 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_FACTORY_CLOSE_PAYOUT=%d\n"
         "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE=%d\n"
         "FACTORY_CLOSE_DRY_RUN=%d\n"
+        "PATCH_AI_EXPAND_STAFFING=%d\n"
         "\n",
         (int)g_settings.priceDelta,
         (int)g_settings.patchExponentialPriceDelta,
@@ -4337,7 +4343,8 @@ static void WriteDefaultSettings(const char* path)
         extraWhitelistJoined,
         (int)g_settings.patchFactoryClosePayout,
         (int)g_settings.patchFactoryAutoClose,
-        (int)g_settings.factoryCloseDryRun);
+        (int)g_settings.factoryCloseDryRun,
+        (int)g_settings.patchAiExpandStaffing);
 
     fprintf(f,
         "; UI\n"
@@ -8645,6 +8652,10 @@ static void* GetLocalPlayerCountry()
 // ---------------------------------------------------------------
 
 static int  g_defFactoryCloseDays = 60;
+// ai_factory_expand_min_staffing: % занятости, ниже которого ИИ не расширяет
+// фабрику (PATCH_AI_EXPAND_STAFFING), 0 = без ограничения.
+static int  g_defAiExpandMinStaffing = 90;
+static bool g_defAiExpandKeySeen = false;
 static char g_defMintingFormula[256] = "";
 static char g_defPath[MAX_PATH] = "";
 static bool g_defLoaded = false;
@@ -8715,11 +8726,27 @@ static void DefinesApplyLine(const char* key, const char* value)
         int d = atoi(value);
         g_defFactoryCloseDays = d < 0 ? 0 : (d > 36500 ? 36500 : d);
     }
+    else if (_stricmp(key, "ai_factory_expand_min_staffing") == 0)
+    {
+        int d = atoi(value);
+        g_defAiExpandMinStaffing = d < 0 ? 0 : (d > 100 ? 100 : d);
+        g_defAiExpandKeySeen = true;
+    }
     else if (_stricmp(key, "minting_formula") == 0)
     {
         strncpy_s(g_defMintingFormula, sizeof(g_defMintingFormula), value, _TRUNCATE);
     }
 }
+
+static const char* const AI_EXPAND_DEFINES_BLOCK =
+    "\n"
+    "# --- AI factory expansion (PATCH_AI_EXPAND_STAFFING in v2dll_settings.ini) ---\n"
+    "# An AI country expands an existing factory only if at least this percent of the factory's\n"
+    "# jobs are filled with workers (employees / (workforce * level)). The vanilla AI only looks at\n"
+    "# the unemployed share of the whole state and builds the most profitable factory type up to\n"
+    "# huge levels with almost no workers. Capitalists already need about 90 percent in vanilla.\n"
+    "# 0 = no limit (vanilla AI behaviour).\n"
+    "ai_factory_expand_min_staffing = %d\n";
 
 static char g_legacyFormula[256];
 
@@ -8742,8 +8769,19 @@ static void EnsureV2dllDefines()
     if (ReadWholeFile(g_defPath, buf, sizeof(buf), &len))
     {
         ForEachDefinesLine(buf, len, DefinesApplyLine);
-        Log("defines_v2dll: прочитан '%s' (factory_unprofitable_close_days=%d, minting_formula %s)",
-            g_defPath, g_defFactoryCloseDays, g_defMintingFormula[0] ? "задана" : "пуста");
+        Log("defines_v2dll: прочитан '%s' (factory_unprofitable_close_days=%d, ai_factory_expand_min_staffing=%d, minting_formula %s)",
+            g_defPath, g_defFactoryCloseDays, g_defAiExpandMinStaffing, g_defMintingFormula[0] ? "задана" : "пуста");
+        if (!g_defAiExpandKeySeen)
+        {
+            // Файл создан более ранней версией: дописываем новый ключ с значением по умолчанию.
+            FILE* af = 0;
+            if (fopen_s(&af, g_defPath, "a") == 0 && af)
+            {
+                fprintf(af, AI_EXPAND_DEFINES_BLOCK, g_defAiExpandMinStaffing);
+                fclose(af);
+                Log("defines_v2dll: в '%s' дописан ai_factory_expand_min_staffing = %d", g_defPath, g_defAiExpandMinStaffing);
+            }
+        }
         return;
     }
 
@@ -8789,6 +8827,7 @@ static void EnsureV2dllDefines()
         "# Operators: + - * /   parentheses, decimal numbers (use a dot: 0.01)\n"
         "minting_formula = %s\n",
         g_defFactoryCloseDays, g_defMintingFormula);
+    fprintf(f, AI_EXPAND_DEFINES_BLOCK, g_defAiExpandMinStaffing);
     fclose(f);
 
     Log("defines_v2dll: создан '%s' (minting_formula %s)", g_defPath,
@@ -18517,6 +18556,85 @@ __declspec(naked) static void FactoryExpandStartThunk()
     }
 }
 
+// ---- Прямое расширение (команда страны: игрок или ИИ) -------------------
+// FUN_0052CE60 (__thiscall, ECX = state, [esp+4] = страна, [esp+8] = индекс
+// фабрики, ret 8) - исполнитель команды расширения без планировщика
+// капиталистов (флаг команды +0x54 == 0 в FUN_0057C400). Его же создаёт
+// ИИ-страна (FUN_00858670, ветка расширения), проверяя только деньги.
+static const DWORD RVA_FACTORY_DIRECT_EXPAND        = 0x12CE60;
+static const DWORD RVA_FACTORY_DIRECT_EXPAND_RESUME = 0x12CE65;
+static const DWORD RVA_GAME_GLOBAL_PTR              = 0xE588E8;   // VA 0x12588E8 (DAT_012588E8)
+static const int   GAME_OFF_PLAYER_COUNTRY          = 0xB60;
+static const int   COUNTRY_OFF_INDEX                = 0x20;
+static DWORD g_facDirectResume = 0;
+static int   g_facDirectCount  = 0;
+static int   g_facDirectHist[2][5];        // [0] ИИ, [1] игрок; <50, 50-79, 80-89, 90-99, >=100 %
+
+static void __cdecl FactoryDirectExpandObserve(void* state, void* country, int index)
+{
+    if (!g_settings.factoryExpandTrace || g_facDirectCount >= 50000)
+        return;
+    __try
+    {
+        unsigned char* st = (unsigned char*)state;
+        unsigned char* f = *(unsigned char**)(st + STATE_OFF_FACTORIES);
+        for (int i = index; i > 0 && f; --i)
+            f = *(unsigned char**)(f + FAC_OFF_LIST_NEXT);
+        if (!f)
+            return;
+
+        int level = *(int*)(f + FAC_OFF_LEVEL);
+        int emp   = *(int*)(f + FAC_OFF_EMPLOYEES);
+        long long maxEmp = (long long)FacWorkforceOf(f) * level;
+        int fillPct = (maxEmp > 0) ? (int)((long long)emp * 100 / maxEmp) : -1;
+
+        int isPlayer = 0;
+        unsigned char* game = *(unsigned char**)(g_base + RVA_GAME_GLOBAL_PTR);
+        if (game && country)
+            isPlayer = (*(int*)(game + GAME_OFF_PLAYER_COUNTRY) == *(int*)((unsigned char*)country + COUNTRY_OFF_INDEX));
+
+        char who[64];
+        FacDescribe(f, who, sizeof(who));
+
+        ++g_facDirectCount;
+        int b = (fillPct < 50) ? 0 : (fillPct < 80) ? 1 : (fillPct < 90) ? 2 : (fillPct < 100) ? 3 : 4;
+        ++g_facDirectHist[isPlayer ? 1 : 0][b];
+
+        LogExpandFile("прямое #%d %s [%s] %s ур.%d->%d занятость %d%% (%d из %lld) | деньги %.0f",
+            g_facDirectCount, g_lastGameDate, who, isPlayer ? "ИГРОК" : "ИИ", level, level + 1,
+            fillPct, emp, maxEmp, FacMoneyShown(*(long long*)(f + FAC_OFF_MONEY)));
+
+        if (g_facDirectCount % 100 == 0)
+        {
+            LogExpandFile("== прямых расширений %d. ИИ: занятость <50%%: %d, 50-79%%: %d, 80-89%%: %d, 90-99%%: %d, >=100%%: %d | игрок: %d, %d, %d, %d, %d",
+                g_facDirectCount,
+                g_facDirectHist[0][0], g_facDirectHist[0][1], g_facDirectHist[0][2], g_facDirectHist[0][3], g_facDirectHist[0][4],
+                g_facDirectHist[1][0], g_facDirectHist[1][1], g_facDirectHist[1][2], g_facDirectHist[1][3], g_facDirectHist[1][4]);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Вход FUN_0052CE60: 55 8B EC 6A FF; дальше 68 (push handler).
+__declspec(naked) static void FactoryDirectExpandThunk()
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        pushad
+        push dword ptr [ebp + 0xc]
+        push dword ptr [ebp + 8]
+        push ecx
+        call FactoryDirectExpandObserve
+        add esp, 12
+        popad
+        push -1
+        jmp dword ptr [g_facDirectResume]
+    }
+}
+
 static bool InstallFactoryExpandTrace()
 {
     static const unsigned char SIG[5]    = { 0x8B, 0x49, 0x60, 0x85, 0xC0 };
@@ -18525,7 +18643,118 @@ static bool InstallFactoryExpandTrace()
     bool ok = WriteJmpSite(RVA_FACTORY_EXPAND_START, SIG, sizeof(SIG), 5,
         RVA_FACTORY_EXPAND_START_RESUME, RESUME, sizeof(RESUME),
         (void*)&FactoryExpandStartThunk, "FactoryExpand(старт)");
-    Log("FactoryExpand: наблюдатель %s (только лог, Logs\\v2dll_expand.log)", ok ? "установлен" : "НЕ установлен");
+
+    static const unsigned char DSIG[5]    = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
+    static const unsigned char DRESUME[5] = { 0x68, 0xD6, 0xF6, 0xB9, 0x00 };
+    g_facDirectResume = g_base + RVA_FACTORY_DIRECT_EXPAND_RESUME;
+    bool okDirect = WriteJmpSite(RVA_FACTORY_DIRECT_EXPAND, DSIG, sizeof(DSIG), 5,
+        RVA_FACTORY_DIRECT_EXPAND_RESUME, DRESUME, sizeof(DRESUME),
+        (void*)&FactoryDirectExpandThunk, "FactoryExpand(прямое)");
+
+    Log("FactoryExpand: наблюдатель капиталистов %s, прямых расширений %s (только лог, Logs\\v2dll_expand.log)",
+        ok ? "установлен" : "НЕ установлен", okDirect ? "установлен" : "НЕ установлен");
+    return ok || okDirect;
+}
+
+// ---------------------------------------------------------------
+// PATCH_AI_EXPAND_STAFFING: ИИ-страна не расширяет недоукомплектованные
+// фабрики.
+//
+// FUN_008569a0 (экономика ИИ, раз в 10-26 дней на страну) -> FUN_00858670
+// выбирает тип (FUN_00857430, лучший по FUN_008571A0) и регион
+// (FUN_00857530) и создаёт команду расширения (FUN_0057C130), проверяя
+// только деньги страны. Оценка региона в FUN_00857530 учитывает долю
+// безработных ВО ВСЁМ НАСЕЛЕНИИ региона, а не число свободных
+// ремесленников, поэтому самый прибыльный тип достраивается без рабочих
+// (в сохранении 1840 г.: construction_goods_factory до 14 ур. при
+// занятости 0-3 %). Капиталисты (FUN_004A75B0) ванильно требуют ~90 %.
+//
+// Хук: кандидат-расширение в цикле по регионам FUN_00857530,
+// 0x857614 `cmp dword ptr [ecx+0x17C],0` (ECX = существующая фабрика типа,
+// EBX = регион) + `jne 0x857783` (пропустить регион). Если занятость ниже
+// ai_factory_expand_min_staffing %, прыгаем на 0x857783 - как будто
+// расширять нельзя, и ИИ выберет другой регион (новую фабрику не трогаем).
+// ---------------------------------------------------------------
+
+static const DWORD RVA_AI_EXPAND_CAND        = 0x457614;
+static const DWORD RVA_AI_EXPAND_CAND_RESUME = 0x45761B;
+static const DWORD RVA_AI_EXPAND_CAND_SKIP   = 0x457783;
+static DWORD g_aiExpandResume = 0;
+static DWORD g_aiExpandSkip   = 0;
+static int   g_aiExpandBlocked = 0;
+static int   g_aiExpandPassed  = 0;
+
+static int __cdecl AiExpandAllowed(void* factory)
+{
+    int minPct = g_defAiExpandMinStaffing;
+    if (!g_settings.patchAiExpandStaffing || minPct <= 0)
+        return 1;
+    __try
+    {
+        unsigned char* f = (unsigned char*)factory;
+        int level = *(int*)(f + FAC_OFF_LEVEL);
+        long long maxEmp = (long long)FacWorkforceOf(f) * level;
+        if (level <= 0 || maxEmp <= 0)
+            return 1;
+        long long emp = *(int*)(f + FAC_OFF_EMPLOYEES);
+        if (emp * 100 >= maxEmp * minPct)
+        {
+            ++g_aiExpandPassed;
+            return 1;
+        }
+
+        ++g_aiExpandBlocked;
+        if (g_settings.factoryExpandTrace)
+        {
+            if (g_aiExpandBlocked <= 300)
+            {
+                char who[64];
+                FacDescribe(f, who, sizeof(who));
+                LogExpandFile("ИИ: кандидат на расширение отклонён %s [%s] ур.%d занятость %d%% (порог %d%%)",
+                    g_lastGameDate, who, level, (int)(emp * 100 / maxEmp), minPct);
+            }
+            else if (g_aiExpandBlocked % 1000 == 0)
+            {
+                LogExpandFile("== ИИ: отклонено кандидатов %d, пропущено %d", g_aiExpandBlocked, g_aiExpandPassed);
+            }
+        }
+        return 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 1;
+    }
+}
+
+__declspec(naked) static void AiExpandCandThunk()
+{
+    __asm {
+        pushad
+        push ecx
+        call AiExpandAllowed
+        add esp, 4
+        test eax, eax
+        popad
+        jz blocked
+        cmp dword ptr [ecx + 0x17c], 0
+        jmp dword ptr [g_aiExpandResume]
+    blocked:
+        jmp dword ptr [g_aiExpandSkip]
+    }
+}
+
+static bool InstallAiExpandStaffing()
+{
+    EnsureV2dllDefines();
+    static const unsigned char SIG[7]    = { 0x83, 0xB9, 0x7C, 0x01, 0x00, 0x00, 0x00 };
+    static const unsigned char RESUME[6] = { 0x0F, 0x85, 0x62, 0x01, 0x00, 0x00 };
+    g_aiExpandResume = g_base + RVA_AI_EXPAND_CAND_RESUME;
+    g_aiExpandSkip   = g_base + RVA_AI_EXPAND_CAND_SKIP;
+    bool ok = WriteJmpSite(RVA_AI_EXPAND_CAND, SIG, sizeof(SIG), 7,
+        RVA_AI_EXPAND_CAND_RESUME, RESUME, sizeof(RESUME),
+        (void*)&AiExpandCandThunk, "AiExpand(кандидат)");
+    Log("AiExpand: %s (порог занятости %d%%, 0 = выкл; ai_factory_expand_min_staffing в common\\defines_v2dll.txt)",
+        ok ? "установлен" : "НЕ установлен", g_defAiExpandMinStaffing);
     return ok;
 }
 
@@ -18760,6 +18989,9 @@ static bool Install()
 
     if (g_settings.factoryExpandTrace)
         InstallFactoryExpandTrace();
+
+    if (g_settings.patchAiExpandStaffing)
+        InstallAiExpandStaffing();
 
     if (g_settings.EventSounds)
         LoadEventMusicDll();
