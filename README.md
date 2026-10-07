@@ -75,31 +75,20 @@ Allows construction of all factories in colonial regions, not just whitelisted (
 Type in production types separated by comma to allow constructing them in colonial regions, if you do not intend allowing all factories.  
 Can work together with №6.  
 #### 11. ENABLE_MINTING
-Every country gets a new daily income called "minting", calculated from a formula you write in `common\defines_v2dll.txt` inside your mod folder
-(`minting_formula = industry_score / 100`; variables: `industry_score` (industrial score), `total_population`, or any country variable set with `set_variable` such as `economic_thought_level` (0 if the country does not have it); operators `+ - * /` and parentheses).
-Shown in the budget window in a text box named "minting_inc" (add it to country_budget.gui) and counted in total income, balance, the topbar chart and tooltips
-(for the tooltips add localisation entries `BUDGET_MINTING;Minting: §Y$VAL$§W;X` and `BUDGET_MINTING_DESC;Daily income from minting.;X`).
-The formula is evaluated once a game month per country (so it costs nothing in performance); the resulting daily income is credited every day.
-Without a formula (empty `minting_formula`) the patch does nothing. In multiplayer everybody needs the same file.
-The file is created on the first launch; if an old `common\minting.txt` is found, its formula is copied over and the old file is renamed to `minting.txt.moved`.
+Every country gets a new daily income called "minting", calculated from a formula you write in `common\defines_v2dll.txt` inside your mod folder.
 #### 12. ENABLE_GOODS_CONSUMPTION
 Teaches the game the key `goods_consumption = { cement = 5 steel = 5 }` in a building of `common\buildings.txt` (without the patch the vanilla parser mis-reads the block and the game crashes).
-Every such building in a country is "bought" by the state every day: for each province building the country owns, `amount × building level` of every listed good is paid at the **current market price** from the treasury.
-The total is shown in the budget window in the text box `naval_base_expense` (an existing box of `country_budget.gui`, shown with the money sign) and is included in total expenses, balance and the topbar (chart and text).
-The purchase is limited by the market and the treasury: the country's own surplus of the good (produced minus sold at home) is used first, the rest is bought on the world market (min(1, supply / real demand)), all × min(1, treasury / cost); you pay only for what was bought. The number in the box turns red when not everything could be bought.
-The good's card (the "trade flow" window, shows one country) gets a row in the "Used" column for that country's such buildings (localisation key `GOODS_CONS_NAME_<building>`, e.g. `GOODS_CONS_NAME_naval_base;Naval bases;X`).
-Hover the box to see which goods are bought ("bought / needed"), how many, at what price (names and the three header lines come from your `localisation\*.csv`: keys such as `cement`, `naval_base`, `BUDGET_GOODS_CONS_HEADER`, `BUDGET_GOODS_CONS_LEVELS`, `BUDGET_GOODS_CONS_TOTAL`).
-The amounts are per day per building level.
-The block is **always** read, even with `ENABLE_GOODS_CONSUMPTION=0` (then nothing is bought) - so it is safe to leave `goods_consumption` in the files.
-Only buildings with `province = yes` (e.g. `naval_base`) are counted. Up to 16 goods per building. In multiplayer everybody needs the same buildings.txt.
+Adds daily consumption of set goods to country budget. You'll have to add a text label with name `naval_base_expense` to `country_budget.gui`.
+Only buildings with `province = yes` are counted. Up to 16 goods per building.
 #### 13. GOODS_CONSUMPTION_MARKET_DEMAND
-With №12: the bought amounts are also added to the demand of the world market (the same demand the price formula uses), so the state really competes for the goods and prices react. `0` = only money is paid, the market is not touched.
+With №12: the bought amounts are also added to the demand of the world market (the same demand the price formula uses), 
+so the state really competes for the goods and prices react. `0` = only money is paid, the market is not touched (turn this on if you don't want money to go into nowhere out of the world economy).
   
 #### 14. PATCH_FACTORY_CLOSE_PAYOUT / PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE / FACTORY_CLOSE_DRY_RUN
 Vanilla factories keep their savings (up to `MAX_FACTORY_MONEY_SAVE` x level) when they stop or are closed by hand: the money just freezes inside, and a factory that loses money only closes after the savings run out.  
 `PATCH_FACTORY_CLOSE_PAYOUT`: whenever a factory is closed (by hand, automatically by `PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE`, or when the game stops it at level 1), all the money stored in it is paid to the capitalists of its state (the same payout the game uses for a factory's surplus). If the state has no owners the money stays in the factory.  
-`PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE`: a factory that is not subsidized and has been unprofitable (sales below the cost of its input goods) for `factory_unprofitable_close_days` days in a row (default 60, set in `common\defines_v2dll.txt`, `0` = off) is closed automatically, as if closed by hand.  
-`FACTORY_CLOSE_DRY_RUN` (default `1`): nothing is changed, the log only gets `[DRY]` lines saying which factories would be closed/paid. Set it to `0` after you have checked the log on your own saves.
+`PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE`: a factory that is not subsidized and has been unprofitable (sales below the cost of its input goods) for `factory_unprofitable_close_days` days in a row (set in `common\defines_v2dll.txt`) is closed automatically, as if closed by hand.  
+`FACTORY_CLOSE_DRY_RUN`: nothing is changed, the log only gets `[DRY]` lines saying which factories would be closed/paid.
 ### UI
 #### 1. ENABLE_BUTTONS
 Adds support for a few new buttons:  
