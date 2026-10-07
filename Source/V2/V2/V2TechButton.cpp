@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.20"
+#define MOD_VERSION "5.25"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -113,6 +113,9 @@ struct Settings
     // ПРОИЗВОДЯТ выбранный товар (оригинал засчитывал и потребителей
     // сырья) - регионы, где товар только потребляют, не показываются.
     bool filterProducersOnly         = true;
+    // Иконки товаров из отдельных папок: ключ icon = "<папка>" в common\goods.txt
+    // заменяет ячейку товара в resources*.dds (см. InstallGoodsIcons).
+    bool goodsIcons                  = true;
     // Кнопка "button_fe_player_next" из interface\topbar.gui пропускает
     // играющий трек (см. SetupPlayerButtons).
     bool playerButtons            = true;
@@ -4200,6 +4203,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "FIX_SFX_MIXER_LAG") == 0)                { g_settings.fixSfxMixerLag              = v; return; }
     if (_stricmp(key, "FIX_ARMY_WINDOW_LAG") == 0)              { g_settings.patchFixArmyWindowLag       = v; return; }
     if (_stricmp(key, "HIDE_RAW_GOODS_FILTER") == 0)            { g_settings.hideRawGoodsFilter          = v; return; }
+    if (_stricmp(key, "ENABLE_GOODS_ICONS") == 0)               { g_settings.goodsIcons                  = v; return; }
     if (_stricmp(key, "FILTER_SHOW_ALL_FACTORIES_IN_STATE") == 0) { g_settings.filterShowAllInState      = v; return; }
     if (_stricmp(key, "FILTER_PRODUCERS_ONLY") == 0)            { g_settings.filterProducersOnly         = v; return; }
     if (_stricmp(key, "PLAYER_BUTTONS") == 0)               { g_settings.playerButtons            = v; return; }
@@ -4358,6 +4362,7 @@ static void WriteDefaultSettings(const char* path)
         "FILTER_SHOW_ALL_FACTORIES_IN_STATE=%d\n"
         "FILTER_PRODUCERS_ONLY=%d\n"
         "PLAYER_BUTTONS=%d\n"
+        "ENABLE_GOODS_ICONS=%d\n"
         "\n",
         (int)g_settings.buttons,
         (int)g_settings.decisionFilter,
@@ -4368,7 +4373,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.hideRawGoodsFilter,
         (int)g_settings.filterShowAllInState,
         (int)g_settings.filterProducersOnly,
-        (int)g_settings.playerButtons);
+        (int)g_settings.playerButtons,
+        (int)g_settings.goodsIcons);
 
     fprintf(f,
         "; Miscellaneous\n"
@@ -5582,7 +5588,6 @@ static bool InstallSaveEmbarkedAllyArmies()
 // каждом открытии (LoadEmbark: открыт на чтение ...).
 // ---------------------------------------------------------------
 static const DWORD RVA_PHYSFS_OPENREAD = 0x721F40;
-static void* g_physfsOpenReadResumeAddr = 0;
 static char  g_lastOpenedV2[260] = { 0 };
 static LONG  g_afterLoadDumpPending = 0;
 static LONG  g_openReadLogCount = 0;
@@ -5606,52 +5611,8 @@ static void __cdecl OnPhysfsOpenReadFilename(const char* filename)
     __except (EXCEPTION_EXECUTE_HANDLER) { }
 }
 
-__declspec(naked) static void PhysfsOpenReadThunk()
-{
-    __asm push ebp
-    __asm mov ebp, esp
-    __asm sub esp, 0x10
-    __asm push eax
-    __asm push ecx
-    __asm push edx
-    __asm mov eax, dword ptr [ebp + 8]
-    __asm push eax
-    __asm call OnPhysfsOpenReadFilename
-    __asm add esp, 4
-    __asm pop edx
-    __asm pop ecx
-    __asm pop eax
-    __asm jmp dword ptr [g_physfsOpenReadResumeAddr]
-}
-
-static bool InstallPhysfsOpenReadHook()
-{
-    BYTE* hook = (BYTE*)(g_base + RVA_PHYSFS_OPENREAD);
-    static const unsigned char SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10 };
-
-    if (memcmp(hook, SIG, sizeof(SIG)) != 0)
-    {
-        Log("LoadEmbark: сигнатура PHYSFS_openRead не совпала - не патчим");
-        return false;
-    }
-
-    g_physfsOpenReadResumeAddr = (void*)(g_base + RVA_PHYSFS_OPENREAD + 6);
-
-    BYTE patch[6];
-    patch[0] = 0xE9;
-    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&PhysfsOpenReadThunk - ((DWORD)hook + 5);
-    patch[5] = 0x90;
-
-    DWORD oldProtect = 0;
-    if (!VirtualProtect(hook, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
-        return false;
-
-    memcpy(hook, patch, sizeof(patch));
-    VirtualProtect(hook, sizeof(patch), oldProtect, &oldProtect);
-
-    Log("LoadEmbark: установлен (rva %06X)", RVA_PHYSFS_OPENREAD);
-    return true;
-}
+// Сам хук PHYSFS_openRead (HookPhysfsOpenRead / InstallPhysfsOpenReadHook) живёт ниже по файлу,
+// рядом с GOODS_ICONS: он общий для ally-embark (имя .v2) и иконок товаров (атласы, goods.txt).
 
 // v4.79: пробный прогон (только чтение) - бригады армии, их pop и поля
 // кандидатов на "провинцию набора", чтобы найти надёжный способ вывести
@@ -18759,6 +18720,1136 @@ static bool InstallAiExpandStaffing()
 }
 
 
+// ---------------------------------------------------------------
+// ENABLE_GOODS_ICONS (v5.21): иконки товаров из отдельных папок.
+//
+// Вместо правки трёх больших атласов (gfx\interface\resources.dds - обычный размер,
+// resources_big.dds, resources_small.dds; по кадру на товар) в common\goods.txt каждому товару
+// можно задать путь:
+//     cotton = { cost = 4  color = { 255 255 255 }  icon = "gfx\\goods\\cotton" }
+// В папке лежат файлы big / normal / small (.dds .tga .png .bmp). Нет файла нужного размера -
+// берётся ближайший и масштабируется; вместо папки можно указать один файл на все размеры.
+// Нет ключа / нет файлов - остаётся иконка из атласа.
+//
+// Как это устроено (все точки проверены в Ghidra):
+//  * Движок грузит атлас через общий загрузчик текстур (FUN_009BC490): PHYSFS_openRead -> чтение
+//    файла целиком -> D3DXCreateTextureFromFileInMemoryEx. Хук PHYSFS_openRead запоминает в TLS,
+//    что этот поток открыл resources*.dds; хук D3DXCreateTextureFromFileInMemoryEx (IAT
+//    d3dx9_41.dll) для такой загрузки подсовывает копию файла, где у товаров с icon кадр заменён.
+//    Размер, формат и число кадров те же, поэтому GUI и карта (билборды tradegoods) не меняются.
+//  * Кадр товара = его индекс в goods.txt + 1 (GI_FRAME_BASE); noOfFrames берётся из texturefile
+//    в interface\core.gfx / mapitems.gfx. Размер ячейки = ширина атласа / noOfFrames.
+//  * Ключ icon ванильный парсер товаров не знает. Поэтому при чтении goods.txt движком (PHYSFS_read,
+//    лексер читает по байту, контрольная сумма для мультиплеера - большими кусками) байты
+//    "icon = ..." по смещению в файле заменяются пробелами: движок видит файл без них. Хук
+//    PHYSFS_close снимает дескриптор с учёта до того, как он может достаться другому файлу.
+//  * Файлы иконок читаются через PhysFS движка (папка мода учитывается), декодирует D3DX движка
+//    (пул SCRATCH - видеопамять не трогается).
+// Игровое состояние не затрагивается - это только картинка; для мультиплеера важно лишь
+// одинаковое содержимое goods.txt (контрольная сумма считается уже без ключей icon).
+// ---------------------------------------------------------------
+
+// GI_PURE_BEGIN  (код без зависимостей от движка: тестируется отдельной сборкой)
+
+#define GI_MAX_GOODS 256
+#define GI_MAX_SPANS 512
+#define GI_PATH_MAX  260
+
+// Путь в виде для PhysFS: '/' вместо '\', без повторов, без ведущих "/" и "./" и хвостового "/".
+static size_t GiNormPath(char* dst, size_t cap, const char* src, size_t n)
+{
+    size_t o = 0;
+    for (size_t i = 0; i < n && o + 1 < cap; ++i)
+    {
+        char c = src[i];
+        if (c == 0)
+            break;
+        if (c == '\\')
+            c = '/';
+        if (c == '/' && o > 0 && dst[o - 1] == '/')
+            continue;
+        dst[o++] = c;
+    }
+    dst[o] = 0;
+
+    size_t skip = 0;
+    for (;;)
+    {
+        if (dst[skip] == '/')
+            ++skip;
+        else if (dst[skip] == '.' && dst[skip + 1] == '/')
+            skip += 2;
+        else
+            break;
+    }
+    if (skip)
+    {
+        memmove(dst, dst + skip, o - skip + 1);
+        o -= skip;
+    }
+    while (o > 0 && dst[o - 1] == '/')
+        dst[--o] = 0;
+    return o;
+}
+
+static bool GiEndsWithI(const char* s, const char* tail)
+{
+    size_t ls = strlen(s), lt = strlen(tail);
+    return ls >= lt && _stricmp(s + ls - lt, tail) == 0;
+}
+
+// --- товары из common\goods.txt ---------------------------------------
+
+struct GiGood
+{
+    char name[64];
+    char icon[GI_PATH_MAX];     // нормализованный путь из icon = "..." или ""
+    int  mode;                  // 0 - ещё не искали файлы, 1 - папка, 2 - один файл, 3 - не найдено
+    int  warned;                // сообщение "в папке нет файлов" уже выведено
+    char single[GI_PATH_MAX];   // mode 2: путь к файлу
+};
+
+struct GiSpan
+{
+    unsigned start, end;        // [start, end) - байты "icon = ..." в файле
+};
+
+static GiGood g_giGoods[GI_MAX_GOODS];
+static int    g_giGoodsCount = 0;
+static int    g_giIconCount  = 0;
+static GiSpan g_giSpans[GI_MAX_SPANS];
+static int    g_giSpanCount  = 0;
+
+static size_t GiSkipWs(const char* t, size_t len, size_t i)
+{
+    while (i < len)
+    {
+        char c = t[i];
+        if (c == '#')
+        {
+            while (i < len && t[i] != '\n')
+                ++i;
+        }
+        else if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+            ++i;
+        else
+            break;
+    }
+    return i;
+}
+
+static bool GiIsDelim(char c)
+{
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n' ||
+           c == '{' || c == '}' || c == '=' || c == '#' || c == '"';
+}
+
+// Разбор goods.txt: список товаров в порядке файла (= индексы движка) и, для
+// каждого "icon = <значение>" на уровне самого товара, путь и байтовый отрезок.
+// Структура: категория = { товар = { ключ = значение ... } ... }.
+static void GiParseGoods(const char* t, size_t len)
+{
+    g_giGoodsCount = 0;
+    g_giIconCount  = 0;
+    g_giSpanCount  = 0;
+
+    int depth = 0;
+    size_t i = 0;
+    for (;;)
+    {
+        i = GiSkipWs(t, len, i);
+        if (i >= len)
+            break;
+
+        char c = t[i];
+        if (c == '{') { ++depth; ++i; continue; }
+        if (c == '}') { if (depth > 0) --depth; ++i; continue; }
+        if (c == '=') { ++i; continue; }
+        if (c == '"')
+        {
+            ++i;
+            while (i < len && t[i] != '"')
+                ++i;
+            if (i < len)
+                ++i;
+            continue;
+        }
+
+        size_t s = i;
+        while (i < len && !GiIsDelim(t[i]))
+            ++i;
+        size_t e = i;
+
+        size_t j = GiSkipWs(t, len, e);
+        if (j >= len || t[j] != '=')
+            continue;                       // голое слово (числа в color = { ... })
+        j = GiSkipWs(t, len, j + 1);
+
+        if (j < len && t[j] == '{')
+        {
+            if (depth == 1 && g_giGoodsCount < GI_MAX_GOODS)
+            {
+                GiGood& g = g_giGoods[g_giGoodsCount++];
+                memset(&g, 0, sizeof(g));
+                size_t n = e - s;
+                if (n > sizeof(g.name) - 1)
+                    n = sizeof(g.name) - 1;
+                memcpy(g.name, t + s, n);
+            }
+            i = j;                          // '{' разберётся в начале цикла
+            continue;
+        }
+
+        size_t vs = j, ve = j, endSpan = j;
+        if (j < len && t[j] == '"')
+        {
+            vs = ve = j + 1;
+            while (ve < len && t[ve] != '"')
+                ++ve;
+            endSpan = ve < len ? ve + 1 : ve;
+        }
+        else
+        {
+            while (ve < len && !GiIsDelim(t[ve]))
+                ++ve;
+            endSpan = ve;
+        }
+
+        if (depth == 2 && g_giGoodsCount > 0 && (e - s) == 4 && _strnicmp(t + s, "icon", 4) == 0)
+        {
+            GiGood& g = g_giGoods[g_giGoodsCount - 1];
+            if (!g.icon[0])
+            {
+                GiNormPath(g.icon, sizeof(g.icon), t + vs, ve - vs);
+                if (g.icon[0])
+                    ++g_giIconCount;
+            }
+            if (g_giSpanCount < GI_MAX_SPANS)
+            {
+                g_giSpans[g_giSpanCount].start = (unsigned)s;
+                g_giSpans[g_giSpanCount].end   = (unsigned)endSpan;
+                ++g_giSpanCount;
+            }
+        }
+        i = endSpan;
+    }
+}
+
+// Затирает пробелами ту часть вырезаемых отрезков, что попала в прочитанный кусок
+// файла [pos, pos+n). Возвращает число затёртых байт.
+static unsigned GiBlankSpans(unsigned char* buf, unsigned pos, unsigned n)
+{
+    unsigned blanked = 0;
+    unsigned end = pos + n;
+    for (int k = 0; k < g_giSpanCount; ++k)
+    {
+        unsigned a = g_giSpans[k].start, b = g_giSpans[k].end;
+        if (b <= pos || a >= end)
+            continue;
+        if (a < pos) a = pos;
+        if (b > end) b = end;
+        for (unsigned q = a; q < b; ++q)
+        {
+            unsigned char& ch = buf[q - pos];
+            if (ch != '\n' && ch != '\r')
+            {
+                ch = ' ';
+                ++blanked;
+            }
+        }
+    }
+    return blanked;
+}
+
+// --- число кадров атласа из interface\*.gfx ---------------------------------
+
+// Ищет в тексте .gfx блок со строкой texturefile = "...<tail>" и возвращает его
+// noOfFrames (0 - не найдено). tail - например "interface/resources.dds".
+static int GiScanNoOfFrames(const char* t, size_t len, const char* tail)
+{
+    static const char KEY[] = "texturefile";
+    const size_t kl = sizeof(KEY) - 1;
+
+    for (size_t pos = 0; pos + kl < len; ++pos)
+    {
+        if (_strnicmp(t + pos, KEY, kl) != 0)
+            continue;
+        if (pos > 0 && IsIdentChar(t[pos - 1]))
+            continue;
+
+        size_t p = pos + kl;
+        while (p < len && (t[p] == ' ' || t[p] == '\t'))
+            ++p;
+        if (p >= len || t[p] != '=')
+            continue;                       // "textureFile9" и т.п.
+        ++p;
+        while (p < len && (t[p] == ' ' || t[p] == '\t'))
+            ++p;
+        if (p >= len || t[p] != '"')
+            continue;
+        size_t vs = ++p;
+        while (p < len && t[p] != '"')
+            ++p;
+
+        char path[GI_PATH_MAX];
+        GiNormPath(path, sizeof(path), t + vs, p - vs);
+        if (!GiEndsWithI(path, tail))
+            continue;
+
+        // границы блока { ... }, в котором стоит эта строка
+        size_t bs = pos;
+        int d = 0;
+        while (bs > 0)
+        {
+            --bs;
+            if (t[bs] == '}')
+                ++d;
+            else if (t[bs] == '{')
+            {
+                if (d == 0)
+                    break;
+                --d;
+            }
+        }
+        size_t be = p;
+        d = 0;
+        while (be < len)
+        {
+            if (t[be] == '{')
+                ++d;
+            else if (t[be] == '}')
+            {
+                if (d == 0)
+                    break;
+                --d;
+            }
+            ++be;
+        }
+
+        static const char KEY2[] = "noofframes";
+        const size_t k2 = sizeof(KEY2) - 1;
+        for (size_t q = bs; q + k2 < be; ++q)
+        {
+            if (_strnicmp(t + q, KEY2, k2) != 0)
+                continue;
+            if (q > 0 && IsIdentChar(t[q - 1]))
+                continue;
+            size_t r = q + k2;
+            while (r < be && (t[r] == ' ' || t[r] == '\t'))
+                ++r;
+            if (r >= be || t[r] != '=')
+                continue;
+            ++r;
+            while (r < be && (t[r] == ' ' || t[r] == '\t'))
+                ++r;
+            int n = atoi(t + r);
+            if (n > 0)
+                return n;
+        }
+    }
+    return 0;
+}
+
+// --- DDS 32 бита без сжатия -------------------------------------------------
+
+struct GiDds
+{
+    unsigned w, h;
+    int rb, gb, bb, ab;         // индекс байта канала в пикселе
+};
+
+static int GiMaskByte(unsigned m)
+{
+    return m == 0x000000FFu ? 0 : m == 0x0000FF00u ? 1 : m == 0x00FF0000u ? 2 : m == 0xFF000000u ? 3 : -1;
+}
+
+static bool GiParseDds(const unsigned char* d, unsigned size, GiDds* o)
+{
+    if (size < 128 || memcmp(d, "DDS ", 4) != 0)
+        return false;
+    unsigned hs      = *(const unsigned*)(d + 4);
+    unsigned h       = *(const unsigned*)(d + 12);
+    unsigned w       = *(const unsigned*)(d + 16);
+    unsigned mips    = *(const unsigned*)(d + 28);
+    unsigned pfFlags = *(const unsigned*)(d + 80);
+    unsigned bpp     = *(const unsigned*)(d + 88);
+    if (hs != 124 || (pfFlags & 0x4) || !(pfFlags & 0x40) || bpp != 32 || mips > 1)
+        return false;
+    if (w == 0 || h == 0 || w > 16384 || h > 16384)
+        return false;
+    if ((unsigned __int64)128 + (unsigned __int64)w * h * 4 > size)
+        return false;
+
+    o->rb = GiMaskByte(*(const unsigned*)(d + 92));
+    o->gb = GiMaskByte(*(const unsigned*)(d + 96));
+    o->bb = GiMaskByte(*(const unsigned*)(d + 100));
+    o->ab = GiMaskByte(*(const unsigned*)(d + 104));
+    if (o->rb < 0 || o->gb < 0 || o->bb < 0 || o->ab < 0)
+        return false;
+    if ((1 << o->rb | 1 << o->gb | 1 << o->bb | 1 << o->ab) != 0xF)
+        return false;
+    o->w = w;
+    o->h = h;
+    return true;
+}
+
+// Кладёт ячейку cw x ch (RGBA, прямая альфа) в атлас на место кадра cell.
+static void GiBlitCell(unsigned char* atlas, const GiDds& d, unsigned cell, unsigned cw, unsigned ch,
+    const unsigned char* rgba)
+{
+    for (unsigned y = 0; y < ch; ++y)
+    {
+        unsigned char* dst = atlas + 128 + ((size_t)y * d.w + (size_t)cell * cw) * 4;
+        const unsigned char* src = rgba + (size_t)y * cw * 4;
+        for (unsigned x = 0; x < cw; ++x, dst += 4, src += 4)
+        {
+            dst[d.rb] = src[0];
+            dst[d.gb] = src[1];
+            dst[d.bb] = src[2];
+            dst[d.ab] = src[3];
+        }
+    }
+}
+
+// Вырезает кадр cell из атласа в RGBA (для проверок и выгрузки).
+static void GiCopyCell(const unsigned char* atlas, const GiDds& d, unsigned cell, unsigned cw, unsigned ch,
+    unsigned char* rgba)
+{
+    for (unsigned y = 0; y < ch; ++y)
+    {
+        const unsigned char* src = atlas + 128 + ((size_t)y * d.w + (size_t)cell * cw) * 4;
+        unsigned char* dst = rgba + (size_t)y * cw * 4;
+        for (unsigned x = 0; x < cw; ++x, dst += 4, src += 4)
+        {
+            dst[0] = src[d.rb];
+            dst[1] = src[d.gb];
+            dst[2] = src[d.bb];
+            dst[3] = src[d.ab];
+        }
+    }
+}
+
+// Масштабирование RGBA sw x sh -> dw x dh усреднением по площади, с предумножением на альфу
+// (иначе у краёв иконки подмешивается цвет прозрачных пикселей). Результат - HeapAlloc.
+static unsigned char* GiResample(const unsigned char* src, int sw, int sh, int dw, int dh)
+{
+    unsigned char* out = (unsigned char*)HeapAlloc(GetProcessHeap(), 0, (size_t)dw * dh * 4);
+    float* tmp = (float*)HeapAlloc(GetProcessHeap(), 0, sizeof(float) * 4 * (size_t)dw * sh);
+    if (!out || !tmp)
+    {
+        if (out) HeapFree(GetProcessHeap(), 0, out);
+        if (tmp) HeapFree(GetProcessHeap(), 0, tmp);
+        return 0;
+    }
+
+    // горизонталь: sw -> dw; в tmp хранится (r*a, g*a, b*a, a) в шкале 0..255
+    for (int y = 0; y < sh; ++y)
+    {
+        for (int x = 0; x < dw; ++x)
+        {
+            double x0 = (double)x * sw / dw, x1 = (double)(x + 1) * sw / dw;
+            double acc[4] = { 0, 0, 0, 0 }, wsum = 0;
+            for (int sx = (int)x0; sx < sw && (double)sx < x1; ++sx)
+            {
+                double l = (double)sx > x0 ? (double)sx : x0;
+                double r = (double)(sx + 1) < x1 ? (double)(sx + 1) : x1;
+                double wgt = r - l;
+                if (wgt <= 0)
+                    continue;
+                const unsigned char* p = src + ((size_t)y * sw + sx) * 4;
+                double a = p[3] / 255.0;
+                acc[0] += p[0] * a * wgt;
+                acc[1] += p[1] * a * wgt;
+                acc[2] += p[2] * a * wgt;
+                acc[3] += p[3] * wgt;
+                wsum += wgt;
+            }
+            float* o = tmp + ((size_t)y * dw + x) * 4;
+            for (int k = 0; k < 4; ++k)
+                o[k] = wsum > 0 ? (float)(acc[k] / wsum) : 0.0f;
+        }
+    }
+
+    // вертикаль: sh -> dh и обратно в прямую альфу
+    for (int x = 0; x < dw; ++x)
+    {
+        for (int y = 0; y < dh; ++y)
+        {
+            double y0 = (double)y * sh / dh, y1 = (double)(y + 1) * sh / dh;
+            double acc[4] = { 0, 0, 0, 0 }, wsum = 0;
+            for (int sy = (int)y0; sy < sh && (double)sy < y1; ++sy)
+            {
+                double l = (double)sy > y0 ? (double)sy : y0;
+                double r = (double)(sy + 1) < y1 ? (double)(sy + 1) : y1;
+                double wgt = r - l;
+                if (wgt <= 0)
+                    continue;
+                const float* p = tmp + ((size_t)sy * dw + x) * 4;
+                for (int k = 0; k < 4; ++k)
+                    acc[k] += p[k] * wgt;
+                wsum += wgt;
+            }
+            unsigned char* o = out + ((size_t)y * dw + x) * 4;
+            double a255 = wsum > 0 ? acc[3] / wsum : 0.0;
+            if (a255 <= 0.0)
+            {
+                o[0] = o[1] = o[2] = o[3] = 0;
+                continue;
+            }
+            double inv = 255.0 / a255;
+            for (int k = 0; k < 3; ++k)
+            {
+                double v = (acc[k] / wsum) * inv + 0.5;
+                o[k] = (unsigned char)(v < 0 ? 0 : (v > 255 ? 255 : v));
+            }
+            double av = a255 + 0.5;
+            o[3] = (unsigned char)(av > 255 ? 255 : av);
+        }
+    }
+
+    HeapFree(GetProcessHeap(), 0, tmp);
+    return out;
+}
+
+// GI_PURE_END
+
+// --- функции PhysFS движка (RVA = VA Ghidra - 0x400000) ----------------------
+// Все cdecl; sint64 возвращается в EDX:EAX. RVA_PHYSFS_OPENREAD - у ally-embark выше.
+static const DWORD RVA_PHYSFS_READ       = 0x7206E0;  // PHYSFS_read(file, buf, size, count); пролог 55 8B EC 57 8B 7D 08 (7)
+static const DWORD RVA_PHYSFS_TELL       = 0x720780;  // PHYSFS_tell(file)
+static const DWORD RVA_PHYSFS_FILELENGTH = 0x7207C0;  // PHYSFS_fileLength(file)
+static const DWORD RVA_PHYSFS_CLOSE      = 0x7221E0;  // PHYSFS_close(file); пролог 55 8B EC A1 <абс. адрес мьютекса> (8)
+static const DWORD RVA_PHYSFS_EXISTS     = 0x721820;  // PHYSFS_exists(path)
+static const DWORD RVA_PHYSFS_ISDIR      = 0x7219E0;  // PHYSFS_isDirectory(path)
+
+typedef void*   (__cdecl* tPhysfsOpenReadFn)(const char*);
+typedef __int64 (__cdecl* tPhysfsReadFn)(void*, void*, unsigned, unsigned);
+typedef int     (__cdecl* tPhysfsCloseFn)(void*);
+typedef __int64 (__cdecl* tPhysfsInt64Fn)(void*);
+typedef int     (__cdecl* tPhysfsPathFn)(const char*);
+
+// D3DXCreateTextureFromFileInMemoryEx (импорт d3dx9_41.dll у v2game.exe, 15 аргументов)
+typedef HRESULT (WINAPI* tD3dxCreateTexMemEx)(void* dev, const void* data, UINT size, UINT w, UINT h, UINT mips,
+    DWORD usage, UINT fmt, UINT pool, DWORD filter, DWORD mipFilter, DWORD colorKey, void* info, void* palette,
+    void** tex);
+
+struct GiImageInfo { UINT Width, Height, Depth, MipLevels, Format, ResourceType, ImageFileFormat; };  // D3DXIMAGE_INFO
+struct GiLockedRect { INT Pitch; void* pBits; };                                                      // D3DLOCKED_RECT
+
+static tPhysfsOpenReadFn   g_realPhysfsOpenRead = 0;
+static tPhysfsReadFn       g_realPhysfsRead = 0;
+static tPhysfsCloseFn      g_realPhysfsClose = 0;
+static tD3dxCreateTexMemEx g_realD3dxCreateTexMemEx = 0;
+__declspec(align(16)) static unsigned char g_trampPhysfsOpenRead[32];
+__declspec(align(16)) static unsigned char g_trampPhysfsRead[32];
+__declspec(align(16)) static unsigned char g_trampPhysfsClose[32];
+
+static CRITICAL_SECTION g_giCs;                 // всё состояние ниже (кроме g_giStripH для чтения)
+static bool  g_giCsInit      = false;
+static bool  g_giHooksOk     = false;           // хуки PhysFS стоят - можно читать файлы движка и следить за атласами
+static bool  g_giGoodsLoaded = false;           // goods.txt уже пытались разобрать
+static bool  g_giGoodsOk     = false;
+static void* g_giStripH[8];                     // открытые движком дескрипторы goods.txt, из которых вырезаем icon
+static volatile LONG g_giStripActive  = 0;
+static volatile LONG g_giBlankedBytes = 0;
+static volatile LONG g_giGoodsOpens   = 0;
+// Какой атлас (1 resources.dds, 2 _big, 3 _small) движок открыл последним В ЭТОМ ПОТОКЕ и ещё не
+// отдал в D3DX: значение лежит в TLS, чтобы параллельные открытия файлов не мешали друг другу.
+static DWORD g_giTls = TLS_OUT_OF_INDEXES;
+static int g_giFrames[4]   = { 0, -1, -1, -1 }; // noOfFrames по виду атласа (-1 = не искали, 0 = не нашли)
+static int g_giComposeLog[4] = { 0, 0, 0, 0 };
+
+// Кадр атласа = индекс товара в goods.txt + 1 (кадр 0 - заглушка). Проверено по самим атласам:
+// dummy_good (индекс 30) = пустой кадр 31, raw_cattle (46) = кадр 47.
+static const unsigned GI_FRAME_BASE = 1;
+
+static const char* const GI_TAIL[4]      = { "", "interface/resources.dds", "interface/resources_big.dds", "interface/resources_small.dds" };
+static const char* const GI_ATLAS_NAME[4] = { "", "resources.dds", "resources_big.dds", "resources_small.dds" };
+static const char* const GI_SIZE_NAME[4]  = { "", "normal", "big", "small" };
+// Если файла нужного размера нет - берём ближайший по размеру из имеющихся и масштабируем.
+static const int GI_ORDER[4][3] = { { 0, 0, 0 }, { 1, 2, 3 }, { 2, 1, 3 }, { 3, 1, 2 } };
+static const char* const GI_EXTS[4] = { "dds", "tga", "png", "bmp" };
+
+struct GiCell
+{
+    unsigned char* px;          // RGBA cw x ch (прямая альфа) или 0
+    int cw, ch;
+    int state;                  // 0 - не пробовали, 1 - есть, 2 - нет
+};
+static GiCell g_giCells[4][GI_MAX_GOODS];
+
+// Хвост пути как последние компоненты: без учёта регистра, '\' = '/', перед хвостом - граница.
+// Повторные разделители в пути считаются одним: движок открывает атласы как
+// "gfx//interface//resources.dds" (из "\\" в core.gfx получается "//") - с таким путём
+// в 5.21-5.22 ни один атлас не распознавался.
+static bool GiPathEndsWith(const char* path, const char* tail)
+{
+    const char* p = path + strlen(path);
+    const char* t = tail + strlen(tail);
+    while (t > tail)
+    {
+        --t;
+        if (p == path)
+            return false;
+        --p;
+        char a = *p, b = *t;
+        if (a == '\\')
+            a = '/';
+        if (b == '\\')
+            b = '/';
+        if (tolower((unsigned char)a) != tolower((unsigned char)b))
+            return false;
+        if (b == '/')
+            while (p > path && (p[-1] == '/' || p[-1] == '\\'))
+                --p;
+    }
+    if (p > path && p[-1] != '/' && p[-1] != '\\')
+        return false;
+    return true;
+}
+
+// Читает файл целиком через PhysFS движка (учитывает папку мода). Вызывает оригинальные
+// функции мимо наших хуков. *out - HeapAlloc (+1 нулевой байт), освободить через HeapFree.
+static bool GiReadFile(const char* vpath, unsigned char** out, size_t* outLen)
+{
+    *out = 0;
+    *outLen = 0;
+    if (!g_realPhysfsOpenRead || !g_realPhysfsRead || !g_realPhysfsClose)
+        return false;
+
+    bool ok = false;
+    void* h = g_realPhysfsOpenRead(vpath);
+    if (h)
+    {
+        __int64 len = ((tPhysfsInt64Fn)(g_base + RVA_PHYSFS_FILELENGTH))(h);
+        if (len > 0 && len <= (16 << 20))
+        {
+            unsigned char* buf = (unsigned char*)HeapAlloc(GetProcessHeap(), 0, (size_t)len + 1);
+            if (buf)
+            {
+                __int64 got = g_realPhysfsRead(h, buf, 1, (unsigned)len);
+                if (got == len)
+                {
+                    buf[len] = 0;
+                    *out = buf;
+                    *outLen = (size_t)len;
+                    ok = true;
+                }
+                else
+                    HeapFree(GetProcessHeap(), 0, buf);
+            }
+        }
+        g_realPhysfsClose(h);
+    }
+    return ok;
+}
+
+static bool GiPathExists(const char* path)
+{
+    return ((tPhysfsPathFn)(g_base + RVA_PHYSFS_EXISTS))(path) != 0;
+}
+
+static bool GiIsDirectory(const char* path)
+{
+    return GiPathExists(path) && ((tPhysfsPathFn)(g_base + RVA_PHYSFS_ISDIR))(path) != 0;
+}
+
+static bool GiIsFile(const char* path)
+{
+    return GiPathExists(path) && ((tPhysfsPathFn)(g_base + RVA_PHYSFS_ISDIR))(path) == 0;
+}
+
+// Разбирает common\goods.txt. Вызывать под g_giCs. Никогда не бросает исключений.
+static void GiEnsureGoods()
+{
+    if (g_giGoodsLoaded)
+        return;
+    g_giGoodsLoaded = true;
+
+    unsigned char* buf = 0;
+    size_t len = 0;
+    __try
+    {
+        if (GiReadFile("common/goods.txt", &buf, &len))
+        {
+            GiParseGoods((const char*)buf, len);
+            g_giGoodsOk = true;
+            Log("GoodsIcons: goods.txt разобран: товаров %d, с иконкой %d, вырезаемых ключей icon %d",
+                g_giGoodsCount, g_giIconCount, g_giSpanCount);
+        }
+        else
+            Log("GoodsIcons: common/goods.txt не прочитан - иконки не подменяются");
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("GoodsIcons: исключение %08X при разборе goods.txt - иконки не подменяются", GetExceptionCode());
+        g_giGoodsOk = false;
+        g_giSpanCount = 0;
+        g_giIconCount = 0;
+    }
+    if (buf)
+        HeapFree(GetProcessHeap(), 0, buf);
+}
+
+// noOfFrames атласа по виду (из texturefile в interface\core.gfx / mapitems.gfx). Под g_giCs.
+static int GiFramesFor(int kind)
+{
+    if (g_giFrames[kind] >= 0)
+        return g_giFrames[kind];
+
+    int n = 0;
+    static const char* const FILES[2] = { "interface/core.gfx", "interface/mapitems.gfx" };
+    for (int f = 0; f < 2 && n <= 0; ++f)
+    {
+        unsigned char* buf = 0;
+        size_t len = 0;
+        if (GiReadFile(FILES[f], &buf, &len))
+        {
+            n = GiScanNoOfFrames((const char*)buf, len, GI_TAIL[kind]);
+            HeapFree(GetProcessHeap(), 0, buf);
+        }
+    }
+    g_giFrames[kind] = n;
+    return n;
+}
+
+// Ищет иконку нужного размера в папке: <icon>/<normal|big|small>.<dds|tga|png|bmp>
+static bool GiFindSizedFile(const GiGood& g, int sizeKind, char* out, size_t outSize)
+{
+    for (int e = 0; e < 4; ++e)
+    {
+        _snprintf_s(out, outSize, _TRUNCATE, "%s/%s.%s", g.icon, GI_SIZE_NAME[sizeKind], GI_EXTS[e]);
+        if (GiIsFile(out))
+            return true;
+    }
+    return false;
+}
+
+// Что лежит по пути из icon: папка (три файла по размерам) или один файл на все размеры.
+static void GiResolveGood(GiGood& g)
+{
+    if (g.mode)
+        return;
+    g.mode = 3;
+    if (GiIsDirectory(g.icon))
+    {
+        g.mode = 1;
+        return;
+    }
+    if (GiIsFile(g.icon))
+    {
+        g.mode = 2;
+        strncpy_s(g.single, sizeof(g.single), g.icon, _TRUNCATE);
+        return;
+    }
+    char tmp[GI_PATH_MAX];
+    for (int e = 0; e < 4; ++e)
+    {
+        _snprintf_s(tmp, sizeof(tmp), _TRUNCATE, "%s.%s", g.icon, GI_EXTS[e]);
+        if (GiIsFile(tmp))
+        {
+            g.mode = 2;
+            strncpy_s(g.single, sizeof(g.single), tmp, _TRUNCATE);
+            return;
+        }
+    }
+    Log("GoodsIcons: товар '%s': по пути '%s' нет ни папки, ни файла - останется иконка из атласа", g.name, g.icon);
+}
+
+// Файл картинки -> RGBA (прямая альфа). Декодирует D3DX движка (dds/tga/png/bmp...) в
+// текстуру пула SCRATCH, поэтому видеопамять и состояние устройства не затрагиваются.
+static bool GiDecodeImage(void* dev, const char* vpath, unsigned char** outRgba, int* ow, int* oh)
+{
+    unsigned char* file = 0;
+    size_t flen = 0;
+    if (!GiReadFile(vpath, &file, &flen) || !g_realD3dxCreateTexMemEx)
+        return false;
+
+    GiImageInfo info;
+    memset(&info, 0, sizeof(info));
+    void* tex = 0;
+    // D3DFMT_A8R8G8B8 = 21, D3DPOOL_SCRATCH = 3, D3DX_FILTER_NONE = 1, D3DX_DEFAULT = -1
+    HRESULT hr = g_realD3dxCreateTexMemEx(dev, file, (UINT)flen, 0xFFFFFFFFu, 0xFFFFFFFFu, 1, 0, 21, 3, 1, 1, 0,
+        &info, 0, &tex);
+    HeapFree(GetProcessHeap(), 0, file);
+    if (FAILED(hr) || !tex)
+    {
+        Log("GoodsIcons: D3DX не смог прочитать '%s' (hr=%08X)", vpath, (unsigned)hr);
+        return false;
+    }
+
+    typedef HRESULT (WINAPI* tLockRect)(void*, UINT, GiLockedRect*, const RECT*, DWORD);
+    typedef HRESULT (WINAPI* tUnlockRect)(void*, UINT);
+    typedef ULONG   (WINAPI* tRelease)(void*);
+    void** vt = *(void***)tex;                  // IDirect3DTexture9: Release = 2, LockRect = 19, UnlockRect = 20
+
+    bool ok = false;
+    GiLockedRect lr = { 0, 0 };
+    if (info.Width > 0 && info.Height > 0 && info.Width <= 8192 && info.Height <= 8192 &&
+        SUCCEEDED(((tLockRect)vt[19])(tex, 0, &lr, 0, 0x10 /*D3DLOCK_READONLY*/)) && lr.pBits)
+    {
+        int w = (int)info.Width, h = (int)info.Height;
+        unsigned char* px = (unsigned char*)HeapAlloc(GetProcessHeap(), 0, (size_t)w * h * 4);
+        if (px)
+        {
+            for (int y = 0; y < h; ++y)
+            {
+                const unsigned char* s = (const unsigned char*)lr.pBits + (size_t)y * lr.Pitch;
+                unsigned char* d = px + (size_t)y * w * 4;
+                for (int x = 0; x < w; ++x, s += 4, d += 4)
+                {
+                    d[0] = s[2];                // A8R8G8B8 в памяти: B G R A
+                    d[1] = s[1];
+                    d[2] = s[0];
+                    d[3] = s[3];
+                }
+            }
+            *outRgba = px;
+            *ow = w;
+            *oh = h;
+            ok = true;
+        }
+        ((tUnlockRect)vt[20])(tex, 0);
+    }
+    ((tRelease)vt[2])(tex);
+    return ok;
+}
+
+// Ячейка cw x ch для товара gi и вида атласа kind (RGBA) из кэша или с диска. Под g_giCs.
+static const unsigned char* GiLoadCell(void* dev, int gi, int kind, int cw, int ch)
+{
+    GiCell& c = g_giCells[kind][gi];
+    if (c.state && c.cw == cw && c.ch == ch)
+        return c.state == 1 ? c.px : 0;
+    if (c.px)
+        HeapFree(GetProcessHeap(), 0, c.px);
+    c.px = 0;
+    c.state = 2;
+    c.cw = cw;
+    c.ch = ch;
+
+    GiGood& g = g_giGoods[gi];
+    GiResolveGood(g);
+
+    char path[GI_PATH_MAX];
+    bool have = false;
+    if (g.mode == 1)
+    {
+        for (int t = 0; t < 3 && !have; ++t)
+            have = GiFindSizedFile(g, GI_ORDER[kind][t], path, sizeof(path));
+        if (!have && !g.warned)
+        {
+            g.warned = 1;
+            Log("GoodsIcons: товар '%s': в папке '%s' нет ни big/normal/small.(dds|tga|png|bmp)", g.name, g.icon);
+        }
+    }
+    else if (g.mode == 2)
+    {
+        strncpy_s(path, sizeof(path), g.single, _TRUNCATE);
+        have = true;
+    }
+    if (!have)
+        return 0;
+
+    unsigned char* rgba = 0;
+    int w = 0, h = 0;
+    if (!GiDecodeImage(dev, path, &rgba, &w, &h))
+        return 0;
+    if (w != cw || h != ch)
+    {
+        LogDbg("GoodsIcons: '%s' %dx%d -> %dx%d (%s)", path, w, h, cw, ch, GI_SIZE_NAME[kind]);
+        unsigned char* scaled = GiResample(rgba, w, h, cw, ch);
+        HeapFree(GetProcessHeap(), 0, rgba);
+        if (!scaled)
+            return 0;
+        rgba = scaled;
+    }
+    c.px = rgba;
+    c.state = 1;
+    LogDbg("GoodsIcons: %s '%s' <- %s", GI_SIZE_NAME[kind], g.name, path);
+    return c.px;
+}
+
+// Копия атласа с подставленными иконками или 0 (ничего менять не надо / нельзя). Под g_giCs.
+static unsigned char* GiComposeAtlasLocked(int kind, void* dev, const unsigned char* src, unsigned size)
+{
+    GiEnsureGoods();
+    if (!g_giGoodsOk || g_giIconCount <= 0)
+        return 0;
+
+    GiDds dds;
+    if (!GiParseDds(src, size, &dds))
+    {
+        Log("GoodsIcons: %s: не 32-битный DDS без сжатия/мип-уровней - иконки не подставляются", GI_ATLAS_NAME[kind]);
+        return 0;
+    }
+    int frames = GiFramesFor(kind);
+    if (frames < 2 || dds.w % (unsigned)frames != 0)
+    {
+        Log("GoodsIcons: %s: noOfFrames=%d, ширина %u - кадры не делятся, иконки не подставляются",
+            GI_ATLAS_NAME[kind], frames, dds.w);
+        return 0;
+    }
+    unsigned cw = dds.w / (unsigned)frames, ch = dds.h;
+
+    unsigned char* out = (unsigned char*)HeapAlloc(GetProcessHeap(), 0, size);
+    if (!out)
+        return 0;
+    memcpy(out, src, size);
+
+    int replaced = 0, skipped = 0;
+    for (int gi = 0; gi < g_giGoodsCount; ++gi)
+    {
+        if (!g_giGoods[gi].icon[0])
+            continue;
+        unsigned cell = (unsigned)gi + GI_FRAME_BASE;
+        if (cell >= (unsigned)frames)
+        {
+            ++skipped;
+            continue;
+        }
+        const unsigned char* px = GiLoadCell(dev, gi, kind, (int)cw, (int)ch);
+        if (!px)
+        {
+            ++skipped;
+            continue;
+        }
+        GiBlitCell(out, dds, cell, cw, ch, px);
+        ++replaced;
+    }
+
+    if (g_giComposeLog[kind]++ < 3)
+        Log("GoodsIcons: %s: кадр %ux%u, кадров %d - подставлено иконок %d, не подставлено %d (goods.txt открывался движком %ld раз, вырезано байт %ld)",
+            GI_ATLAS_NAME[kind], cw, ch, frames, replaced, skipped, (long)g_giGoodsOpens, (long)g_giBlankedBytes);
+    return out;
+}
+
+static unsigned char* GiComposeAtlas(int kind, void* dev, const unsigned char* src, unsigned size)
+{
+    unsigned char* out = 0;
+    EnterCriticalSection(&g_giCs);
+    __try
+    {
+        out = GiComposeAtlasLocked(kind, dev, src, size);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("GoodsIcons: исключение %08X при сборке атласа %s - используется оригинал", GetExceptionCode(), GI_ATLAS_NAME[kind]);
+        out = 0;
+    }
+    LeaveCriticalSection(&g_giCs);
+    return out;
+}
+
+// Хук D3DXCreateTextureFromFileInMemoryEx. Если движок только что открыл один из атласов
+// resources*.dds (это видно по хуку PHYSFS_openRead, тот же поток), подсовываем D3DX копию
+// файла с иконками из папок; размеры и формат те же, поэтому движок ничего не замечает.
+static HRESULT WINAPI HookD3dxCreateTexMemEx(void* dev, const void* data, UINT size, UINT w, UINT h, UINT mips,
+    DWORD usage, UINT fmt, UINT pool, DWORD filter, DWORD mipFilter, DWORD colorKey, void* info, void* palette,
+    void** tex)
+{
+    int kind = 0;
+    if (g_giTls != TLS_OUT_OF_INDEXES)
+    {
+        kind = (int)(INT_PTR)TlsGetValue(g_giTls);
+        if (kind)
+            TlsSetValue(g_giTls, 0);
+    }
+    if (kind > 0 && kind <= 3 && data && size > 128 && g_settings.goodsIcons && g_giHooksOk)
+    {
+        unsigned char* patched = GiComposeAtlas(kind, dev, (const unsigned char*)data, size);
+        if (patched)
+        {
+            HRESULT hr = g_realD3dxCreateTexMemEx(dev, patched, size, w, h, mips, usage, fmt, pool, filter,
+                mipFilter, colorKey, info, palette, tex);
+            HeapFree(GetProcessHeap(), 0, patched);
+            return hr;
+        }
+    }
+    return g_realD3dxCreateTexMemEx(dev, data, size, w, h, mips, usage, fmt, pool, filter, mipFilter,
+        colorKey, info, palette, tex);
+}
+
+// --- хуки PhysFS ---------------------------------------------------------
+
+static void GiRegisterStrip(void* h)
+{
+    EnterCriticalSection(&g_giCs);
+    for (int i = 0; i < 8; ++i)
+    {
+        if (!g_giStripH[i])
+        {
+            g_giStripH[i] = h;
+            InterlockedIncrement(&g_giStripActive);
+            break;
+        }
+    }
+    LeaveCriticalSection(&g_giCs);
+}
+
+static bool GiUnregisterStrip(void* h)
+{
+    bool found = false;
+    EnterCriticalSection(&g_giCs);
+    for (int i = 0; i < 8; ++i)
+    {
+        if (g_giStripH[i] == h)
+        {
+            g_giStripH[i] = 0;
+            InterlockedDecrement(&g_giStripActive);
+            found = true;
+        }
+    }
+    LeaveCriticalSection(&g_giCs);
+    return found;
+}
+
+static bool GiIsStripHandle(void* h)
+{
+    for (int i = 0; i < 8; ++i)
+        if (g_giStripH[i] == h)
+            return true;
+    return false;
+}
+
+// Перед открытием файла движком: запоминаем, что он открыл атлас; для goods.txt заранее
+// разбираем файл (нужны байтовые отрезки "icon = ..."). Возвращает true для goods.txt.
+static bool GiBeforeOpen(const char* path)
+{
+    if (!g_giHooksOk || !g_settings.goodsIcons || !path)
+        return false;
+
+    int kind = 0;
+    for (int k = 1; k <= 3; ++k)
+    {
+        if (GiPathEndsWith(path, GI_TAIL[k]))
+        {
+            kind = k;
+            break;
+        }
+    }
+    TlsSetValue(g_giTls, (LPVOID)(INT_PTR)kind);
+
+    if (!GiPathEndsWith(path, "common/goods.txt"))
+        return false;
+
+    EnterCriticalSection(&g_giCs);
+    GiEnsureGoods();
+    LeaveCriticalSection(&g_giCs);
+    if (InterlockedIncrement(&g_giGoodsOpens) == 1)
+        LogDbg("GoodsIcons: движок открывает '%s'", path);
+    return true;
+}
+
+static void* __cdecl HookPhysfsOpenRead(const char* path)
+{
+    if (path)
+        OnPhysfsOpenReadFilename(path);         // ally-embark: запоминает имя .v2 (сам проверяет настройку)
+    bool isGoods = GiBeforeOpen(path);
+    void* h = g_realPhysfsOpenRead(path);
+    if (isGoods && h && g_giGoodsOk && g_giSpanCount > 0)
+        GiRegisterStrip(h);
+    return h;
+}
+
+// Чтение goods.txt движком (лексер читает по байту, контрольная сумма - кусками по 256 КБ):
+// ключи icon = "..." затираются пробелами по смещению в файле, ванильный парсер их не видит
+// (иначе неизвестный ключ в блоке товара - риск ошибки разбора). Остальные файлы - без изменений.
+static __int64 __cdecl HookPhysfsRead(void* h, void* buf, unsigned size, unsigned count)
+{
+    if (g_giStripActive == 0 || !GiIsStripHandle(h))
+        return g_realPhysfsRead(h, buf, size, count);
+
+    __int64 pos = ((tPhysfsInt64Fn)(g_base + RVA_PHYSFS_TELL))(h);
+    __int64 n = g_realPhysfsRead(h, buf, size, count);
+    if (n > 0 && pos >= 0 && pos < 0x7FFFFFFF && size > 0 && (unsigned __int64)n * size < 0x7FFFFFFF)
+    {
+        unsigned blanked = GiBlankSpans((unsigned char*)buf, (unsigned)pos, (unsigned)((unsigned __int64)n * size));
+        if (blanked)
+            InterlockedExchangeAdd(&g_giBlankedBytes, (LONG)blanked);
+    }
+    return n;
+}
+
+static int __cdecl HookPhysfsClose(void* h)
+{
+    static volatile LONG logged = 0;
+    // до настоящего close: освобождённый дескриптор может достаться другому файлу
+    if (g_giStripActive && GiUnregisterStrip(h) && InterlockedIncrement(&logged) <= 3)
+        Log("GoodsIcons: движок прочитал goods.txt, вырезано байт ключей icon (всего): %ld", (long)g_giBlankedBytes);
+    return g_realPhysfsClose(h);
+}
+
+// Хук PHYSFS_openRead (VA 0xB21F40, пролог 55 8B EC 83 EC 10): общий для ally-embark (имя .v2)
+// и GOODS_ICONS (атласы, goods.txt). Вызов оригинала - через трамплин (раньше был naked-thunk
+// без доступа к результату). Ставится один раз.
+static bool InstallPhysfsOpenReadHook()
+{
+    static bool done = false;
+    if (done)
+        return true;
+
+    static const unsigned char SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10 };
+    if (!StealToTrampoline(RVA_PHYSFS_OPENREAD, 6, g_trampPhysfsOpenRead, sizeof(g_trampPhysfsOpenRead),
+            SIG, (void*)&HookPhysfsOpenRead, (void**)&g_realPhysfsOpenRead, "PhysfsOpenRead"))
+    {
+        Log("PhysfsOpenRead: НЕ установлен (rva %06X)", RVA_PHYSFS_OPENREAD);
+        return false;
+    }
+    done = true;
+    Log("PhysfsOpenRead: установлен (rva %06X; ally-embark, GoodsIcons)", RVA_PHYSFS_OPENREAD);
+    return true;
+}
+
+// ENABLE_GOODS_ICONS. Ничего не пишет в состояние игры - только подменяет картинку.
+static bool InstallGoodsIcons()
+{
+    if (!g_giCsInit)
+    {
+        InitializeCriticalSection(&g_giCs);
+        g_giCsInit = true;
+    }
+    if (g_giTls == TLS_OUT_OF_INDEXES)
+        g_giTls = TlsAlloc();
+    if (g_giTls == TLS_OUT_OF_INDEXES)
+    {
+        Log("GoodsIcons: TlsAlloc не удался - не установлен");
+        return false;
+    }
+
+    bool ok = InstallPhysfsOpenReadHook();
+
+    static const unsigned char SIG_READ[7] = { 0x55, 0x8B, 0xEC, 0x57, 0x8B, 0x7D, 0x08 };
+    if (ok)
+        ok = StealToTrampoline(RVA_PHYSFS_READ, 7, g_trampPhysfsRead, sizeof(g_trampPhysfsRead),
+            SIG_READ, (void*)&HookPhysfsRead, (void**)&g_realPhysfsRead, "GoodsIcons(read)");
+
+    // PHYSFS_close: в 8 украденных байтах есть абсолютный адрес мьютекса (mov eax,[0xF20AA0]) -
+    // при ASLR загрузчик уже поправил его, поэтому ожидаемые байты считаем с учётом базы.
+    if (ok)
+    {
+        unsigned char sigClose[8] = { 0x55, 0x8B, 0xEC, 0xA1, 0, 0, 0, 0 };
+        *(DWORD*)(sigClose + 4) = 0xF20AA0 + (g_base - 0x400000);
+        ok = StealToTrampoline(RVA_PHYSFS_CLOSE, 8, g_trampPhysfsClose, sizeof(g_trampPhysfsClose),
+            sigClose, (void*)&HookPhysfsClose, (void**)&g_realPhysfsClose, "GoodsIcons(close)");
+    }
+
+    if (ok)
+    {
+        HMODULE exe = GetModuleHandleA(NULL);
+        ok = HookIat(exe, "d3dx9_41.dll", "D3DXCreateTextureFromFileInMemoryEx",
+            (void*)&HookD3dxCreateTexMemEx, (void**)&g_realD3dxCreateTexMemEx);
+        if (!ok)
+            Log("GoodsIcons: импорт D3DXCreateTextureFromFileInMemoryEx не найден/уже перехвачен");
+    }
+
+    g_giHooksOk = ok;
+    Log("GoodsIcons: %s (ENABLE_GOODS_ICONS; ключ icon = \"<папка>\" в common\\goods.txt)",
+        ok ? "установлен" : "НЕ установлен");
+    return ok;
+}
+
+
 static bool Install()
 {
     LoadSettings();
@@ -19016,6 +20107,9 @@ static bool Install()
         InstallMinting();
 
     InstallGoodsConsumption();
+
+    if (g_settings.goodsIcons)
+        InstallGoodsIcons();
 
     if (g_settings.patchCombatRoll)
         InstallCombatRoll();

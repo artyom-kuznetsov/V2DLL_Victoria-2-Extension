@@ -115,6 +115,16 @@ Production tab filters will show only producing factories of selected good, not 
 #### 10. PLAYER_BUTTONS
 Buttons located in topbar called "button_fe_player_pause", "button_fe_player_next" and a slider "fe_player_volume_slider"
 will pause, skip and configure music volume.
+#### 11. ENABLE_GOODS_ICONS
+On by default, does nothing until a good gets an `icon` key. Goods icons no longer have to live in the three big atlases (`gfx\interface\resources.dds`, `resources_big.dds`, `resources_small.dds`). Give a good in `common\goods.txt` a path to its own folder:
+```
+cotton = {
+    cost = 4
+    color = { 255 255 255 }
+    icon = "gfx\\goods\\cotton"
+}
+```
+and put the icons there: `big.dds` (the size of one frame of `resources_big.dds`), `normal.dds` (`resources.dds`) and `small.dds` (`resources_small.dds`); `.tga`, `.png` and `.bmp` work too. A missing size is made from the nearest present one by scaling; `icon` may also point to a single image (used for all three sizes). Goods without the key, or with nothing found, keep their frame from the atlas. The frame size is taken from the atlas (width / `noOfFrames` of the sprite in `interface\core.gfx`), so keep the atlases in the mod; they are the fallback. The `icon` key is cut out of `goods.txt` before the game parses it, so the vanilla parser never sees it.
   
 ### Miscellaneous
 #### 1. PATCH_CONSCIOUSNESS_PLURALITY_GROWTH
