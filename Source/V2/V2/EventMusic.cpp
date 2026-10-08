@@ -184,50 +184,10 @@ static void SfxOnEvent(const char* stem)
     PlaySoundA(full,NULL,SND_FILENAME|SND_ASYNC|SND_NODEFAULT);
 }
 
-static volatile LONG g_restartOnBackendBg = 0;
-extern "C" __declspec(dllexport) void WINAPI EventMusic_SetRestartOnBackendBg(BOOL enabled)
-{
-    InterlockedExchange(&g_restartOnBackendBg, enabled ? 1 : 0);
-}
-
-static volatile LONG g_backendRestartStarted = 0;
-static DWORD WINAPI RestartForBackendBgThread(LPVOID)
-{
-    wchar_t exe[MAX_PATH]={}; if (!GetModuleFileNameW(NULL,exe,MAX_PATH)) return 0;
-    wchar_t marker[8]={};
-    const wchar_t* original=GetCommandLineW();
-    if (GetEnvironmentVariableW(L"V2DLL_BACKEND_RESTARTED",marker,8) || wcsstr(original,L"-v2dll-backend-restarted")) return 0;
-    SetEnvironmentVariableW(L"V2DLL_BACKEND_RESTARTED",L"1");
-    wchar_t command[32768]={};
-    if (wcslen(original)+32 >= 32768) return 0;
-    wcscpy_s(command,original);
-    wcscat_s(command,L" -v2dll-backend-restarted");
-    STARTUPINFOW si={}; si.cb=sizeof(si); PROCESS_INFORMATION pi={};
-    if (CreateProcessW(exe,command,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi)) {
-        CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
-        EventMusicLog("[RESTART] backend_bg.dds detectado; reinicio con los mismos argumentos");
-        ExitProcess(0);
-    }
-    EventMusicLog("[RESTART] CreateProcessW fallo: %lu",GetLastError());
-    return 0;
-}
-
 static HANDLE WINAPI SfxCreateFileHook(LPCWSTR f,DWORD acc,DWORD share,LPSECURITY_ATTRIBUTES sa,DWORD disp,DWORD flags,HANDLE tmpl)
 {
     HANDLE h=g_sfxOrigCreateFileW(f,acc,share,sa,disp,flags,tmpl);
-    if (h != INVALID_HANDLE_VALUE && f && !t_sfxInHook) {
-        if (InterlockedCompareExchange(&g_restartOnBackendBg, 0, 0)) {
-            static const wchar_t pathBackslash[] = L"gfx\\interface\\backend_bg.dds";
-            static const wchar_t pathSlash[] = L"gfx/interface/backend_bg.dds";
-            const size_t pathLength = sizeof(pathBackslash) / sizeof(pathBackslash[0]) - 1;
-            for (const wchar_t* p=f; *p; ++p) if (!_wcsnicmp(p,pathBackslash,pathLength) || !_wcsnicmp(p,pathSlash,pathLength)) {
-                if (InterlockedCompareExchange(&g_backendRestartStarted,1,0)==0) {
-                    HANDLE thread=CreateThread(NULL,0,RestartForBackendBgThread,NULL,0,NULL);
-                    if(thread) CloseHandle(thread);
-                }
-                break;
-            }
-        }
+    if(h!=INVALID_HANDLE_VALUE && f && !t_sfxInHook) {
         char stem[128]; if(SfxEventStem(f,stem,sizeof(stem))) { t_sfxInHook=true; SfxOnEvent(stem); t_sfxInHook=false; }
     }
     return h;
@@ -236,7 +196,7 @@ static HANDLE WINAPI SfxCreateFileHook(LPCWSTR f,DWORD acc,DWORD share,LPSECURIT
 static void InstallEventPictureHook()
 {
     SfxBuildRoots();
-    if(!g_sfxRootCount) EventMusicLog("[SFX] Ningun mod activo: sonidos de evento desactivados");
+    if(!g_sfxRootCount) { EventMusicLog("[SFX] Ningun mod activo: sonidos de evento desactivados"); return; }
     MH_STATUS st=MH_Initialize();
     if(st!=MH_OK && st!=MH_ERROR_ALREADY_INITIALIZED) { EventMusicLog("[SFX] MH_Initialize fallo: %d",(int)st); return; }
     st=MH_CreateHookApi(L"kernelbase","CreateFileW",(LPVOID)SfxCreateFileHook,(LPVOID*)&g_sfxOrigCreateFileW);

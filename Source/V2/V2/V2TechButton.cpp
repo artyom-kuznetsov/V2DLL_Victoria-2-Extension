@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.48"
+#define MOD_VERSION "5.52"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -136,6 +136,7 @@ struct Settings
     bool musicFairRandom             = true;
     bool EventSounds             = true;
     bool restartOnBackendBg      = false; // reiniciar una vez al cargar backend_bg.dds
+    bool trueExitButton          = true;  // botón del menú de pausa que reinicia conservando el mod
 
     // Ежедневный доход "minting" по формуле из <мод>\common\minting.txt
     // (см. InstallMinting). Без файла формулы ничего не делает.
@@ -411,6 +412,13 @@ static const DWORD RVA_POLITICS_DRAW_END = 0x2DC750;
 
 static const int GLUE_SIZE = 44;    // размер склейки
 static const int OFF_GLUE_METHOD = 0x08;  // склейка -> указатель на метод
+static const DWORD RVA_BUTTON_OBSERVER_GLUE_VTABLE = 0xA0A58C;
+static const DWORD RVA_BUTTON_OBSERVER_CLICK_TRAMPOLINE = 0x5CD610;
+static const DWORD RVA_MENU_CLOSE_CLICK = 0x26F060;  // VA 0x0066F060
+static const DWORD RVA_MENU_CLOSE_BIND_CALL = 0x266814;
+static const int MENU_CLOSE_GLUE_OFFSET = 0x1D0;
+static const int MENU_ROOT_OFFSET = 0x1D24;
+static const int TRUE_EXIT_GLUE_SIZE = 0x50;
 
 static const int VT_FIND_WINDOW = 0x6C;  // контейнер: найти вложенное окно
 static const int VT_FIND_CHILD = 0x34;  // окно: найти кнопку по имени
@@ -971,6 +979,8 @@ static const unsigned char GLUE_CLICK_STUB[13] =
 
 static unsigned char g_playerNextGlue[GLUE_SIZE];
 static unsigned char g_playerPauseGlue[GLUE_SIZE];
+static unsigned char g_trueExitGlue[TRUE_EXIT_GLUE_SIZE];
+static void*          g_trueExitButton = 0;
 static DWORD         g_playerNextLastClick = 0;
 static DWORD         g_playerPauseLastClick = 0;
 
@@ -1012,6 +1022,53 @@ __declspec(naked) static void PlayerNextThunk()
         mov ebp, esp
         pushad
         call OnPlayerNextClicked
+        popad
+        mov esp, ebp
+        pop ebp
+        ret
+    }
+}
+
+static DWORD g_trueExitLastClick = 0;
+static DWORD WINAPI TrueExitRestartThread(LPVOID)
+{
+    wchar_t exe[MAX_PATH] = {};
+    if (!GetModuleFileNameW(NULL, exe, MAX_PATH)) return 0;
+    const wchar_t* original = GetCommandLineW();
+    wchar_t command[32768] = {};
+    if (wcslen(original) + 1 >= sizeof(command) / sizeof(command[0])) return 0;
+    wcscpy_s(command, original);
+    STARTUPINFOW si = {}; si.cb = sizeof(si);
+    PROCESS_INFORMATION pi = {};
+    if (!CreateProcessW(exe, command, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        Log("TrueExit: CreateProcessW fallo: %lu", GetLastError());
+        return 0;
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    Log("TrueExit: juego relanzado con la misma línea de comandos");
+    ExitProcess(0);
+    return 0;
+}
+
+static void __cdecl OnTrueExitClicked()
+{
+    DWORD now = GetTickCount();
+    if (now - g_trueExitLastClick < 500) return;
+    g_trueExitLastClick = now;
+    Log("TrueExit: clic recibido; lanzando el proceso de reinicio");
+    HANDLE thread = CreateThread(NULL, 0, TrueExitRestartThread, NULL, 0, NULL);
+    if (thread) CloseHandle(thread);
+    else Log("TrueExit: no se pudo crear el hilo de reinicio");
+}
+
+__declspec(naked) static void TrueExitThunk()
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        pushad
+        call OnTrueExitClicked
         popad
         mov esp, ebp
         pop ebp
@@ -1532,6 +1589,157 @@ static bool SubscribePlayerButton(void* window, unsigned char* srcGlue, const Pl
     VCall1(observable, VT_ADD_OBSERVER, def.glue);
 
     Log("Player: кнопка '%s' подписана (button=%08X)", def.name, (DWORD)(DWORD_PTR)button);
+    return true;
+}
+
+static bool InstallMenuCloseObserverHook();
+
+static void* TrueExitFind(void* host, const char* name, int slot, const char* description)
+{
+    if (!host || SafeIsBadReadPtr(host, sizeof(void*))) {
+        Log("TrueExit: host inválido al buscar '%s' (%s)", name, description);
+        return 0;
+    }
+    GStr s;
+    MakeStr(&s, g_nameStorage, sizeof(g_nameStorage), name);
+    __try {
+        return VCall1(host, slot, &s);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        Log("TrueExit: excepción buscando '%s' (%s, host=%08X, slot=%X)",
+            name, description, (DWORD)(DWORD_PTR)host, slot);
+        return 0;
+    }
+}
+
+static bool SetupTrueExitButtonFromMenuOwner(void* menuOwner)
+{
+    if (!menuOwner || SafeIsBadReadPtr((unsigned char*)menuOwner + MENU_ROOT_OFFSET, sizeof(void*))) {
+        Log("TrueExit: menuOwner inválido (%08X)", (DWORD)(DWORD_PTR)menuOwner);
+        return false;
+    }
+    void* container = *(void**)((unsigned char*)menuOwner + MENU_ROOT_OFFSET);
+    if (!container || SafeIsBadReadPtr(container, sizeof(void*))) {
+        Log("TrueExit: contenedor del menubar ilegible (menuOwner=%08X container=%08X)",
+            (DWORD)(DWORD_PTR)menuOwner, (DWORD)(DWORD_PTR)container);
+        return false;
+    }
+
+    // Igual que la rutina original de menubar.gui (VA 0x006667E4):
+    // menuOwner+0x1D24 busca recursivamente "menu_panel" con slot 0x6C.
+    void* panel = TrueExitFind(container, "menu_panel", VT_FIND_WINDOW, "menubar root");
+    if (!panel) {
+        Log("TrueExit: ventana 'menu_panel' no encontrada en el contenedor original");
+        return false;
+    }
+
+    void* button = TrueExitFind(panel, "true_exit", VT_FIND_CHILD, "menu_panel");
+    if (!button) {
+        Log("TrueExit: botón 'true_exit' no encontrado en menu_panel");
+        return false;
+    }
+    if (button == g_trueExitButton) return true;
+
+    DWORD* glueVtable = (DWORD*)(g_base + RVA_BUTTON_OBSERVER_GLUE_VTABLE);
+    if (SafeIsBadReadPtr(glueVtable, 3 * sizeof(DWORD)) ||
+        glueVtable[2] != g_base + RVA_BUTTON_OBSERVER_CLICK_TRAMPOLINE) {
+        Log("TrueExit: vtable CButtonObserverGlue no coincide; no se suscribe");
+        return false;
+    }
+
+    // Observer dedicado: vtable y trampoline del CButtonObserverGlue del menú.
+    // El callback ignora ECX, por lo que usamos el panel como owner.
+    memset(g_trueExitGlue, 0, sizeof(g_trueExitGlue));
+    *(void**)(g_trueExitGlue + 0x00) = (void*)(g_base + RVA_BUTTON_OBSERVER_GLUE_VTABLE);
+    *(void**)(g_trueExitGlue + 0x04) = panel;
+    *(void**)(g_trueExitGlue + 0x08) = (void*)&TrueExitThunk;
+
+    void* observable = (unsigned char*)button + OFF_OBSERVABLE;
+    VCall1(observable, VT_ADD_OBSERVER, g_trueExitGlue);
+    g_trueExitButton = button;
+    Log("TrueExit: botón 'true_exit' suscrito (button=%08X panel=%08X)",
+        (DWORD)(DWORD_PTR)button, (DWORD)(DWORD_PTR)panel);
+    return true;
+}
+
+static void __cdecl OnMenuCloseButtonBound(void* menuOwner)
+{
+    if (!g_settings.trueExitButton || !menuOwner) return;
+    DWORD expected = g_base + RVA_MENU_CLOSE_CLICK;
+    DWORD actual = 0;
+    unsigned char* menuCloseGlue = (unsigned char*)menuOwner + MENU_CLOSE_GLUE_OFFSET;
+    if (SafeIsBadReadPtr(menuCloseGlue, OFF_GLUE_METHOD + sizeof(DWORD))) return;
+    actual = *(DWORD*)(menuCloseGlue + OFF_GLUE_METHOD);
+    if (actual != expected) {
+        Log("TrueExit: firma de menu_close_button distinta (callback=%08X esperado=%08X)", actual, expected);
+        return;
+    }
+    Log("TrueExit: suscripción original de menu_close_button detectada (menuOwner=%08X)",
+        (DWORD)(DWORD_PTR)menuOwner);
+    __try {
+        SetupTrueExitButtonFromMenuOwner(menuOwner);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        Log("TrueExit: excepción al conectar el botón durante la inicialización de menubar.gui");
+    }
+}
+
+// Engancha el call AddObserver de menu_close_button (VA 0x00666814). El
+// ret 4 de AddObserver vuelve a la continuación local y deja EBX como
+// menuOwner; luego busca menu_panel en menuOwner+0x1D24, encuentra true_exit
+// y lo suscribe con un CButtonObserverGlue dedicado. Al final reproduce el
+// CMP original de limpieza de string sin cambiar la vtable global.
+static DWORD g_menuCloseHookTarget = 0;
+static DWORD g_menuCloseHookReturn = 0;
+static DWORD g_menuCloseHookSavedEbp = 0;
+__declspec(naked) static void MenuCloseAddObserverThunk()
+{
+    __asm {
+        mov dword ptr [g_menuCloseHookTarget], eax
+        mov dword ptr [g_menuCloseHookSavedEbp], ebp
+        mov eax, dword ptr [esp]
+        mov dword ptr [g_menuCloseHookReturn], eax
+        mov dword ptr [esp], offset afterOriginal
+        mov eax, dword ptr [g_menuCloseHookTarget]
+        jmp eax                 // AddObserver original con su stack/arg exactos
+    afterOriginal:
+        pushad
+        push ebx                // menuOwner de la rutina original
+        call OnMenuCloseButtonBound
+        add esp, 4
+        popad
+        cmp dword ptr [esp + 0x8D0], 0x10 // CMP original de limpieza de string
+        mov ebp, dword ptr [g_menuCloseHookSavedEbp]
+        push dword ptr [g_menuCloseHookReturn]
+        ret
+    }
+}
+
+static bool InstallMenuCloseObserverHook()
+{
+    static const unsigned char EXPECTED[10] =
+        { 0xFF, 0xD0, 0x83, 0xBC, 0x24, 0xD0, 0x08, 0x00, 0x00, 0x10 };
+    unsigned char* p = (unsigned char*)(g_base + RVA_MENU_CLOSE_BIND_CALL);
+    if (memcmp(p, EXPECTED, sizeof(EXPECTED)) != 0) {
+        Log("TrueExit: call AddObserver no coincide en rva %06X; no se parchea",
+            RVA_MENU_CLOSE_BIND_CALL);
+        return false;
+    }
+
+    unsigned char patch[10] = {};
+    patch[0] = 0xE8;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&MenuCloseAddObserverThunk - ((DWORD)(DWORD_PTR)p + 5);
+    memset(patch + 5, 0x90, sizeof(patch) - 5);
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(p, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        Log("TrueExit: no se pudo modificar el call de AddObserver");
+        return false;
+    }
+    memcpy(p, patch, sizeof(patch));
+    VirtualProtect(p, sizeof(patch), oldProtect, &oldProtect);
+    FlushInstructionCache(GetCurrentProcess(), p, sizeof(patch));
+    Log("TrueExit: hook del binding menu_close_button instalado en rva %06X",
+        RVA_MENU_CLOSE_BIND_CALL);
     return true;
 }
 
@@ -4084,6 +4292,15 @@ static BytePatch EXE_PATCHES[] =
     { "checksum_drift_fix", 0, 0x1F8268, 1,
         { 0x40 },
         { 0x90 }, false },
+
+    // Permitir declarar la guerra a un súbdito/títere y, opcionalmente,
+    // silenciar las razones de bloqueo correspondientes en el tooltip.
+    { "war_on_puppet_allowed", 0, 0x53AB18, 2,
+        { 0x75, 0x7D }, { 0x90, 0x90 }, true },
+    { "war_on_puppet_tooltip_1", 0, 0x53B07A, 1,
+        { 0x74 }, { 0xEB }, false },
+    { "war_on_puppet_tooltip_2", 0, 0x53B10F, 1,
+        { 0x74 }, { 0xEB }, false },
 };
 
 static const int EXE_PATCH_COUNT = sizeof(EXE_PATCHES) / sizeof(EXE_PATCHES[0]);
@@ -4237,6 +4454,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "MUSIC_FAIR_RANDOM") == 0)                { g_settings.musicFairRandom             = v; return; }
     if (_stricmp(key, "ENABLE_EVENT_SOUNDS") == 0)               { g_settings.EventSounds                 = v; return; }
     if (_stricmp(key, "RESTART_ON_BACKEND_BG") == 0)              { g_settings.restartOnBackendBg           = v; return; }
+    if (_stricmp(key, "TRUE_EXIT_BUTTON") == 0)                     { g_settings.trueExitButton                = v; return; }
     if (_stricmp(key, "ENABLE_MINTING") == 0)                   { g_settings.minting                     = v; return; }
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "GOODS_CONSUMPTION_MARKET_DEMAND") == 0)  { g_settings.goodsConsumptionDemand      = v; return; }
@@ -4429,6 +4647,7 @@ static void WriteDefaultSettings(const char* path)
         "MUSIC_FAIR_RANDOM=%d\n"
         "ENABLE_EVENT_SOUNDS=%d\n"
         "RESTART_ON_BACKEND_BG=%d\n"
+        "TRUE_EXIT_BUTTON=%d\n"
         "PATCH_TECH_NULL_CHECK_FIXES=%d\n"
         "PATCH_SUPPLY_SOURCE_NULL_CHECK=%d\n"
         "PATCH_AI_NAVAL_BASE_LIMIT=%d\n"
@@ -4446,6 +4665,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.musicFairRandom,
         (int)g_settings.EventSounds,
         (int)g_settings.restartOnBackendBg,
+        (int)g_settings.trueExitButton,
         (int)g_settings.patchTechNullCheckFixes,
         (int)g_settings.patchSupplySourceNullCheck,
         (int)g_settings.patchAiNavalBaseLimit,
@@ -20814,6 +21034,9 @@ static bool Install()
 
     if (g_settings.filterShowAllInState || g_settings.filterProducersOnly)
         InstallFilterShowAllInState();
+
+    if (g_settings.trueExitButton)
+        InstallMenuCloseObserverHook();
 
     // PLAYER_BUTTONS: кнопка button_fe_player_next в topbar пропускает
     // играющий трек (см. SetupPlayerButtons).
