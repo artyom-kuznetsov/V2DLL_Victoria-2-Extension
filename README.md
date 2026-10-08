@@ -83,14 +83,17 @@ Only buildings with `province = yes` are counted. Up to 16 goods per building.
 #### 13. GOODS_CONSUMPTION_MARKET_DEMAND
 With №12: the bought amounts are also added to the demand of the world market (the same demand the price formula uses), 
 so the state really competes for the goods and prices react. `0` = only money is paid, the market is not touched (turn this on if you don't want money to go into nowhere out of the world economy).
-  
-#### 14. PATCH_FACTORY_CLOSE_PAYOUT / PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE / FACTORY_CLOSE_DRY_RUN
+#### 14. PATCH_BUDGET_TOTAL_INCOME_TARIFFS
+The "Total income" row of the budget window did not include tariff income. This patch fixes it.
+#### 15. PATCH_FACTORY_CLOSE_PAYOUT / PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE / FACTORY_CLOSE_DRY_RUN
 Vanilla factories keep their savings (up to `MAX_FACTORY_MONEY_SAVE` x level) when they stop or are closed by hand: the money just freezes inside, and a factory that loses money only closes after the savings run out.  
 `PATCH_FACTORY_CLOSE_PAYOUT`: whenever a factory is closed (by hand, automatically by `PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE`, or when the game stops it at level 1), all the money stored in it is paid to the capitalists of its state (the same payout the game uses for a factory's surplus). If the state has no owners the money stays in the factory.  
 `PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE`: a factory that is not subsidized and has been unprofitable (sales below the cost of its input goods) for `factory_unprofitable_close_days` days in a row (set in `common\defines_v2dll.txt`) is closed automatically, as if closed by hand.  
 `FACTORY_CLOSE_DRY_RUN`: nothing is changed, the log only gets `[DRY]` lines saying which factories would be closed/paid.
-#### 15. PATCH_FACTORY_MIN_WAGE
+#### 16. PATCH_FACTORY_MIN_WAGE
 Every factory pays its workers at least X pounds per day per 10000 workers (default 7; set in `<mod>\common\defines_v2dll.txt`), whether or not it is profitable. The wage is paid only from the money the factory has. Where the profit gives a higher wage the game's own logic (the `leftover` share and the `minimum_wage` reform) applies as before: the larger value is paid.
+#### 17. PATCH_NEEDS_HONEST_UI
+Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. With this patch, real needs fulfillment is displayed.
   
 
 ### UI
@@ -147,6 +150,8 @@ Music will be selected randomly (while following triggers written in songs.txt),
 Fixes miscellaneous crashes when opening tech tab.
 #### 8. PATCH_SUPPLY_SOURCE_NULL_CHECK
 Prevents game from crashing in miscellaneous scenarios with "limit_by_local_supply = yes" factories.
+#### 9. PATCH_AI_NAVAL_BASE_LIMIT
+Off by default. When enabled, an AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of one state (`<mod>\common\defines_v2dll.txt`, default 1, `0` = no limit). The vanilla AI builds a base in every port province. Upgrading an existing base is not limited. The player and capitalists are not limited. Must be the same for all players of a multiplayer game.
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE
@@ -197,6 +202,7 @@ Used for debugging Economic №6.
 On by default. Observer only, changes nothing in the game: writes `Logs\v2dll_expand.log`, one line each time a factory starts to expand (date, country and factory type, level, how many of its workers are employed, the same for the whole state), separately for capitalist projects and for direct expansions by countries (AI or player). Used to find out how oversized, understaffed factories come about.
 #### 7. PATCH_AI_EXPAND_STAFFING
 On by default. AI countries expand an existing factory only if enough of its jobs are filled with workers. The vanilla AI builds the most profitable factory type up to huge levels with almost no workers (it looks at the unemployed share of the whole state, not at free craftsmen). The required share is `ai_factory_expand_min_staffing` (percent, default 90, `0` = vanilla behaviour) in `<mod>\common\defines_v2dll.txt`; capitalists need about 90 % in vanilla already. The player is not affected. All players of a multiplayer game need the same DLL and the same value.
+
 
 Russian Victoria 2 community: https://discord.gg/f3dpWFt2bR  
 Also check this out for other reverse engineering findings: https://github.com/maxioten/Victoria2-Reverse-Engineering/tree/main  

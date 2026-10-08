@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.30"
+#define MOD_VERSION "5.46"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -98,10 +98,21 @@ struct Settings
     // (FUN_00857530, выбор региона) только если она укомплектована рабочими
     // не меньше ai_factory_expand_min_staffing % (common\defines_v2dll.txt).
     bool patchAiExpandStaffing       = true;
+    // PATCH_AI_NAVAL_BASE_LIMIT: ИИ не закладывает новую морскую базу (уровень
+    // 0 -> 1) в регионе, где базы уже есть в >= ai_naval_base_max_provinces_per_state
+    // провинциях (common\defines_v2dll.txt). Улучшение существующей не ограничено.
+    bool patchAiNavalBaseLimit       = false;
     // PATCH_FACTORY_MIN_WAGE: фиксированный минимум зарплаты работникам фабрики
     // (factory_min_wage_per_10000 фунтов в день на 10000 работников из
     // common\defines_v2dll.txt), не зависящий от прибыльности.
     bool patchFactoryMinWage         = true;
+    // PATCH_NEEDS_HONEST_UI: доли выполнения потребностей попа на экране (подсказки, окно
+    // попа) умножаются на фактическое покрытие общего пула денег типа попа. Только вид.
+    bool patchNeedsHonestUi          = true;
+    // PATCH_FACTORY_PRIORITY_BY_RULE: приоритеты фабрик страны перезаписываются движком не при
+    // rules factory_priority = no, а при delete_factory_if_no_input = yes; патч переключает на
+    // factory_priority = no.
+    bool patchFactoryPriorityByRule  = true;
     // Окно фабрик: не показывать в верхнем ряду фильтров кнопки товаров,
     // чьё имя начинается на "raw_" (см. ComputeGoodsFilterPos).
     bool hideRawGoodsFilter          = true;
@@ -3873,6 +3884,23 @@ static BytePatch EXE_PATCHES[] =
     // трогает; ветка и так зависела от клиента - у каждого свой игрок).
     { "combat_loss_popup_all", 0, 0x19CC5D, 2, { 0x74, 0x4A }, { 0x90, 0x90 }, true },
 
+    // Окно бюджета: строка "Общие доходы" (textbox total_inc, поле окна
+    // +0x160) считалась как FUN_0052b610(...) минус пошлины, т.е. без
+    // доходов от пошлин (они лежат в записи окна (DAT_00f096c8+0xd)*0x10,
+    // поле +0x18, ключ "TARIFFS_INCOME"; в подсказке "Общие доходы" они
+    // есть, потому число в строке и в подсказке расходилось). В
+    // FUN_005FEDE0 после call FUN_0052b610 (0x6010C5):
+    //   0x6010CC  sub edi,[esp+0x120]   (2B BC 24 20 01 00 00)
+    //   0x6010D6  sbb esi,[esp+0x124]   (1B B4 24 24 01 00 00)
+    // вычитают пошлины. Оба NOPим - строка совпадает с подсказкой. Баланс
+    // (поле +0x168, другая цепочка 0x601549) не трогаем. Чистый UI.
+    { "budget_total_income_tariffs_1", 0, 0x2010CC, 7,
+        { 0x2B, 0xBC, 0x24, 0x20, 0x01, 0x00, 0x00 },
+        { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true },
+    { "budget_total_income_tariffs_2", 0, 0x2010D6, 7,
+        { 0x1B, 0xB4, 0x24, 0x24, 0x01, 0x00, 0x00 },
+        { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true },
+
     // Разрешить строить фабрики в колониальных регионах.
     // Обе функции чек-листа постройки (FUN_004d06a0 и FUN_0052e9f0)
     // независимо инлайнят одну и ту же проверку "state+0x84 > 0" для
@@ -4139,7 +4167,10 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE") == 0) { g_settings.patchFactoryAutoClose = v; return; }
     if (_stricmp(key, "FACTORY_CLOSE_DRY_RUN") == 0)           { g_settings.factoryCloseDryRun          = v; return; }
     if (_stricmp(key, "PATCH_AI_EXPAND_STAFFING") == 0)        { g_settings.patchAiExpandStaffing       = v; return; }
+    if (_stricmp(key, "PATCH_AI_NAVAL_BASE_LIMIT") == 0)       { g_settings.patchAiNavalBaseLimit       = v; return; }
     if (_stricmp(key, "PATCH_FACTORY_MIN_WAGE") == 0)          { g_settings.patchFactoryMinWage         = v; return; }
+    if (_stricmp(key, "PATCH_NEEDS_HONEST_UI") == 0)           { g_settings.patchNeedsHonestUi          = v; return; }
+    if (_stricmp(key, "PATCH_FACTORY_PRIORITY_BY_RULE") == 0)  { g_settings.patchFactoryPriorityByRule  = v; return; }
     if (_stricmp(key, "PROD_TYPE_GATE_ALLOW_ALL") == 0)         { g_settings.prodTypeGateAllowAll        = v; return; }
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
     if (_stricmp(key, "PATCH_COMBAT_ROLL") == 0)                { g_settings.patchCombatRoll             = v; return; }
@@ -4230,6 +4261,14 @@ static void ApplySetting(const char* key, const char* value)
             for (int i = 0; i < EXE_PATCH_COUNT; ++i)
                 if (_stricmp(EXE_PATCHES[i].name, names[n]) == 0)
                     EXE_PATCHES[i].enabled = v;
+        return;
+    }
+
+    if (_stricmp(key, "PATCH_BUDGET_TOTAL_INCOME_TARIFFS") == 0)
+    {
+        for (int i = 0; i < EXE_PATCH_COUNT; ++i)
+            if (_strnicmp(EXE_PATCHES[i].name, "budget_total_income_tariffs_", 28) == 0)
+                EXE_PATCHES[i].enabled = v;
         return;
     }
 
@@ -4326,6 +4365,8 @@ static void WriteDefaultSettings(const char* path)
         "FACTORY_CLOSE_DRY_RUN=%d\n"
         "PATCH_AI_EXPAND_STAFFING=%d\n"
         "PATCH_FACTORY_MIN_WAGE=%d\n"
+        "PATCH_NEEDS_HONEST_UI=%d\n"
+        "PATCH_FACTORY_PRIORITY_BY_RULE=%d\n"
         "\n",
         (int)g_settings.priceDelta,
         (int)g_settings.patchExponentialPriceDelta,
@@ -4345,7 +4386,9 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.patchFactoryAutoClose,
         (int)g_settings.factoryCloseDryRun,
         (int)g_settings.patchAiExpandStaffing,
-        (int)g_settings.patchFactoryMinWage);
+        (int)g_settings.patchFactoryMinWage,
+        (int)g_settings.patchNeedsHonestUi,
+        (int)g_settings.patchFactoryPriorityByRule);
 
     fprintf(f,
         "; UI\n"
@@ -4385,9 +4428,11 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_EVENT_SOUNDS=%d\n"
         "PATCH_TECH_NULL_CHECK_FIXES=%d\n"
         "PATCH_SUPPLY_SOURCE_NULL_CHECK=%d\n"
+        "PATCH_AI_NAVAL_BASE_LIMIT=%d\n"
         "ENABLE_MINTING=%d\n"
         "ENABLE_GOODS_CONSUMPTION=%d\n"
         "GOODS_CONSUMPTION_MARKET_DEMAND=%d\n"
+        "PATCH_BUDGET_TOTAL_INCOME_TARIFFS=%d\n"
         "\n",
         (int)FindExePatchEnabled("consciousness_plurality_growth"),
         (int)g_settings.patchCivilizeNullCheck,
@@ -4399,9 +4444,11 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.EventSounds,
         (int)g_settings.patchTechNullCheckFixes,
         (int)g_settings.patchSupplySourceNullCheck,
+        (int)g_settings.patchAiNavalBaseLimit,
         (int)g_settings.minting,
         (int)g_settings.goodsConsumption,
-        (int)g_settings.goodsConsumptionDemand);
+        (int)g_settings.goodsConsumptionDemand,
+        (int)FindExePatchEnabled("budget_total_income_tariffs_1"));
 
     fprintf(f,
         "; Stability\n"
@@ -8612,6 +8659,10 @@ static int  g_defFactoryCloseDays = 60;
 // фабрику (PATCH_AI_EXPAND_STAFFING), 0 = без ограничения.
 static int  g_defAiExpandMinStaffing = 90;
 static bool g_defAiExpandKeySeen = false;
+// ai_naval_base_max_provinces_per_state: в скольких провинциях региона ИИ может
+// иметь морскую базу (PATCH_AI_NAVAL_BASE_LIMIT), 0 = без ограничения.
+static int  g_defAiNavalBaseMax = 1;
+static bool g_defAiNavalBaseKeySeen = false;
 // factory_min_wage_per_10000: минимум зарплаты работникам фабрики, фунтов в день
 // на 10000 работников, в тысячных (7 -> 7000). 0 = выкл (PATCH_FACTORY_MIN_WAGE).
 static int  g_defMinWageMilli = 7000;
@@ -8692,6 +8743,12 @@ static void DefinesApplyLine(const char* key, const char* value)
         g_defAiExpandMinStaffing = d < 0 ? 0 : (d > 100 ? 100 : d);
         g_defAiExpandKeySeen = true;
     }
+    else if (_stricmp(key, "ai_naval_base_max_provinces_per_state") == 0)
+    {
+        int d = atoi(value);
+        g_defAiNavalBaseMax = d < 0 ? 0 : (d > 100 ? 100 : d);
+        g_defAiNavalBaseKeySeen = true;
+    }
     else if (_stricmp(key, "factory_min_wage_per_10000") == 0)
     {
         double d = atof(value);
@@ -8717,6 +8774,15 @@ static const char* const AI_EXPAND_DEFINES_BLOCK =
     "# huge levels with almost no workers. Capitalists already need about 90 percent in vanilla.\n"
     "# 0 = no limit (vanilla AI behaviour).\n"
     "ai_factory_expand_min_staffing = %d\n";
+
+static const char* const AI_NAVAL_DEFINES_BLOCK =
+    "\n"
+    "# --- AI naval bases (PATCH_AI_NAVAL_BASE_LIMIT in v2dll_settings.ini) ---\n"
+    "# In how many provinces of one state an AI country may have a naval base. Once a state has\n"
+    "# that many provinces with a naval base (built or being built), the AI does not start a base\n"
+    "# in another province of the state. Upgrading a base the AI already has is not limited. The\n"
+    "# player and the capitalists are not affected. 0 = no limit (vanilla AI behaviour).\n"
+    "ai_naval_base_max_provinces_per_state = %d\n";
 
 static const char* const MIN_WAGE_DEFINES_BLOCK =
     "\n"
@@ -8780,6 +8846,16 @@ static void EnsureV2dllDefines()
                 Log("defines_v2dll: в '%s' дописан ai_factory_expand_min_staffing = %d", g_defPath, g_defAiExpandMinStaffing);
             }
         }
+        if (!g_defAiNavalBaseKeySeen)
+        {
+            FILE* nf = 0;
+            if (fopen_s(&nf, g_defPath, "a") == 0 && nf)
+            {
+                fprintf(nf, AI_NAVAL_DEFINES_BLOCK, g_defAiNavalBaseMax);
+                fclose(nf);
+                Log("defines_v2dll: в '%s' дописан ai_naval_base_max_provinces_per_state = %d", g_defPath, g_defAiNavalBaseMax);
+            }
+        }
         if (!g_defMinWageKeySeen)
         {
             FILE* wf = 0;
@@ -8838,6 +8914,7 @@ static void EnsureV2dllDefines()
         "minting_formula = %s\n",
         g_defFactoryCloseDays, g_defMintingFormula);
     fprintf(f, AI_EXPAND_DEFINES_BLOCK, g_defAiExpandMinStaffing);
+    fprintf(f, AI_NAVAL_DEFINES_BLOCK, g_defAiNavalBaseMax);
     {
         char val[32];
         FormatMinWageValue(val, sizeof(val));
@@ -18561,6 +18638,184 @@ static bool InstallAiExpandStaffing()
 }
 
 // ---------------------------------------------------------------
+// PATCH_AI_NAVAL_BASE_LIMIT: ИИ-страна закладывает морские базы не более
+// чем в ai_naval_base_max_provinces_per_state провинциях региона (по
+// умолчанию в одной). Улучшение уже построенной базы не ограничено.
+//
+// Постройку зданий провинции (железная дорога, форт, морская база) у ИИ
+// выбирают FUN_008577b0 (здание в запросе +0x80) и FUN_008580e0 (+0x78): они
+// перебирают провинции страны и берут ту, где FUN_00511ef0 ("можно ли
+// строить", EAX = тип здания, стек: страна, провинция, 5 флагов, ret 0x1C)
+// вернула true, оценивая только деньги и расстояние до столицы. Ограничения
+// "одна на регион" у морской базы нет, поэтому ИИ ставит базы в каждой
+// портовой провинции региона. Три call'а в этих функциях (0x857983,
+// 0x857D02, 0x858282) идут через AiCanBuildThunk: для морской базы (имя
+// здания naval_base), если в этой провинции базы ещё нет (уровень 0), считаем
+// ДРУГИЕ провинции региона (+0x188 -> вектор id +0x48..0x4C), где уровень
+// базы >= 1 (int в тысячных по индексу CBuilding+0x134 в векторе зданий
+// провинции +0x118) или стоит в очереди постройка этой базы (список
+// провинции +0xD8; элемент: vtable+0x30 - "это постройка здания провинции",
+// +0x58 - тип, как в FUN_00512150). Если таких >= лимита - возвращаем 0, и
+// ИИ выбирает другую провинцию. Провинция, где база уже есть, проходит (это
+// улучшение). Игрок и капиталисты идут другими путями и не затронуты.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_AI_CANBUILD_FN       = 0x111EF0;   // FUN_00511EF0
+static const DWORD RVA_AI_CANBUILD_SITES[3] = { 0x457983, 0x457D02, 0x458282 };
+static const int   PROV_OFF_STATE           = 0x188;
+static const int   STATE_OFF_PROV_IDS       = 0x48;       // vector<int> id провинций региона
+static const int   PROV_OFF_CONSTRUCTIONS   = 0xD8;       // односвязный список строек
+static const int   CONSTR_OFF_BUILDING      = 0x58;
+static const int   CONSTR_VSLOT_IS_PROVBLD  = 0x30;
+static DWORD g_aiCanBuildOrig = 0;
+
+typedef char (__thiscall *tConstrIsProvBuilding)(void*);
+
+static int __cdecl AiBuildBlocked(void* building, void* country, void* province)
+{
+    int limit = g_defAiNavalBaseMax;
+    if (limit <= 0 || !building || !province)
+        return 0;
+    __try
+    {
+        char* b = (char*)building;
+        if (*(unsigned char*)(b + OFF_BUILDING_IS_PROVINCE) == 0)
+            return 0;
+        if (_stricmp(GStrText(b + OFF_BUILDING_NAME), "naval_base") != 0)
+            return 0;
+        int idx = *(int*)(b + OFF_BUILDING_PROV_INDEX);
+        if (idx < 0 || idx > 255)
+            return 0;
+
+        char* session = *(char**)(g_base + RVA_WORLD_PTR);
+        char** provs = session ? *(char***)(session + OFF_SESSION_PROVINCES) : 0;
+        char* state = *(char**)((char*)province + PROV_OFF_STATE);
+        if (!provs || !state)
+            return 0;
+        int* ids = *(int**)(state + STATE_OFF_PROV_IDS);
+        int* idsEnd = *(int**)(state + STATE_OFF_PROV_IDS + 4);
+        if (!ids || idsEnd < ids || (idsEnd - ids) > 512)
+            return 0;
+
+        // Провинции региона с базой (уровень >= 1) или с базой в очереди;
+        // сама проверяемая провинция считается отдельно: если база в ней уже
+        // есть, это улучшение - пропускаем без ограничений.
+        int others = 0;
+        for (int* p = ids; p < idsEnd; ++p)
+        {
+            if ((unsigned)*p >= 20000)
+                continue;
+            char* pr = provs[*p];
+            if (!pr)
+                continue;
+
+            bool has = false;
+            char** vb = *(char***)(pr + OFF_PROVINCE_BUILDINGS);
+            char** ve = *(char***)(pr + OFF_PROVINCE_BUILDINGS + 4);
+            if (vb && ve >= vb && idx < (int)(ve - vb) && vb[idx] &&
+                *(int*)(vb[idx] + OFF_PBUILDING_LEVEL) >= 1000)
+                has = true;
+
+            if (!has)
+            {
+                int guard = 0;
+                for (int* n = *(int**)(pr + PROV_OFF_CONSTRUCTIONS); n && guard < 64; n = (int*)n[2], ++guard)
+                {
+                    char* o = (char*)n[0];
+                    if (!o)
+                        break;
+                    tConstrIsProvBuilding fn = (tConstrIsProvBuilding)(*(void***)o)[CONSTR_VSLOT_IS_PROVBLD / 4];
+                    if (fn(o) && *(char**)(o + CONSTR_OFF_BUILDING) == b)
+                    {
+                        has = true;
+                        break;
+                    }
+                }
+            }
+
+            if (pr == (char*)province)
+            {
+                if (has)
+                    return 0;       // улучшение базы (или уже заложена) - не наше дело
+                continue;
+            }
+            if (has)
+                ++others;
+        }
+        if (others < limit)
+            return 0;
+
+        static LONG s_logged = 0;
+        if (InterlockedIncrement(&s_logged) <= 5)
+            LogDbg("AiNavalLimit: страна %p, провинция %p - в регионе баз уже в %d провинциях (лимит %d), ИИ не закладывает новую",
+                country, province, others, limit);
+        return 1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+// Контракт FUN_00511EF0: EAX = здание, стек: страна, провинция, ... (ret 0x1C).
+// ECX после popad = результат хука (в оригинале ECX - временный регистр).
+__declspec(naked) static void AiCanBuildThunk()
+{
+    __asm {
+        pushad
+        push dword ptr [esp + 0x28]
+        push dword ptr [esp + 0x28]
+        push eax
+        call AiBuildBlocked
+        add esp, 12
+        mov dword ptr [esp + 0x18], eax
+        popad
+        test ecx, ecx
+        jnz blocked
+        jmp dword ptr [g_aiCanBuildOrig]
+    blocked:
+        xor eax, eax
+        ret 0x1c
+    }
+}
+
+static bool InstallAiNavalBaseLimit()
+{
+    EnsureV2dllDefines();
+    g_aiCanBuildOrig = g_base + RVA_AI_CANBUILD_FN;
+
+    static const unsigned char PROLOGUE[4] = { 0x55, 0x8B, 0xEC, 0x53 };
+    if (memcmp((void*)g_aiCanBuildOrig, PROLOGUE, sizeof(PROLOGUE)) != 0)
+    {
+        Log("AiNavalLimit: FUN_00511EF0 не совпала по прологу - не установлен");
+        return false;
+    }
+
+    int done = 0;
+    for (int i = 0; i < 3; ++i)
+    {
+        unsigned char* call = (unsigned char*)(g_base + RVA_AI_CANBUILD_SITES[i]);
+        DWORD expectRel = g_aiCanBuildOrig - ((DWORD)(DWORD_PTR)call + 5);
+        if (call[0] != 0xE8 || *(DWORD*)(call + 1) != expectRel)
+        {
+            Log("AiNavalLimit: сигнатура call не совпала rva %06X (%02X %02X %02X %02X %02X)",
+                RVA_AI_CANBUILD_SITES[i], call[0], call[1], call[2], call[3], call[4]);
+            continue;
+        }
+        DWORD rel = (DWORD)(DWORD_PTR)&AiCanBuildThunk - ((DWORD)(DWORD_PTR)call + 5);
+        DWORD oldProtect = 0;
+        if (!VirtualProtect(call + 1, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+            continue;
+        *(DWORD*)(call + 1) = rel;
+        VirtualProtect(call + 1, 4, oldProtect, &oldProtect);
+        ++done;
+    }
+    Log("AiNavalLimit: подменено call'ов %d из 3 (провинций с базой в регионе для ИИ: %d, 0 = выкл; "
+        "ai_naval_base_max_provinces_per_state в common\\defines_v2dll.txt)", done, g_defAiNavalBaseMax);
+    return done > 0;
+}
+
+// ---------------------------------------------------------------
 // PATCH_FACTORY_MIN_WAGE: фиксированный минимум зарплаты на 10000 работников.
 //
 // Карта (Ghidra + дизассемблер, подробно в PATCHES.md 4.11): в FUN_004F4B30
@@ -18752,6 +19007,462 @@ static bool InstallFactoryMinWage()
         ok ? "установлен" : "НЕ установлен", okBudget ? "установлена" : "НЕ установлена",
         g_defMinWageMilli / 1000, g_defMinWageMilli % 1000);
     return ok || okBudget;
+}
+
+// ---------------------------------------------------------------
+// DestroyCmdNullCheck (5.34): вылет в проверке команды "снести здание".
+//
+// FUN_0057CFD0 (проверка CDestroyStateBuildingCommand; создают её ИИ в
+// FUN_008569a0 - удаление закрытых фабрик - и кнопка интерфейса) ищет регион
+// по ключу (state+8, state+0xC), записанному в команду, в списке регионов
+// страны (country+0xE44). Если ключ региона изменился между созданием и
+// проверкой команды (граница региона сдвинулась), регион не найден, EDI = 0, и
+// VA 0x57D01F `mov edx,[edi+0x58]` падает (краш 2026-10-08 16:42, v5.33:
+// ключ в команде (0x2F,0x48D), у региона (0x2F,0x48F)). Хук: если EDI = 0,
+// прыгаем на штатный возврат "команда недопустима" (0x57D052: pop edi/esi/ebx,
+// xor al,al, ret), как у других отказов.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_DESTROY_CMD_SITE   = 0x17D01F;
+static const DWORD RVA_DESTROY_CMD_RESUME = 0x17D025;
+static const DWORD RVA_DESTROY_CMD_REJECT = 0x17D052;
+static DWORD g_destroyCmdResume = 0;
+static DWORD g_destroyCmdReject = 0;
+
+__declspec(naked) static void DestroyCmdNullThunk()
+{
+    __asm {
+        test edi, edi
+        jz reject
+        mov edx, dword ptr [edi + 0x58]
+        mov eax, dword ptr [edi + 0x5C]
+        jmp dword ptr [g_destroyCmdResume]
+    reject:
+        jmp dword ptr [g_destroyCmdReject]
+    }
+}
+
+static bool InstallDestroyCmdNullCheck()
+{
+    static const unsigned char SIG[6]    = { 0x8B, 0x57, 0x58, 0x8B, 0x47, 0x5C };
+    static const unsigned char RESUME[4] = { 0x89, 0x54, 0x24, 0x18 };
+    static const unsigned char REJECT[4] = { 0x5F, 0x5E, 0x32, 0xC0 };
+    if (memcmp((const void*)(DWORD_PTR)(g_base + RVA_DESTROY_CMD_REJECT), REJECT, sizeof(REJECT)) != 0)
+    {
+        Log("DestroyCmdNullCheck: сигнатура возврата 0x57D052 не совпала - не патчим");
+        return false;
+    }
+    g_destroyCmdResume = g_base + RVA_DESTROY_CMD_RESUME;
+    g_destroyCmdReject = g_base + RVA_DESTROY_CMD_REJECT;
+    bool ok = WriteJmpSite(RVA_DESTROY_CMD_SITE, SIG, sizeof(SIG), 6,
+        RVA_DESTROY_CMD_RESUME, RESUME, sizeof(RESUME),
+        (void*)&DestroyCmdNullThunk, "DestroyCmdNullCheck");
+    return ok;
+}
+
+// ---------------------------------------------------------------
+// PATCH_NEEDS_HONEST_UI (5.41): "честное" отображение выполнения потребностей попа.
+//
+// Только отображение, симуляция не затрагивается. Как устроено в движке:
+//  * FUN_00485390 (на каждый поп и класс 0 жизненные/1 повседневные/2 роскошь) считает долю
+//    попа pop+0x130/0x138/0x140 = доступность товаров x min(1, деньги попа / стоимость набора)
+//    и платит эти деньги в ОБЩИЙ пул денег типа попа страны (запись "страна x тип", шаг 0x78);
+//  * FUN_00485960 (на запись и класс) покупает товары на деньги пула; классы идут по очереди
+//    0,1,2 из одного пула. Если пула не хватает на весь набор класса (масштаб запись+0x00+cls*8
+//    x стоимость набора запись+0x60+cls*8 / 1000), закупается лишь пул/стоимость часть.
+// Поэтому у богатого попа (Вена, 100 тыс. ремесленников) на экране роскошь 100%, хотя пул типа
+// уже съеден нижними классами и реально купленная доля роскоши ~0.
+//
+// Здесь: в FUN_00485390 запоминаем запись попа (поп -> запись), на входе FUN_00485960 считаем
+// фактическое покрытие F = min(1, пул / (масштаб x стоимость набора / 1000)) и кладём его по
+// записи и классу. Показываемая доля = сохранённая доля x F. Подменяются только чтения для
+// экрана: три подсказки попа (FUN_0095CE10/0095D3A0/0095D930, место, где берётся доля для
+// процентов) и полоски потребностей окна попа (FUN_00981220). Поля попа не меняются, так что
+// воинственность/сознание и всё прочее считаются как в оригинале. Пока за текущую сессию не было
+// ни одного дневного расчёта (сразу после загрузки), показывается оригинальное значение.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_NEEDS_PURCHASE         = 0x85960;   // FUN_00485960
+static const DWORD RVA_NEEDS_PURCHASE_RESUME  = 0x85966;
+static const DWORD RVA_NEEDS_POP_STEP         = 0x85390;   // FUN_00485390
+static const DWORD RVA_NEEDS_POP_STEP_RESUME  = 0x85396;
+static const DWORD RVA_HONEST_TIP_LIFE        = 0x55CEF8;  // FUN_0095CE10: mov eax,[ecx+0x130]; mov ecx,[ecx+0x134]
+static const DWORD RVA_HONEST_TIP_EVERYDAY    = 0x55D488;  // FUN_0095D3A0: ... +0x138 / +0x13C
+static const DWORD RVA_HONEST_TIP_LUXURY      = 0x55DA18;  // FUN_0095D930: ... +0x140 / +0x144
+static const DWORD RVA_HONEST_POPWIN          = 0x5820B8;  // FUN_00981220: mov [ebp-0xA0],edx (после чтения долей в локалы)
+static const DWORD RVA_HONEST_POPWIN_RESUME   = 0x5820BE;
+static const DWORD RVA_HONEST_POPLIST         = 0x3BB105;  // FUN_007BA410 (строка списка попов, стаканы): mov [ebp-0xA0],eax; EDI = поп
+static const DWORD RVA_HONEST_POPLIST_RESUME  = 0x3BB10B;
+
+static DWORD g_needsPurchaseResume = 0;
+static DWORD g_needsPopStepResume  = 0;
+static DWORD g_honestTipLifeResume = 0, g_honestTipEverydayResume = 0, g_honestTipLuxuryResume = 0;
+static DWORD g_honestPopWinResume  = 0;
+static DWORD g_honestPopListResume = 0;
+
+// поп -> запись "страна x тип": открытая адресация, ключ - указатель попа.
+struct HonestPopSlot { unsigned char* pop; unsigned char* rec; };
+static const int HONEST_POP_BITS = 19;
+static HonestPopSlot g_honestPop[1 << HONEST_POP_BITS];
+
+// запись -> фактическое покрытие по классам (фикс. 15, 32768 = 100%).
+struct HonestRecSlot { unsigned char* rec; long long f[3]; bool poolless; };
+static const int HONEST_REC_BITS = 14;
+static HonestRecSlot g_honestRec[1 << HONEST_REC_BITS];
+
+static inline unsigned HonestHash(unsigned char* p, int bits)
+{
+    return (((unsigned)(DWORD_PTR)p >> 3) * 2654435761u) >> (32 - bits);
+}
+
+static void __cdecl HonestPopStep(unsigned char* pop, unsigned char* frame)
+{
+    __try
+    {
+        unsigned char* rec = *(unsigned char**)(frame + 0xC);
+        if (!pop || !rec)
+            return;
+        unsigned h = HonestHash(pop, HONEST_POP_BITS);
+        for (int i = 0; i < 64; ++i, h = (h + 1) & ((1u << HONEST_POP_BITS) - 1))
+        {
+            if (g_honestPop[h].pop == pop || !g_honestPop[h].pop)
+            {
+                g_honestPop[h].pop = pop;
+                g_honestPop[h].rec = rec;
+                return;
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static void __cdecl HonestPurchase(unsigned char* rec, unsigned char* frame)
+{
+    __try
+    {
+        // Стек: [8] рынок, [0xC] указатель на пул денег, [0x10] страна, [0x14] список нужд,
+        // [0x18] класс, [0x1C] флаг покупки.
+        unsigned char* pool = *(unsigned char**)(frame + 0xC);
+        int cls = *(int*)(frame + 0x18);
+        bool buying = *(unsigned char*)(frame + 0x1C) != 0;
+        if (!rec || !pool || cls < 0 || cls > 2)
+            return;
+        // Расчётный проход тоже вызывает закупку, но пулы ещё пусты. Оставляем данные
+        // последнего покупочного прохода, иначе ложный "poolless" может получить любой тип.
+        if (!buying)
+            return;
+        double scale = (double)*(long long*)(rec + cls * 8) / 32768.0;
+        double setc  = (double)*(long long*)(rec + 0x60 + cls * 8) / 32768.0;
+        double poolv = (double)*(long long*)pool / 32768.0;
+        double cost  = scale * setc / 1000.0;
+        double f = 1.0;
+        if (cost > 0.0)
+            f = (poolv <= 0.0) ? 0.0 : (poolv >= cost ? 1.0 : poolv / cost);
+        // Часть типов (крестьяне, работники) имеет нулевой пул уже на первом классе, хотя
+        // спрос и покупательная способность накоплены движком в rec+0x48. Такой aggregate
+        // показатель = учтено / масштаб; именно он даёт фактическую долю типа по классу.
+        // Пустой пул на 2-3 классе - обычное дело (его съели нижние классы).
+        bool poollessNow = (cls == 0 && cost > 0.0 && poolv <= 0.0);
+        long long accountedF[3] = { 32768, 32768, 32768 };
+        if (poollessNow)
+        {
+            for (int i = 0; i < 3; ++i)
+            {
+                long long accounted = *(long long*)(rec + 0x48 + i * 8);
+                long long recScale  = *(long long*)(rec + i * 8);
+                double ratio = (recScale > 0) ? (double)accounted / (double)recScale : 1.0;
+                if (ratio < 0.0) ratio = 0.0;
+                if (ratio > 1.0) ratio = 1.0;
+                accountedF[i] = (long long)(ratio * 32768.0 + 0.5);
+            }
+        }
+
+        unsigned h = HonestHash(rec, HONEST_REC_BITS);
+        for (int i = 0; i < 64; ++i, h = (h + 1) & ((1u << HONEST_REC_BITS) - 1))
+        {
+            HonestRecSlot& s = g_honestRec[h];
+            if (s.rec == rec || !s.rec)
+            {
+                if (!s.rec)
+                {
+                    s.rec = rec;
+                    s.f[0] = s.f[1] = s.f[2] = 32768;
+                    s.poolless = false;
+                }
+                if (cls == 0)
+                {
+                    s.poolless = poollessNow;
+                    if (poollessNow)
+                    {
+                        s.f[0] = accountedF[0];
+                        s.f[1] = accountedF[1];
+                        s.f[2] = accountedF[2];
+                    }
+                }
+                if (s.poolless)
+                    f = (double)s.f[cls] / 32768.0;
+                s.f[cls] = (long long)(f * 32768.0);
+                return;
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Показываемая доля класса cls (0 жизненные, 1 повседневные, 2 роскошь) попа pop.
+static long long __cdecl HonestFraction(unsigned char* pop, int cls)
+{
+    long long stored = 0;
+    __try
+    {
+        stored = *(long long*)(pop + 0x130 + cls * 8);
+        unsigned h = HonestHash(pop, HONEST_POP_BITS);
+        unsigned char* rec = 0;
+        for (int i = 0; i < 64; ++i, h = (h + 1) & ((1u << HONEST_POP_BITS) - 1))
+        {
+            if (g_honestPop[h].pop == pop) { rec = g_honestPop[h].rec; break; }
+            if (!g_honestPop[h].pop) break;
+        }
+        if (!rec)
+            return stored;
+        h = HonestHash(rec, HONEST_REC_BITS);
+        for (int i = 0; i < 64; ++i, h = (h + 1) & ((1u << HONEST_REC_BITS) - 1))
+        {
+            if (g_honestRec[h].rec == rec)
+                return stored * g_honestRec[h].f[cls] / 32768;
+            if (!g_honestRec[h].rec) break;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+    return stored;
+}
+
+// Окно попа: после того как три доли скопированы в локалы FUN_00981220 ([ebp-0x34] жизненные,
+// [ebp-0x5C] повседневные, [ebp-0xA4] роскошь; по 8 байт), подменяем их честными.
+static void __cdecl HonestPopWindow(unsigned char* pop, unsigned char* frameEbp)
+{
+    if (!pop)
+        return;
+    *(long long*)(frameEbp - 0x34) = HonestFraction(pop, 0);
+    *(long long*)(frameEbp - 0x5C) = HonestFraction(pop, 1);
+    *(long long*)(frameEbp - 0xA4) = HonestFraction(pop, 2);
+}
+
+// Список попов (FUN_007BA410): те же три доли скопированы в локалы ([ebp-0x18] жизненные,
+// [ebp-0x58] повседневные, [ebp-0xA0] роскошь; по 8 байт) и дальше идут в стаканы (progress bar).
+static void __cdecl HonestPopList(unsigned char* pop, unsigned char* frameEbp)
+{
+    if (!pop)
+        return;
+    *(long long*)(frameEbp - 0x18) = HonestFraction(pop, 0);
+    *(long long*)(frameEbp - 0x58) = HonestFraction(pop, 1);
+    *(long long*)(frameEbp - 0xA0) = HonestFraction(pop, 2);
+}
+
+// Вход FUN_00485960: 55 8B EC 83 EC 1C; дальше 53 8B 5D 18.
+__declspec(naked) static void NeedsPurchaseThunk()
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        sub esp, 0x1c
+        pushad
+        push ebp
+        push eax
+        call HonestPurchase
+        add esp, 8
+        popad
+        jmp dword ptr [g_needsPurchaseResume]
+    }
+}
+
+// Вход FUN_00485390: 55 8B EC 83 EC 40; дальше F6 05 <абс. адрес> (EAX = поп).
+__declspec(naked) static void NeedsPopStepThunk()
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        sub esp, 0x40
+        pushad
+        push ebp
+        push eax
+        call HonestPopStep
+        add esp, 8
+        popad
+        jmp dword ptr [g_needsPopStepResume]
+    }
+}
+
+// Подсказки попа: два mov (eax = младшая часть доли, ecx = старшая, ecx сначала = поп) заменены
+// вызовом HonestFraction(поп, класс); edx сохраняется, остальное не затрагивается.
+__declspec(naked) static void HonestTipLifeThunk()
+{
+    __asm {
+        push edx
+        push 0
+        push ecx
+        call HonestFraction
+        add esp, 8
+        mov ecx, edx
+        pop edx
+        jmp dword ptr [g_honestTipLifeResume]
+    }
+}
+
+__declspec(naked) static void HonestTipEverydayThunk()
+{
+    __asm {
+        push edx
+        push 1
+        push ecx
+        call HonestFraction
+        add esp, 8
+        mov ecx, edx
+        pop edx
+        jmp dword ptr [g_honestTipEverydayResume]
+    }
+}
+
+__declspec(naked) static void HonestTipLuxuryThunk()
+{
+    __asm {
+        push edx
+        push 2
+        push ecx
+        call HonestFraction
+        add esp, 8
+        mov ecx, edx
+        pop edx
+        jmp dword ptr [g_honestTipLuxuryResume]
+    }
+}
+
+// Окно попа: заменённая команда mov [ebp-0xA0],edx; EAX = поп.
+__declspec(naked) static void HonestPopWinThunk()
+{
+    __asm {
+        mov dword ptr [ebp-0xA0], edx
+        pushad
+        push ebp
+        push eax
+        call HonestPopWindow
+        add esp, 8
+        popad
+        jmp dword ptr [g_honestPopWinResume]
+    }
+}
+
+// Список попов: заменённая команда mov [ebp-0xA0],eax; EDI = поп.
+__declspec(naked) static void HonestPopListThunk()
+{
+    __asm {
+        mov dword ptr [ebp-0xA0], eax
+        pushad
+        push ebp
+        push edi
+        call HonestPopList
+        add esp, 8
+        popad
+        jmp dword ptr [g_honestPopListResume]
+    }
+}
+
+// ---------------------------------------------------------------
+// PATCH_FACTORY_PRIORITY_BY_RULE (5.44): автоприоритеты фабрик по правилу factory_priority.
+//
+// FUN_004808d0 (дневной проход по стейтам страны, ebx=страна из [esp+0x54]) читает правило
+// RULE_DELETE_FACTORY_IF_NO_INPUT (страна+0xB18) в [esp+0x77] и, если оно включено, каждый день
+// сам перезаписывает приоритет всех фабрик (state building +0x24 = (+0x128 < 1000) ? 1 : 0),
+// из-за чего ручные приоритеты игрока сбрасываются. Правило factory_priority (страна+0xAF0) там
+// не смотрят. Набор правил страны лежит в стране по +0xAA8 (CRulesSet: байт-флаг k-го правила
+// по +0x18+8k; k=6 factory_priority, k=11 delete_factory_if_no_input).
+// Хук вместо "cmp byte [esp+0x77],0" (5 байт, адрес 0x48155B): автоприоритет включён, только когда
+// правило factory_priority = no. Остальное действие delete_factory_if_no_input (закрытие/удаление
+// фабрик без сырья) не меняется. В ваниле обе настройки согласованы (priority=no <=> delete=yes),
+// поэтому для них поведение прежнее.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_PRIO_AUTO_SITE   = 0x8155B;
+static const DWORD RVA_PRIO_AUTO_RESUME = 0x81560;
+static const int   COUNTRY_OFF_RULE_PRIORITY = 0xAF0;
+static DWORD g_prioAutoResume = 0;
+
+// Результат - флаги: ZF=1 -> автоприоритет выключен ("je" в оригинале пропускает запись).
+__declspec(naked) static void PrioAutoThunk()
+{
+    __asm {
+        push eax
+        mov eax, dword ptr [esp + 0x58]          // [esp+0x54] оригинала = страна
+        cmp byte ptr [eax + 0xAF0], 0            // правило factory_priority
+        pop eax
+        je rule_no
+        cmp esp, esp                             // priority = yes: ZF=1, автоприоритет не нужен
+        jmp done
+    rule_no:
+        test esp, esp                            // priority = no: ZF=0, автоприоритет работает
+    done:
+        jmp dword ptr [g_prioAutoResume]
+    }
+}
+
+static bool InstallPriorityByRule()
+{
+    static const unsigned char SIG[5]    = { 0x80, 0x7C, 0x24, 0x77, 0x00 };
+    static const unsigned char RESUME[4] = { 0x8B, 0xF3, 0x8B, 0x9B };
+    g_prioAutoResume = g_base + RVA_PRIO_AUTO_RESUME;
+    return WriteJmpSite(RVA_PRIO_AUTO_SITE, SIG, sizeof(SIG), 5,
+        RVA_PRIO_AUTO_RESUME, RESUME, sizeof(RESUME), (void*)&PrioAutoThunk, "FactoryPriorityByRule");
+}
+
+static bool InstallNeedsHonestUi()
+{
+    static const unsigned char SIG_PURCHASE[6]  = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x1C };
+    static const unsigned char RES_PURCHASE[4]  = { 0x53, 0x8B, 0x5D, 0x18 };
+    static const unsigned char SIG_POPSTEP[6]   = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x40 };
+    static const unsigned char RES_POPSTEP[2]   = { 0xF6, 0x05 };   // дальше абсолютный адрес (релокация)
+    static const unsigned char SIG_TIP_LIFE[12] = { 0x8B, 0x81, 0x30, 0x01, 0x00, 0x00, 0x8B, 0x89, 0x34, 0x01, 0x00, 0x00 };
+    static const unsigned char SIG_TIP_EVD[12]  = { 0x8B, 0x81, 0x38, 0x01, 0x00, 0x00, 0x8B, 0x89, 0x3C, 0x01, 0x00, 0x00 };
+    static const unsigned char SIG_TIP_LUX[12]  = { 0x8B, 0x81, 0x40, 0x01, 0x00, 0x00, 0x8B, 0x89, 0x44, 0x01, 0x00, 0x00 };
+    static const unsigned char RES_TIP[4]       = { 0x89, 0x65, 0xF0, 0x53 };
+    static const unsigned char SIG_POPWIN[6]    = { 0x89, 0x95, 0x60, 0xFF, 0xFF, 0xFF };
+    static const unsigned char RES_POPWIN[4]    = { 0xC7, 0x45, 0xE8, 0x0F };
+
+    // Сначала пишем запись попа и покрытие, потом подменяем чтения для экрана.
+    g_needsPurchaseResume = g_base + RVA_NEEDS_PURCHASE_RESUME;
+    g_needsPopStepResume  = g_base + RVA_NEEDS_POP_STEP_RESUME;
+    bool ok = WriteJmpSite(RVA_NEEDS_PURCHASE, SIG_PURCHASE, sizeof(SIG_PURCHASE), 6,
+        RVA_NEEDS_PURCHASE_RESUME, RES_PURCHASE, sizeof(RES_PURCHASE),
+        (void*)&NeedsPurchaseThunk, "NeedsHonestUi.purchase");
+    ok = WriteJmpSite(RVA_NEEDS_POP_STEP, SIG_POPSTEP, sizeof(SIG_POPSTEP), 6,
+        RVA_NEEDS_POP_STEP_RESUME, RES_POPSTEP, sizeof(RES_POPSTEP),
+        (void*)&NeedsPopStepThunk, "NeedsHonestUi.popstep") && ok;
+    if (!ok)
+        return false;
+
+    g_honestTipLifeResume     = g_base + RVA_HONEST_TIP_LIFE + 12;
+    g_honestTipEverydayResume = g_base + RVA_HONEST_TIP_EVERYDAY + 12;
+    g_honestTipLuxuryResume   = g_base + RVA_HONEST_TIP_LUXURY + 12;
+    g_honestPopWinResume      = g_base + RVA_HONEST_POPWIN_RESUME;
+    g_honestPopListResume     = g_base + RVA_HONEST_POPLIST_RESUME;
+    WriteJmpSite(RVA_HONEST_TIP_LIFE, SIG_TIP_LIFE, sizeof(SIG_TIP_LIFE), 12,
+        RVA_HONEST_TIP_LIFE + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipLifeThunk, "NeedsHonestUi.tipLife");
+    WriteJmpSite(RVA_HONEST_TIP_EVERYDAY, SIG_TIP_EVD, sizeof(SIG_TIP_EVD), 12,
+        RVA_HONEST_TIP_EVERYDAY + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipEverydayThunk, "NeedsHonestUi.tipEveryday");
+    WriteJmpSite(RVA_HONEST_TIP_LUXURY, SIG_TIP_LUX, sizeof(SIG_TIP_LUX), 12,
+        RVA_HONEST_TIP_LUXURY + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipLuxuryThunk, "NeedsHonestUi.tipLuxury");
+    WriteJmpSite(RVA_HONEST_POPWIN, SIG_POPWIN, sizeof(SIG_POPWIN), 6,
+        RVA_HONEST_POPWIN_RESUME, RES_POPWIN, sizeof(RES_POPWIN), (void*)&HonestPopWinThunk, "NeedsHonestUi.popWindow");
+    static const unsigned char SIG_POPLIST[6] = { 0x89, 0x85, 0x60, 0xFF, 0xFF, 0xFF };
+    static const unsigned char RES_POPLIST[4] = { 0xC7, 0x45, 0xE0, 0x0F };
+    WriteJmpSite(RVA_HONEST_POPLIST, SIG_POPLIST, sizeof(SIG_POPLIST), 6,
+        RVA_HONEST_POPLIST_RESUME, RES_POPLIST, sizeof(RES_POPLIST), (void*)&HonestPopListThunk, "NeedsHonestUi.popList");
+    return true;
 }
 
 
@@ -20116,8 +20827,20 @@ static bool Install()
     if (g_settings.patchAiExpandStaffing)
         InstallAiExpandStaffing();
 
+    if (g_settings.patchAiNavalBaseLimit)
+        InstallAiNavalBaseLimit();
+
     if (g_settings.patchFactoryMinWage)
         InstallFactoryMinWage();
+
+    // Исправление вылета, без переключателя (как CivilizeNullCheck).
+    InstallDestroyCmdNullCheck();
+
+    if (g_settings.patchNeedsHonestUi)
+        InstallNeedsHonestUi();
+
+    if (g_settings.patchFactoryPriorityByRule)
+        InstallPriorityByRule();
 
     if (g_settings.EventSounds)
         LoadEventMusicDll();
