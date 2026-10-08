@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.25"
+#define MOD_VERSION "5.30"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -94,14 +94,14 @@ struct Settings
     bool patchFactoryClosePayout     = true;
     bool patchFactoryAutoClose       = true;
     bool factoryCloseDryRun          = true;
-    // FACTORY_EXPAND_TRACE: только наблюдение. На старте каждого расширения
-    // фабрики пишет в Logs\v2dll_expand.log уровень, занятость и тип (чтобы
-    // понять, как вырастают "пустые" гиганты). Игру не меняет.
-    bool factoryExpandTrace          = true;
     // PATCH_AI_EXPAND_STAFFING: ИИ-страна расширяет существующую фабрику
     // (FUN_00857530, выбор региона) только если она укомплектована рабочими
     // не меньше ai_factory_expand_min_staffing % (common\defines_v2dll.txt).
     bool patchAiExpandStaffing       = true;
+    // PATCH_FACTORY_MIN_WAGE: фиксированный минимум зарплаты работникам фабрики
+    // (factory_min_wage_per_10000 фунтов в день на 10000 работников из
+    // common\defines_v2dll.txt), не зависящий от прибыльности.
+    bool patchFactoryMinWage         = true;
     // Окно фабрик: не показывать в верхнем ряду фильтров кнопки товаров,
     // чьё имя начинается на "raw_" (см. ComputeGoodsFilterPos).
     bool hideRawGoodsFilter          = true;
@@ -230,9 +230,6 @@ static void LoadSettings();
 
 static bool g_logStarted = false;
 static bool g_oosLogStarted = false;
-static bool g_expandLogStarted = false;
-// Игровая дата последнего дневного прохода OosWatch (для строк FactoryExpand).
-static char g_lastGameDate[32] = "?";
 static CRITICAL_SECTION g_logCs;
 static bool g_logCsInit = false;
 
@@ -240,7 +237,6 @@ static HMODULE g_selfModule = 0;
 static wchar_t g_logsDir[MAX_PATH];
 static wchar_t g_logFile[MAX_PATH];
 static wchar_t g_oosLogFile[MAX_PATH];
-static wchar_t g_expandLogFile[MAX_PATH];
 static wchar_t g_crashLogFile[MAX_PATH];
 static wchar_t g_crashDumpFile[MAX_PATH];
 static bool g_logDirReady = false;
@@ -274,7 +270,6 @@ static void InitLogDir()
 
     swprintf_s(g_logFile, L"%s\\v2dll.log", g_logsDir);
     swprintf_s(g_oosLogFile, L"%s\\v2dll_oos.log", g_logsDir);
-    swprintf_s(g_expandLogFile, L"%s\\v2dll_expand.log", g_logsDir);
     swprintf_s(g_crashLogFile, L"%s\\v2dll_crash.log", g_logsDir);
     swprintf_s(g_crashDumpFile, L"%s\\v2dll_crash.dmp", g_logsDir);
     g_logDirReady = true;
@@ -4143,8 +4138,8 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_FACTORY_CLOSE_PAYOUT") == 0)      { g_settings.patchFactoryClosePayout     = v; return; }
     if (_stricmp(key, "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE") == 0) { g_settings.patchFactoryAutoClose = v; return; }
     if (_stricmp(key, "FACTORY_CLOSE_DRY_RUN") == 0)           { g_settings.factoryCloseDryRun          = v; return; }
-    if (_stricmp(key, "FACTORY_EXPAND_TRACE") == 0)            { g_settings.factoryExpandTrace          = v; return; }
     if (_stricmp(key, "PATCH_AI_EXPAND_STAFFING") == 0)        { g_settings.patchAiExpandStaffing       = v; return; }
+    if (_stricmp(key, "PATCH_FACTORY_MIN_WAGE") == 0)          { g_settings.patchFactoryMinWage         = v; return; }
     if (_stricmp(key, "PROD_TYPE_GATE_ALLOW_ALL") == 0)         { g_settings.prodTypeGateAllowAll        = v; return; }
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
     if (_stricmp(key, "PATCH_COMBAT_ROLL") == 0)                { g_settings.patchCombatRoll             = v; return; }
@@ -4330,6 +4325,7 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE=%d\n"
         "FACTORY_CLOSE_DRY_RUN=%d\n"
         "PATCH_AI_EXPAND_STAFFING=%d\n"
+        "PATCH_FACTORY_MIN_WAGE=%d\n"
         "\n",
         (int)g_settings.priceDelta,
         (int)g_settings.patchExponentialPriceDelta,
@@ -4348,7 +4344,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.patchFactoryClosePayout,
         (int)g_settings.patchFactoryAutoClose,
         (int)g_settings.factoryCloseDryRun,
-        (int)g_settings.patchAiExpandStaffing);
+        (int)g_settings.patchAiExpandStaffing,
+        (int)g_settings.patchFactoryMinWage);
 
     fprintf(f,
         "; UI\n"
@@ -4465,8 +4462,7 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_OOS_LOG=%d\n"
         "ENABLE_CRASH_LOG=%d\n"
         "ENABLE_CRASH_DUMP=%d\n"
-        "HIDE_NO_SUPPLY_DRY_RUN=%d\n"
-        "FACTORY_EXPAND_TRACE=%d\n",
+        "HIDE_NO_SUPPLY_DRY_RUN=%d\n",
         (int)g_settings.log,
         (int)g_settings.debugLog,
         (int)g_settings.patchFactoryDumpScan,
@@ -4474,8 +4470,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.enableOosLog,
         (int)g_settings.enableCrashLog,
         (int)g_settings.enableCrashDump,
-        (int)g_settings.hideNoSupplyDryRun,
-        (int)g_settings.factoryExpandTrace);
+        (int)g_settings.hideNoSupplyDryRun);
 
     fclose(f);
 }
@@ -8617,6 +8612,10 @@ static int  g_defFactoryCloseDays = 60;
 // фабрику (PATCH_AI_EXPAND_STAFFING), 0 = без ограничения.
 static int  g_defAiExpandMinStaffing = 90;
 static bool g_defAiExpandKeySeen = false;
+// factory_min_wage_per_10000: минимум зарплаты работникам фабрики, фунтов в день
+// на 10000 работников, в тысячных (7 -> 7000). 0 = выкл (PATCH_FACTORY_MIN_WAGE).
+static int  g_defMinWageMilli = 7000;
+static bool g_defMinWageKeySeen = false;
 static char g_defMintingFormula[256] = "";
 static char g_defPath[MAX_PATH] = "";
 static bool g_defLoaded = false;
@@ -8693,6 +8692,16 @@ static void DefinesApplyLine(const char* key, const char* value)
         g_defAiExpandMinStaffing = d < 0 ? 0 : (d > 100 ? 100 : d);
         g_defAiExpandKeySeen = true;
     }
+    else if (_stricmp(key, "factory_min_wage_per_10000") == 0)
+    {
+        double d = atof(value);
+        if (d < 0.0)
+            d = 0.0;
+        if (d > 1000000.0)
+            d = 1000000.0;
+        g_defMinWageMilli = (int)(d * 1000.0 + 0.5);
+        g_defMinWageKeySeen = true;
+    }
     else if (_stricmp(key, "minting_formula") == 0)
     {
         strncpy_s(g_defMintingFormula, sizeof(g_defMintingFormula), value, _TRUNCATE);
@@ -8708,6 +8717,34 @@ static const char* const AI_EXPAND_DEFINES_BLOCK =
     "# huge levels with almost no workers. Capitalists already need about 90 percent in vanilla.\n"
     "# 0 = no limit (vanilla AI behaviour).\n"
     "ai_factory_expand_min_staffing = %d\n";
+
+static const char* const MIN_WAGE_DEFINES_BLOCK =
+    "\n"
+    "# --- Factory minimum wage (PATCH_FACTORY_MIN_WAGE in v2dll_settings.ini) ---\n"
+    "# Every day a factory pays its workers at least this many pounds per 10000 workers (owners and\n"
+    "# slaves are not counted), whether or not the factory is profitable. The wage is paid only out of\n"
+    "# the money the factory has (its budget): if the factory has less, it pays what it has, and its\n"
+    "# balance never goes below zero. Where the profit allows a higher wage, the game's own logic\n"
+    "# (the 'leftover' share and the minimum_wage reform) applies as usual: the larger of the two is\n"
+    "# paid. For a subsidized factory the wage floor is added to its subsidy (the state pays it),\n"
+    "# so that the factory can still buy all its input goods.\n"
+    "# Fractions are allowed (use a dot). 0 = off (the game's own minimum wage only).\n"
+    "factory_min_wage_per_10000 = %s\n";
+
+static void FormatMinWageValue(char* out, size_t cap)
+{
+    // 7000 -> "7", 7500 -> "7.5", 7250 -> "7.25"
+    int whole = g_defMinWageMilli / 1000;
+    int frac  = g_defMinWageMilli % 1000;
+    if (frac == 0)
+        _snprintf_s(out, cap, _TRUNCATE, "%d", whole);
+    else if (frac % 100 == 0)
+        _snprintf_s(out, cap, _TRUNCATE, "%d.%d", whole, frac / 100);
+    else if (frac % 10 == 0)
+        _snprintf_s(out, cap, _TRUNCATE, "%d.%02d", whole, frac / 10);
+    else
+        _snprintf_s(out, cap, _TRUNCATE, "%d.%03d", whole, frac);
+}
 
 static char g_legacyFormula[256];
 
@@ -8741,6 +8778,18 @@ static void EnsureV2dllDefines()
                 fprintf(af, AI_EXPAND_DEFINES_BLOCK, g_defAiExpandMinStaffing);
                 fclose(af);
                 Log("defines_v2dll: в '%s' дописан ai_factory_expand_min_staffing = %d", g_defPath, g_defAiExpandMinStaffing);
+            }
+        }
+        if (!g_defMinWageKeySeen)
+        {
+            FILE* wf = 0;
+            if (fopen_s(&wf, g_defPath, "a") == 0 && wf)
+            {
+                char val[32];
+                FormatMinWageValue(val, sizeof(val));
+                fprintf(wf, MIN_WAGE_DEFINES_BLOCK, val);
+                fclose(wf);
+                Log("defines_v2dll: в '%s' дописан factory_min_wage_per_10000 = %s", g_defPath, val);
             }
         }
         return;
@@ -8789,6 +8838,11 @@ static void EnsureV2dllDefines()
         "minting_formula = %s\n",
         g_defFactoryCloseDays, g_defMintingFormula);
     fprintf(f, AI_EXPAND_DEFINES_BLOCK, g_defAiExpandMinStaffing);
+    {
+        char val[32];
+        FormatMinWageValue(val, sizeof(val));
+        fprintf(f, MIN_WAGE_DEFINES_BLOCK, val);
+    }
     fclose(f);
 
     Log("defines_v2dll: создан '%s' (minting_formula %s)", g_defPath,
@@ -9927,93 +9981,51 @@ static double ConsPriceOf(int g)
     }
 }
 
-// Сколько спроса на товар рынок может покрыть предложением: min(1, предложение /
-// реальный спрос) - то же отношение, из которого FUN_00482930 считает цену (там
-// реальный спрос делится на предложение), и по той же схеме Vic2 делит
-// нехватку между всеми покупателями (в сейве: supply_pool, real_demand,
-// demand, actual_sold; у cotton предложение 40 > спрос 31 - продано 31, у
-// ammunition предложение 32 < спрос 44 - продано 34). Векторы - "держатели"
-// товаров рынка (байты слотов + вектор int64, 15 дробных бит, слот 0 -
-// "нет записи"): real_demand = market+0x218 (слоты +0x1D8+товар; этот же
-// вектор пополняет FUN_00487410 для государственных закупок, масштабируя по
-// казне), предложение supply = market+0x50 (слоты +0x10+товар; в отладочном
-// выводе рынка " supply: "); обычный спрос demand - market+0x1C0 (слоты
-// +0x180), его мы не трогаем. В дневном тике страны там ещё итоги прошлого
-// обновления рынка (рынок обновляется один раз за день после тиков стран), так
-// что у всех стран и у всех клиентов один и тот же срез.
-static const int OFF_MARKET_SUPPLY_SLOT = 0x10;
-static const int OFF_MARKET_SUPPLY      = 0x50;
+// ---- НАСТОЯЩАЯ закупка зданий (v5.12) ----
+//
+// Закупка идёт внутри ежедневного обновления рынка, как покупки самого
+// государства. Дневной проход FUN_00489990(рынок, 0, 11) зовёт FUN_00484060
+// (param_2 = 11 - итоговый проход; при старте игры FUN_0068BF00 гоняет 5
+// пробных проходов с param_2 = 0..4 - там покупать нельзя). Для каждой
+// страны с провинциями она:
+//   1. копирует в рабочий пул "внутренний" (холдер DAT_013F2500; слоты с
+//      +0x08, вектор int64 с +0x48) domestic_supply_pool страны - товары,
+//      которые страна произвела и может купить у себя, а в пул "мировой"
+//      (DAT_013F2450, один на весь проход) - worldmarket_pool;
+//   2. покупает по очереди: проекты строительства (FUN_00482FF0),
+//      государство (FUN_00487410), население и заводы (FUN_00485E40);
+//      каждая покупка уменьшает рабочие пулы;
+//   3. убыль внутреннего пула = продано внутри страны (actual_sold_domestic),
+//      убыль мирового = продано на мировом рынке (actual_sold_world); из
+//      этих сумм FUN_00488080 считает выручку заводов.
+// Значит всё, что мы возьмём из рабочих пулов ПОСЛЕ государственной закупки
+// (хук 0x48466B, сразу после FUN_00487410, до населения и заводов) - это
+// настоящая покупка: товар уходит с рынка, заводы получают за него выручку.
+// Берём сначала у своей страны, потом с мирового рынка; платим из казны по
+// рыночной цене; спрос (real_demand, он обнуляется в начале каждого прохода)
+// регистрируем так же, как FUN_00487410. Доля купленного по каждому товару
+// (frac) идёт в подсказки и карточку товара.
 
-static LONG g_consRatioLogged = 0;
+static const DWORD RVA_POOL_DOMESTIC       = 0xFF2500;   // DAT_013F2500
+static const DWORD RVA_POOL_WORLD          = 0xFF2450;   // DAT_013F2450
+static const DWORD RVA_BASES_BUY_SITE      = 0x8466B;    // после call FUN_00487410: mov ecx,[esp+0x68]; mov edx,[esp+0x6C]
+static const DWORD RVA_BASES_BUY_RESUME    = 0x84673;    // sub esp,8
+static const int   MARKET_FINAL_PASS       = 10;         // param_2 >= 10: итоговый дневной проход
 
-static double ConsMarketRatio(char* market, int g)
+// Элемент int64 (15 дробных бит) рабочего пула/холдера товара g или 0.
+static long long* ConsHolderElem(char* holder, int g)
 {
-    char* dv = *(char**)(market + OFF_MARKET_DEMAND);
-    char* dvEnd = *(char**)(market + OFF_MARKET_DEMAND + 4);
-    unsigned sD = *(unsigned char*)(market + OFF_MARKET_DEMAND_SLOT + g);
-    long long D = 0;
-    if (dv && dvEnd >= dv && sD != 0 && (int)sD < (int)((dvEnd - dv) / 8))
-        D = *(long long*)(dv + sD * 8);
-    if (D <= 0)
-        return 1.0;
-
-    char* sv = *(char**)(market + OFF_MARKET_SUPPLY);
-    char* svEnd = *(char**)(market + OFF_MARKET_SUPPLY + 4);
-    unsigned sS = *(unsigned char*)(market + OFF_MARKET_SUPPLY_SLOT + g);
-    long long S = 0;
-    if (sv && svEnd >= sv && sS != 0 && (int)sS < (int)((svEnd - sv) / 8))
-        S = *(long long*)(sv + sS * 8);
-
-    if (InterlockedIncrement(&g_consRatioLogged) <= 8)
-        LogDbg("GoodsConsumption: рынок, товар %d: спрос %.1f, предложение %.1f", g,
-            (double)D / 32768.0, (double)S / 32768.0);
-
-    if (S <= 0)
-        return 0.0;
-    if (S >= D)
-        return 1.0;
-    return (double)S / (double)D;
-}
-
-// Внутренний рынок страны. Каждая страна ведёт свои "пулы" товаров
-// (в сейве domestic_supply_pool, domestic_demand_pool, actual_sold_domestic,
-// saved_country_supply ...; писатель сейва - 0x501300): у рынка массивы
-// записей по 0x58 байт, индекс = номер страны (country+0x20), в записи байты
-// слотов с +0x08 и вектор int64 (15 дробных бит) с +0x48. Выводы по сейву:
-//   saved_country_supply (market+0x7D4) - то, что страна произвела и предлагает
-//     на внутреннем рынке (у Англии цемент 21.2 при спросе 11.9 и продаже 10.45;
-//     у Пруссии 10.04 = продано 10.04 при спросе 44.4: спрос больше - продаётся
-//     всё);
-//   actual_sold_domestic (market+0x4E4) - продано внутри страны;
-//   domestic_supply_pool (market+0x3F4) - НЕ производство: у стран без своего
-//     рынка везде одинаковое число, у остальных "общее - продано внутри"
-//     (Англия: 12.97 + 10.45 = 23.42 = то же число, что у мелких стран) - не
-//     используется.
-// Не проданное внутри (saved_country_supply - actual_sold_domestic) уходит на
-// экспорт ("EXPORTED_TO_WORLD_MARKET_FOR_NEXT_TURN") - это излишек страны, из
-// которого государство может закупаться, не выходя на мировой рынок.
-static const int OFF_MARKET_DOMESTIC_SUPPLY = 0x7D4;
-static const int OFF_MARKET_DOMESTIC_SOLD   = 0x4E4;
-static const int OFF_MARKET_DOMESTIC_POOL   = 0x3F4;   // domestic_supply_pool (только для лога)
-
-static double ConsCountryHolder(char* market, int arrayOff, int countryIdx, int g)
-{
-    char* base = *(char**)(market + arrayOff);
-    char* end = *(char**)(market + arrayOff + 4);
-    if (!base || end < base || countryIdx < 0 || countryIdx >= (int)((end - base) / 0x58))
-        return 0.0;
-    char* rec = base + countryIdx * 0x58;
-    unsigned slot = *(unsigned char*)(rec + 8 + g);
+    if (!holder || g < 0 || g >= CONS_MAX_GOODS)
+        return 0;
+    unsigned slot = *(unsigned char*)(holder + 8 + g);
     if (slot == 0)
-        return 0.0;
-    char* vec = *(char**)(rec + 0x48);
-    char* vend = *(char**)(rec + 0x4C);
-    if (!vec || vend < vec || (int)slot >= (int)((vend - vec) / 8))
-        return 0.0;
-    return (double)*(long long*)(vec + slot * 8) / 32768.0;
+        return 0;
+    char* begin = *(char**)(holder + 0x48);
+    char* end = *(char**)(holder + 0x4C);
+    if (!begin || end < begin || (int)slot >= (int)((end - begin) / 8))
+        return 0;
+    return (long long*)(begin + slot * 8);
 }
-
-static LONG g_consDomLogged = 0;
 
 struct ConsResult
 {
@@ -10023,12 +10035,37 @@ struct ConsResult
     double    frac[CONS_MAX_GOODS];  // какая доля потребности по товару куплена
 };
 
-// Закупка страны за день: потребность по каждому товару (количество * уровень),
-// доля, которую рынок может покрыть, и доля, на которую хватает казны (как у
-// государственных закупок движка - FUN_00487410 масштабирует их по казне);
-// платим только за купленное. addDemand - ещё и спрос рынка (потребность *
-// доля по казне, как у FUN_00487410).
-__declspec(noinline) static void ConsEvaluate(void* country, bool addDemand, ConsResult* r)
+// Потребность по товарам (количество * уровень) для страны; false - нет
+// подходящих зданий.
+static bool ConsNeeds(void* country, ConsResult* r, double* qty)
+{
+    memset(qty, 0, CONS_MAX_GOODS * sizeof(double));
+    if (!ConsScanLevels(country, r->raw))
+        return false;
+
+    bool any = false;
+    for (int i = 0; i < g_consBuildingCount; ++i)
+    {
+        if (r->raw[i] <= 0)
+            continue;
+        double levels = (double)r->raw[i] / 1000.0;
+        ConsBuilding& cb = g_consBuildings[i];
+        for (int k = 0; k < cb.count; ++k)
+        {
+            int gi = cb.goods[k].index;
+            if (gi >= 0 && gi < CONS_MAX_GOODS)
+            {
+                qty[gi] += cb.goods[k].amount * levels;
+                any = true;
+            }
+        }
+    }
+    return any;
+}
+
+// Только потребность и её стоимость (для окна бюджета до первого дневного
+// прохода): ничего не меняет в игре.
+__declspec(noinline) static void ConsPreview(void* country, ConsResult* r)
 {
     memset(r, 0, sizeof(*r));
     for (int g = 0; g < CONS_MAX_GOODS; ++g)
@@ -10036,82 +10073,88 @@ __declspec(noinline) static void ConsEvaluate(void* country, bool addDemand, Con
 
     if (g_consBuildingCount == 0 || !country)
         return;
-
     if (!g_consResolved)
         ConsResolveGoods();
-
-    if (!ConsScanLevels(country, r->raw))
-        return;
 
     __try
     {
         double qty[CONS_MAX_GOODS];
-        memset(qty, 0, sizeof(qty));
-        bool any = false;
-        for (int i = 0; i < g_consBuildingCount; ++i)
-        {
-            if (r->raw[i] <= 0)
-                continue;
-            double levels = (double)r->raw[i] / 1000.0;
-            ConsBuilding& cb = g_consBuildings[i];
-            for (int k = 0; k < cb.count; ++k)
-            {
-                int gi = cb.goods[k].index;
-                if (gi >= 0 && gi < CONS_MAX_GOODS)
-                {
-                    qty[gi] += cb.goods[k].amount * levels;
-                    any = true;
-                }
-            }
-        }
-        if (!any)
+        if (!ConsNeeds(country, r, qty))
             return;
-
-        char* session = *(char**)(g_base + RVA_WORLD_PTR);
-        char* market = session ? *(char**)(session + OFF_SESSION_MARKET) : 0;
-        if (!market)
-            return;
-
-        // Сначала берём излишек своей страны (произведено минус продано внутри),
-        // остаток - с мирового рынка по доле предложения/спроса.
-        int cidx = *(int*)((char*)country + 0x20);
-        double price[CONS_MAX_GOODS];
-        double ratio[CONS_MAX_GOODS];
-        double worldPart[CONS_MAX_GOODS];
-        double costFull = 0.0, costSupply = 0.0;
+        double cost = 0.0;
         for (int g = 0; g < CONS_MAX_GOODS; ++g)
         {
-            price[g] = 0.0;
-            ratio[g] = 1.0;
-            worldPart[g] = 0.0;
             if (qty[g] <= 0.0)
                 continue;
             double pr = ConsPriceOf(g);
-            double produced = ConsCountryHolder(market, OFF_MARKET_DOMESTIC_SUPPLY, cidx, g);
-            double soldHere = ConsCountryHolder(market, OFF_MARKET_DOMESTIC_SOLD, cidx, g);
-            double pool = ConsCountryHolder(market, OFF_MARKET_DOMESTIC_POOL, cidx, g);
-            double surplus = produced > soldHere ? produced - soldHere : 0.0;
-            double fromDomestic = surplus < qty[g] ? surplus : qty[g];
-            worldPart[g] = qty[g] - fromDomestic;
-            double world = worldPart[g] > 0.0 ? ConsMarketRatio(market, g) : 1.0;
-            ratio[g] = (fromDomestic + worldPart[g] * world) / qty[g];
-            if (country == GetLocalPlayerCountry() && InterlockedIncrement(&g_consDomLogged) <= 60)
-                LogDbg("GoodsConsumption: страна %d, товар %d: произведено(saved_country_supply) %.2f, продано внутри %.2f, излишек %.2f, domestic_supply_pool %.2f, нужно %.2f, доля купленного %.2f",
-                    cidx, g, produced, soldHere, surplus, pool, qty[g], ratio[g]);
             if (pr > 0.0)
-            {
-                price[g] = pr;
-                costFull += qty[g] * pr;
-                costSupply += qty[g] * ratio[g] * pr;
-            }
+                cost += qty[g] * pr;
+        }
+        r->required = MintToFixed(cost);
+        r->paid = r->required;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Настоящая закупка: забирает товар из рабочих пулов прохода, считает
+// оплату, регистрирует спрос. Деньги списывает вызывающий.
+__declspec(noinline) static void ConsBuyFromPools(char* market, void* country, bool addDemand, ConsResult* r)
+{
+    memset(r, 0, sizeof(*r));
+    for (int g = 0; g < CONS_MAX_GOODS; ++g)
+        r->frac[g] = 1.0;
+
+    if (g_consBuildingCount == 0 || !country || !market)
+        return;
+    if (!g_consResolved)
+        ConsResolveGoods();
+
+    __try
+    {
+        double qty[CONS_MAX_GOODS];
+        if (!ConsNeeds(country, r, qty))
+            return;
+
+        char* poolHome = (char*)(g_base + RVA_POOL_DOMESTIC);
+        char* poolWorld = (char*)(g_base + RVA_POOL_WORLD);
+
+        long long take1[CONS_MAX_GOODS], take2[CONS_MAX_GOODS];
+        double price[CONS_MAX_GOODS];
+        double costFull = 0.0, costGot = 0.0;
+        for (int g = 0; g < CONS_MAX_GOODS; ++g)
+        {
+            take1[g] = take2[g] = 0;
+            price[g] = 0.0;
+            if (qty[g] <= 0.0)
+                continue;
+
+            double pr = ConsPriceOf(g);
+            if (pr <= 0.0)
+                continue;       // у товара нет рыночной цены - не покупаем
+            price[g] = pr;
+
+            long long need = MintToFixed(qty[g]);
+            long long* e1 = ConsHolderElem(poolHome, g);
+            long long* e2 = ConsHolderElem(poolWorld, g);
+            long long a1 = (e1 && *e1 > 0) ? *e1 : 0;
+            long long a2 = (e2 && *e2 > 0) ? *e2 : 0;
+            take1[g] = need < a1 ? need : a1;
+            long long rest = need - take1[g];
+            take2[g] = rest < a2 ? rest : a2;
+
+            costFull += qty[g] * pr;
+            costGot += ((double)(take1[g] + take2[g]) / 32768.0) * pr;
         }
 
-        double afford = 1.0;
-        if (costSupply > 0.0)
-        {
-            double money = (double)*(long long*)((char*)country + OFF_COUNTRY_MONEY) / 32768.0;
-            afford = money <= 0.0 ? 0.0 : (money >= costSupply ? 1.0 : money / costSupply);
-        }
+        // Казна: как у государственных закупок, масштабируем по деньгам.
+        double money = (double)*(long long*)((char*)country + OFF_COUNTRY_MONEY) / 32768.0;
+        double affordGot = 1.0, affordFull = 1.0;
+        if (costGot > 0.0)
+            affordGot = money <= 0.0 ? 0.0 : (money >= costGot ? 1.0 : money / costGot);
+        if (costFull > 0.0)
+            affordFull = money <= 0.0 ? 0.0 : (money >= costFull ? 1.0 : money / costFull);
 
         char* demand = *(char**)(market + OFF_MARKET_DEMAND);
         char* demandEnd = *(char**)(market + OFF_MARKET_DEMAND + 4);
@@ -10122,15 +10165,36 @@ __declspec(noinline) static void ConsEvaluate(void* country, bool addDemand, Con
         {
             if (qty[g] <= 0.0)
                 continue;
-            double f = ratio[g] * afford;
-            r->frac[g] = f;
-            paid += qty[g] * f * price[g];
 
-            if (addDemand && demandCount > 0)
+            long long s1 = take1[g], s2 = take2[g];
+            if (affordGot < 1.0)
+            {
+                s1 = MintToFixed((double)s1 * affordGot / 32768.0);
+                s2 = MintToFixed((double)s2 * affordGot / 32768.0);
+            }
+
+            if (s1 > 0)
+            {
+                long long* e1 = ConsHolderElem(poolHome, g);
+                if (e1)
+                    *e1 -= s1;
+            }
+            if (s2 > 0)
+            {
+                long long* e2 = ConsHolderElem(poolWorld, g);
+                if (e2)
+                    *e2 -= s2;
+            }
+
+            double bought = (double)(s1 + s2) / 32768.0;
+            r->frac[g] = bought / qty[g];
+            paid += bought * price[g];
+
+            if (addDemand && demandCount > 0 && price[g] > 0.0)
             {
                 unsigned dslot = *(unsigned char*)(market + OFF_MARKET_DEMAND_SLOT + g);
                 if (dslot != 0 && (int)dslot < demandCount)
-                    *(long long*)(demand + dslot * 8) += MintToFixed(worldPart[g] * afford);
+                    *(long long*)(demand + dslot * 8) += MintToFixed(qty[g] * affordFull);
             }
         }
 
@@ -10350,14 +10414,18 @@ static void GoodsExpenseDisplay(void* country, long long* paid, long long* requi
         return;
     }
     ConsResult r;
-    ConsEvaluate(country, false, &r);
+    ConsPreview(country, &r);
     *paid = r.paid;
     *required = r.required;
 }
 
-static void GoodsConsumptionDaily(void* country)
+// Вызывается из обновления рынка (хук после государственной закупки) для
+// каждой страны с провинциями; pass - param_2 FUN_00484060.
+static void __cdecl BasesPurchaseHook(void* market, void* country, int pass)
 {
-    if (!GoodsConsumptionActive() || !country)
+    if (pass < MARKET_FINAL_PASS)
+        return;                 // пробные проходы старта игры - не покупаем
+    if (!GoodsConsumptionActive() || !country || !market)
         return;
 
     __try
@@ -10374,7 +10442,7 @@ static void GoodsConsumptionDaily(void* country)
         }
 
         ConsResult r;
-        ConsEvaluate(country, g_consDemand, &r);
+        ConsBuyFromPools((char*)market, country, g_consDemand, &r);
 
         ExpSlot* sl = ExpFindSlot(country, true);
         if (sl)
@@ -10401,6 +10469,28 @@ static void GoodsConsumptionDaily(void* country)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+    }
+}
+
+// Хук в FUN_00484060 (обновление рынка, цикл по странам): сразу после
+// call FUN_00487410 (покупка государства), до FUN_00485E40 (население и
+// заводы). EDI = рынок, EBX = страна, [EBP+0xC] = param_2 (номер прохода).
+// Заменённые 8 байт: mov ecx,[esp+0x68]; mov edx,[esp+0x6C] - повторяем.
+static DWORD g_basesBuyResume = 0;
+
+__declspec(naked) static void BasesPurchaseThunk()
+{
+    __asm {
+        pushad
+        push dword ptr [ebp + 0xC]
+        push ebx
+        push edi
+        call BasesPurchaseHook
+        add esp, 12
+        popad
+        mov ecx, dword ptr [esp + 0x68]
+        mov edx, dword ptr [esp + 0x6C]
+        jmp dword ptr [g_basesBuyResume]
     }
 }
 
@@ -10740,7 +10830,6 @@ static bool  g_dailyInstalled = false;
 static void __cdecl CountryDailyHook(void* country)
 {
     MintingDailyCredit(country);
-    GoodsConsumptionDaily(country);
 }
 
 // Тот же контракт, что у FUN_00538200 (stdcall, страна в стеке): всё
@@ -10818,10 +10907,16 @@ static bool InstallGoodsConsumption()
 
     g_consDemand = g_settings.goodsConsumptionDemand;
 
-    bool dailyOk = InstallCountryDailyCall();
-    if (!dailyOk)
+    // Закупка: хук в обновлении рынка (см. BasesPurchaseThunk).
+    static const unsigned char BUY_SIG[8] = { 0x8B, 0x4C, 0x24, 0x68, 0x8B, 0x54, 0x24, 0x6C };
+    static const unsigned char BUY_RESUME[3] = { 0x83, 0xEC, 0x08 };
+    g_basesBuyResume = g_base + RVA_BASES_BUY_RESUME;
+    bool buyOk = WriteJmpSite(RVA_BASES_BUY_SITE, BUY_SIG, sizeof(BUY_SIG), sizeof(BUY_SIG),
+        RVA_BASES_BUY_RESUME, BUY_RESUME, sizeof(BUY_RESUME),
+        (void*)&BasesPurchaseThunk, "GoodsConsumption закупка (рынок)");
+    if (!buyOk)
     {
-        Log("GoodsConsumption: дневной хук не встал - закупка выключена");
+        Log("GoodsConsumption: хук закупки в обновлении рынка не встал - закупка выключена");
         return true;
     }
 
@@ -10864,9 +10959,9 @@ static bool InstallGoodsConsumption()
         RVA_TRADEFLOW_USED_RESUME, TF_RESUME, sizeof(TF_RESUME),
         (void*)&TradeFlowUsedThunk, "GoodsConsumption карточка товара");
 
-    Log("GoodsConsumption: установлен (дневной хук=%d расходы факт=%d расчёт=%d график=%d текст=%d, "
+    Log("GoodsConsumption: установлен (закупка=%d расходы факт=%d расчёт=%d график=%d текст=%d, "
         "строка бюджета=%d, подсказка=%d, карточка товара=%d, спрос рынка=%d)",
-        (int)dailyOk, (int)actOk, (int)projOk, (int)histOk, (int)textOk,
+        (int)buyOk, (int)actOk, (int)projOk, (int)histOk, (int)textOk,
         (int)g_budgetUiOk, (int)g_budgetBoxTipOk, (int)tfOk, (int)g_consDemand);
     return true;
 }
@@ -11627,10 +11722,7 @@ static void __cdecl ReportOos(void* a0, void* a1)
         }
     }
     if (dateOk)
-    {
         FormatVic2Date(dateRaw, dateBuf, sizeof(dateBuf));
-        strncpy_s(g_lastGameDate, sizeof(g_lastGameDate), dateBuf, _TRUNCATE);
-    }
 
     unsigned char oosFlag = 0;
     int oosFlagOk = 0;
@@ -17971,9 +18063,8 @@ static LONG  g_facDryLogged           = 0;
 static void* g_facSeen[512];
 static int   g_facSeenCount           = 0;
 
-// Первые 400 строк за запуск видны в обычном логе и в DRY_RUN, и в боевом
-// режиме (это единственный след того, что патч закрыл/выплатил - иначе
-// первый боевой прогон остаётся слепым); дальше только при DEBUG_LOG.
+// В DRY_RUN строки [DRY] - единственный результат прогона, поэтому первые 400
+// за запуск идут в обычный лог; в боевом режиме и дальше - только при DEBUG_LOG.
 static void FacLog(const char* fmt, ...)
 {
     char msg[320];
@@ -17982,7 +18073,7 @@ static void FacLog(const char* fmt, ...)
     _vsnprintf_s(msg, sizeof(msg), _TRUNCATE, fmt, ap);
     va_end(ap);
 
-    if (g_facDryLogged < 400)
+    if (g_settings.factoryCloseDryRun && g_facDryLogged < 400)
     {
         ++g_facDryLogged;
         Log("%s", msg);
@@ -18374,59 +18465,10 @@ static bool InstallFactoryClose()
     return closeOk || counterOk || inlineOk || financeOk;
 }
 
-// ---------------------------------------------------------------
-// FactoryExpand: наблюдатель за началом расширения фабрики (только лог).
-//
-// FUN_004D02E0 (__fastcall, ECX = state, EAX = индекс фабрики в списке
-// state+0x60) выставляет фабрике +0x17C = время стройки. Единственный вызов -
-// FUN_004A4CB0, завершение проекта планировщика (state+0x1C8), то есть любое
-// расширение (капиталистами или за деньги государства) проходит здесь.
-// Хук ничего не меняет: пишет в Logs\v2dll_expand.log уровень, занятость
-// (+0x128 / (workforce типа * уровень)), тип и дату, раз в 100 событий -
-// гистограмму заполнения. Нужен, чтобы увидеть, расширяются ли фабрики без
-// рабочих (ванильный предикат FUN_004A75B0 требует ~90 %).
-// ---------------------------------------------------------------
-
-static const DWORD RVA_FACTORY_EXPAND_START        = 0xD02E0;
-static const DWORD RVA_FACTORY_EXPAND_START_RESUME = 0xD02E5;
-static const int FAC_OFF_EMPLOYEES   = 0x128;
-static const int FAC_OFF_LIST_NEXT   = 0x224;
-static const int STATE_OFF_FACTORIES = 0x60;
-static const int STATE_OFF_FAC_COUNT = 0x68;
-static const int TYPE_OFF_DEF        = 0x12C;
-static const int DEF_OFF_WORKFORCE   = 0x128;
-
-static DWORD g_facExpandResume = 0;
-static int   g_facExpandCount  = 0;
-static int   g_facExpandBig    = 0;
-static int   g_facExpandHist[5] = { 0, 0, 0, 0, 0 };   // <50, 50-79, 80-89, 90-99, >=100 %
-
-static void LogExpandFile(const char* fmt, ...)
-{
-    InitLogDir();
-
-    if (g_logCsInit)
-        EnterCriticalSection(&g_logCs);
-
-    FILE* f = 0;
-    if (_wfopen_s(&f, g_expandLogFile, g_expandLogStarted ? L"a" : L"w") != 0 || !f)
-    {
-        if (g_logCsInit)
-            LeaveCriticalSection(&g_logCs);
-        return;
-    }
-    g_expandLogStarted = true;
-
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(f, fmt, ap);
-    va_end(ap);
-    fprintf(f, "\n");
-    fclose(f);
-
-    if (g_logCsInit)
-        LeaveCriticalSection(&g_logCs);
-}
+// Смещения структур движка, общие для PATCH_AI_EXPAND_STAFFING и PATCH_FACTORY_MIN_WAGE.
+static const int FAC_OFF_EMPLOYEES = 0x128;   // занятые рабочие фабрики
+static const int TYPE_OFF_DEF      = 0x12C;   // тип фабрики -> definition
+static const int DEF_OFF_WORKFORCE = 0x128;   // definition -> workforce (на один уровень)
 
 static int FacWorkforceOf(unsigned char* f)
 {
@@ -18437,184 +18479,6 @@ static int FacWorkforceOf(unsigned char* f)
     if (!def)
         return 0;
     return *(int*)(def + DEF_OFF_WORKFORCE);
-}
-
-static void __cdecl FactoryExpandObserve(void* state, int index)
-{
-    if (!g_settings.factoryExpandTrace || g_facExpandCount >= 50000)
-        return;
-    __try
-    {
-        unsigned char* st = (unsigned char*)state;
-        unsigned char* f = *(unsigned char**)(st + STATE_OFF_FACTORIES);
-        for (int i = index; i > 0 && f; --i)
-            f = *(unsigned char**)(f + FAC_OFF_LIST_NEXT);
-        if (!f)
-            return;
-
-        int level = *(int*)(f + FAC_OFF_LEVEL);
-        int emp   = *(int*)(f + FAC_OFF_EMPLOYEES);
-        int wf    = FacWorkforceOf(f);
-        long long maxEmp = (long long)wf * level;
-        int fillPct = (maxEmp > 0) ? (int)((long long)emp * 100 / maxEmp) : -1;
-
-        // Занятость по всем фабрикам этого региона (как "свободные руки" региона).
-        int nFac = *(int*)(st + STATE_OFF_FAC_COUNT);
-        long long sumEmp = 0, sumMax = 0;
-        unsigned char* g = *(unsigned char**)(st + STATE_OFF_FACTORIES);
-        for (int k = 0; g && k < 64; ++k)
-        {
-            int lv = *(int*)(g + FAC_OFF_LEVEL);
-            if (lv > 0)
-            {
-                sumEmp += *(int*)(g + FAC_OFF_EMPLOYEES);
-                sumMax += (long long)FacWorkforceOf(g) * lv;
-            }
-            g = *(unsigned char**)(g + FAC_OFF_LIST_NEXT);
-        }
-        int stFill = (sumMax > 0) ? (int)(sumEmp * 100 / sumMax) : -1;
-
-        char who[64];
-        FacDescribe(f, who, sizeof(who));
-
-        ++g_facExpandCount;
-        if (level >= 20)
-            ++g_facExpandBig;
-        int b = (fillPct < 50) ? 0 : (fillPct < 80) ? 1 : (fillPct < 90) ? 2 : (fillPct < 100) ? 3 : 4;
-        ++g_facExpandHist[b];
-
-        LogExpandFile("#%d %s [%s] ур.%d->%d занятость %d%% (%d из %lld) | регион: %d фабр., занятость %d%% | деньги %.0f, убыт.дн. %d, субсидия %d",
-            g_facExpandCount, g_lastGameDate, who, level, level + 1, fillPct, emp, maxEmp,
-            nFac, stFill,
-            FacMoneyShown(*(long long*)(f + FAC_OFF_MONEY)),
-            *(int*)(f + FAC_OFF_LOSS_DAYS), (int)*(f + FAC_OFF_SUBSIDY));
-
-        if (g_facExpandCount % 100 == 0)
-        {
-            LogExpandFile("== итого %d стартов расширения: занятость <50%%: %d, 50-79%%: %d, 80-89%%: %d, 90-99%%: %d, >=100%%: %d; с уровня >=20: %d",
-                g_facExpandCount, g_facExpandHist[0], g_facExpandHist[1], g_facExpandHist[2],
-                g_facExpandHist[3], g_facExpandHist[4], g_facExpandBig);
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-    }
-}
-
-// Вход FUN_004D02E0: 8B 49 60 (mov ecx,[ecx+0x60]); 85 C0 (test eax,eax); дальше 74 09.
-__declspec(naked) static void FactoryExpandStartThunk()
-{
-    __asm {
-        pushad
-        push eax
-        push ecx
-        call FactoryExpandObserve
-        add esp, 8
-        popad
-        mov ecx, dword ptr [ecx + 0x60]
-        test eax, eax
-        jmp dword ptr [g_facExpandResume]
-    }
-}
-
-// ---- Прямое расширение (команда страны: игрок или ИИ) -------------------
-// FUN_0052CE60 (__thiscall, ECX = state, [esp+4] = страна, [esp+8] = индекс
-// фабрики, ret 8) - исполнитель команды расширения без планировщика
-// капиталистов (флаг команды +0x54 == 0 в FUN_0057C400). Его же создаёт
-// ИИ-страна (FUN_00858670, ветка расширения), проверяя только деньги.
-static const DWORD RVA_FACTORY_DIRECT_EXPAND        = 0x12CE60;
-static const DWORD RVA_FACTORY_DIRECT_EXPAND_RESUME = 0x12CE65;
-static const DWORD RVA_GAME_GLOBAL_PTR              = 0xE588E8;   // VA 0x12588E8 (DAT_012588E8)
-static const int   GAME_OFF_PLAYER_COUNTRY          = 0xB60;
-static const int   COUNTRY_OFF_INDEX                = 0x20;
-static DWORD g_facDirectResume = 0;
-static int   g_facDirectCount  = 0;
-static int   g_facDirectHist[2][5];        // [0] ИИ, [1] игрок; <50, 50-79, 80-89, 90-99, >=100 %
-
-static void __cdecl FactoryDirectExpandObserve(void* state, void* country, int index)
-{
-    if (!g_settings.factoryExpandTrace || g_facDirectCount >= 50000)
-        return;
-    __try
-    {
-        unsigned char* st = (unsigned char*)state;
-        unsigned char* f = *(unsigned char**)(st + STATE_OFF_FACTORIES);
-        for (int i = index; i > 0 && f; --i)
-            f = *(unsigned char**)(f + FAC_OFF_LIST_NEXT);
-        if (!f)
-            return;
-
-        int level = *(int*)(f + FAC_OFF_LEVEL);
-        int emp   = *(int*)(f + FAC_OFF_EMPLOYEES);
-        long long maxEmp = (long long)FacWorkforceOf(f) * level;
-        int fillPct = (maxEmp > 0) ? (int)((long long)emp * 100 / maxEmp) : -1;
-
-        int isPlayer = 0;
-        unsigned char* game = *(unsigned char**)(g_base + RVA_GAME_GLOBAL_PTR);
-        if (game && country)
-            isPlayer = (*(int*)(game + GAME_OFF_PLAYER_COUNTRY) == *(int*)((unsigned char*)country + COUNTRY_OFF_INDEX));
-
-        char who[64];
-        FacDescribe(f, who, sizeof(who));
-
-        ++g_facDirectCount;
-        int b = (fillPct < 50) ? 0 : (fillPct < 80) ? 1 : (fillPct < 90) ? 2 : (fillPct < 100) ? 3 : 4;
-        ++g_facDirectHist[isPlayer ? 1 : 0][b];
-
-        LogExpandFile("прямое #%d %s [%s] %s ур.%d->%d занятость %d%% (%d из %lld) | деньги %.0f",
-            g_facDirectCount, g_lastGameDate, who, isPlayer ? "ИГРОК" : "ИИ", level, level + 1,
-            fillPct, emp, maxEmp, FacMoneyShown(*(long long*)(f + FAC_OFF_MONEY)));
-
-        if (g_facDirectCount % 100 == 0)
-        {
-            LogExpandFile("== прямых расширений %d. ИИ: занятость <50%%: %d, 50-79%%: %d, 80-89%%: %d, 90-99%%: %d, >=100%%: %d | игрок: %d, %d, %d, %d, %d",
-                g_facDirectCount,
-                g_facDirectHist[0][0], g_facDirectHist[0][1], g_facDirectHist[0][2], g_facDirectHist[0][3], g_facDirectHist[0][4],
-                g_facDirectHist[1][0], g_facDirectHist[1][1], g_facDirectHist[1][2], g_facDirectHist[1][3], g_facDirectHist[1][4]);
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-    }
-}
-
-// Вход FUN_0052CE60: 55 8B EC 6A FF; дальше 68 (push handler).
-__declspec(naked) static void FactoryDirectExpandThunk()
-{
-    __asm {
-        push ebp
-        mov ebp, esp
-        pushad
-        push dword ptr [ebp + 0xc]
-        push dword ptr [ebp + 8]
-        push ecx
-        call FactoryDirectExpandObserve
-        add esp, 12
-        popad
-        push -1
-        jmp dword ptr [g_facDirectResume]
-    }
-}
-
-static bool InstallFactoryExpandTrace()
-{
-    static const unsigned char SIG[5]    = { 0x8B, 0x49, 0x60, 0x85, 0xC0 };
-    static const unsigned char RESUME[2] = { 0x74, 0x09 };
-    g_facExpandResume = g_base + RVA_FACTORY_EXPAND_START_RESUME;
-    bool ok = WriteJmpSite(RVA_FACTORY_EXPAND_START, SIG, sizeof(SIG), 5,
-        RVA_FACTORY_EXPAND_START_RESUME, RESUME, sizeof(RESUME),
-        (void*)&FactoryExpandStartThunk, "FactoryExpand(старт)");
-
-    static const unsigned char DSIG[5]    = { 0x55, 0x8B, 0xEC, 0x6A, 0xFF };
-    static const unsigned char DRESUME[5] = { 0x68, 0xD6, 0xF6, 0xB9, 0x00 };
-    g_facDirectResume = g_base + RVA_FACTORY_DIRECT_EXPAND_RESUME;
-    bool okDirect = WriteJmpSite(RVA_FACTORY_DIRECT_EXPAND, DSIG, sizeof(DSIG), 5,
-        RVA_FACTORY_DIRECT_EXPAND_RESUME, DRESUME, sizeof(DRESUME),
-        (void*)&FactoryDirectExpandThunk, "FactoryExpand(прямое)");
-
-    Log("FactoryExpand: наблюдатель капиталистов %s, прямых расширений %s (только лог, Logs\\v2dll_expand.log)",
-        ok ? "установлен" : "НЕ установлен", okDirect ? "установлен" : "НЕ установлен");
-    return ok || okDirect;
 }
 
 // ---------------------------------------------------------------
@@ -18642,8 +18506,6 @@ static const DWORD RVA_AI_EXPAND_CAND_RESUME = 0x45761B;
 static const DWORD RVA_AI_EXPAND_CAND_SKIP   = 0x457783;
 static DWORD g_aiExpandResume = 0;
 static DWORD g_aiExpandSkip   = 0;
-static int   g_aiExpandBlocked = 0;
-static int   g_aiExpandPassed  = 0;
 
 static int __cdecl AiExpandAllowed(void* factory)
 {
@@ -18658,28 +18520,7 @@ static int __cdecl AiExpandAllowed(void* factory)
         if (level <= 0 || maxEmp <= 0)
             return 1;
         long long emp = *(int*)(f + FAC_OFF_EMPLOYEES);
-        if (emp * 100 >= maxEmp * minPct)
-        {
-            ++g_aiExpandPassed;
-            return 1;
-        }
-
-        ++g_aiExpandBlocked;
-        if (g_settings.factoryExpandTrace)
-        {
-            if (g_aiExpandBlocked <= 300)
-            {
-                char who[64];
-                FacDescribe(f, who, sizeof(who));
-                LogExpandFile("ИИ: кандидат на расширение отклонён %s [%s] ур.%d занятость %d%% (порог %d%%)",
-                    g_lastGameDate, who, level, (int)(emp * 100 / maxEmp), minPct);
-            }
-            else if (g_aiExpandBlocked % 1000 == 0)
-            {
-                LogExpandFile("== ИИ: отклонено кандидатов %d, пропущено %d", g_aiExpandBlocked, g_aiExpandPassed);
-            }
-        }
-        return 0;
+        return emp * 100 >= maxEmp * minPct ? 1 : 0;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -18717,6 +18558,200 @@ static bool InstallAiExpandStaffing()
     Log("AiExpand: %s (порог занятости %d%%, 0 = выкл; ai_factory_expand_min_staffing в common\\defines_v2dll.txt)",
         ok ? "установлен" : "НЕ установлен", g_defAiExpandMinStaffing);
     return ok;
+}
+
+// ---------------------------------------------------------------
+// PATCH_FACTORY_MIN_WAGE: фиксированный минимум зарплаты на 10000 работников.
+//
+// Карта (Ghidra + дизассемблер, подробно в PATCHES.md 4.11): в FUN_004F4B30
+// зарплата работников X = (есть владельцы-капиталисты в регионе) ?
+// max(L, прибыльная_доля/2) : прибыльная_доля, где L = min(деньги, W *
+// minimum_wage * эффективность) - минимум движка. Прибыльная_доля =
+// 0.85 * (деньги/потолок) * max(0, выручка - вчерашние закупки), и 0, пока
+// денег меньше 7 дневных закупок. Платёж идёт через FUN_004EF240 и
+// списывается с денег фабрики без нижней границы; X <= 0 - не платится.
+//
+// Хук: VA 0x4F4F6F (8 байт `sub edi,eax / sbb esi,edx / xorpd xmm0,xmm0`),
+// на входе EDX:EAX = X (итоговая зарплата), EDI:ESI = прибыльная_доля,
+// EBX = фабрика. Подменяем X на max(X, min(минимум, деньги фабрики)), дальше
+// код сам вычтет X из доли владельцев и заплатит работникам. Минимум платится
+// только из денег фабрики (баланс не уходит в минус; в 5.26 уходил, и закупки
+// сырья FUN_00482FF0 падали на делении на ноль при отрицательных деньгах и
+// нулевой стоимости закупок, VA 0x483461). Минимум = ставка * работники / 10000
+// фунтов; работники = занятые из записей employment (фабрика+0xF0..0xF4,
+// запись 16 байт: pop +8, число +0xC), без рабов (тип+0x3D9) и без попов
+// типа владельцев (definition+0xF0), не больше суммы занятых (+0x128).
+// Деньги: 1 фунт = 32768000 внутренних единиц (отображаемое * 1000 * 32768).
+// ---------------------------------------------------------------
+
+static const DWORD RVA_MIN_WAGE_SITE   = 0xF4F6F;
+static const DWORD RVA_MIN_WAGE_RESUME = 0xF4F77;
+static const int FAC_OFF_EMP_VEC_BEGIN = 0xF0;
+static const int FAC_OFF_EMP_VEC_END   = 0xF4;
+static const int EMP_REC_OFF_POP       = 0x8;
+static const int EMP_REC_OFF_COUNT     = 0xC;
+static const int POP_OFF_POPTYPE       = 0x68;
+static const int POPTYPE_OFF_IS_SLAVE  = 0x3D9;
+static const int DEF_OFF_OWNER_POPTYPE = 0xF0;
+
+static DWORD g_minWageResume  = 0;
+
+// Минимум зарплаты фабрики БЕЗ ограничения её деньгами, во внутренних единицах;
+// 0 - нет работников. Вызывать внутри __try.
+static long long FacMinWageRaw(unsigned char* f)
+{
+    unsigned char* beg = *(unsigned char**)(f + FAC_OFF_EMP_VEC_BEGIN);
+    unsigned char* end = *(unsigned char**)(f + FAC_OFF_EMP_VEC_END);
+    int recs = (int)((end - beg) >> 4);
+    if (!beg || recs <= 0 || recs > 4096)
+        return 0;
+
+    unsigned char* type = *(unsigned char**)(f + FAC_OFF_TYPE);
+    unsigned char* def = type ? *(unsigned char**)(type + TYPE_OFF_DEF) : 0;
+    unsigned char* ownerType = def ? *(unsigned char**)(def + DEF_OFF_OWNER_POPTYPE) : 0;
+
+    long long n = 0;
+    for (int i = 0; i < recs; ++i)
+    {
+        unsigned char* rec = beg + i * 16;
+        unsigned char* pop = *(unsigned char**)(rec + EMP_REC_OFF_POP);
+        if (!pop)
+            continue;
+        unsigned char* pt = *(unsigned char**)(pop + POP_OFF_POPTYPE);
+        if (!pt || pt == ownerType || *(pt + POPTYPE_OFF_IS_SLAVE))
+            continue;
+        int c = *(int*)(rec + EMP_REC_OFF_COUNT);
+        if (c > 0)
+            n += c;
+    }
+    long long total = *(int*)(f + FAC_OFF_EMPLOYEES);
+    if (total > 0 && n > total)
+        n = total;
+    if (n <= 0)
+        return 0;
+    return (long long)g_defMinWageMilli * n * 32768 / 10000;
+}
+
+static long long __cdecl FactoryMinWageAdjust(void* factory, unsigned int lo, int hi)
+{
+    long long x = ((long long)hi << 32) | (unsigned long long)lo;
+    if (!g_settings.patchFactoryMinWage || g_defMinWageMilli <= 0)
+        return x;
+    __try
+    {
+        unsigned char* f = (unsigned char*)factory;
+        long long minRaw = FacMinWageRaw(f);
+        if (minRaw <= 0)
+            return x;
+
+        // Только из денег самой фабрики: баланс не уходит в минус. (В 5.26 минимум
+        // шёл в долг, и закупки сырья FUN_00482FF0 падали на делении бюджета на
+        // нулевую стоимость при отрицательных деньгах - VA 0x483461.)
+        long long money = *(long long*)(f + FAC_OFF_MONEY);
+        if (money <= 0)
+            return x;
+        if (minRaw > money)
+            minRaw = money;
+
+        return minRaw > x ? minRaw : x;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return x;
+    }
+}
+
+__declspec(naked) static void FactoryMinWageThunk()
+{
+    __asm {
+        pushad
+        push edx
+        push eax
+        push ebx
+        call FactoryMinWageAdjust
+        add esp, 12
+        mov dword ptr [esp + 28], eax
+        mov dword ptr [esp + 20], edx
+        popad
+        sub edi, eax
+        sbb esi, edx
+        xorpd xmm0, xmm0
+        jmp dword ptr [g_minWageResume]
+    }
+}
+
+// Цель субсидии. В FUN_004F4B30 бюджет фабрики B = закупки_за_день * 1000 +
+// 0.2 * W (VA 0x4F4BC4-0x4F4C14, итог ESI(lo):EAX(hi)); если фабрика
+// субсидируется (+0x180) и деньги < B, государство доливает B - деньги. Без
+// поправки минимум зарплаты, выплаченный из этих денег, урезал бы закупки
+// сырья субсидируемой фабрики на следующий день (производство падало, а
+// расход государства на субсидии начинал колебаться). Для субсидируемых
+// фабрик прибавляем к B минимум зарплаты (то, что фабрика сейчас заплатит),
+// так что после выплаты на закупки остаётся прежняя цель.
+static const DWORD RVA_MIN_WAGE_BUDGET_SITE   = 0xF4C0E;
+static const DWORD RVA_MIN_WAGE_BUDGET_RESUME = 0xF4C16;
+static DWORD g_minWageBudgetResume = 0;
+
+static long long __cdecl FactoryMinWageBudgetExtra(void* factory)
+{
+    if (!g_settings.patchFactoryMinWage || g_defMinWageMilli <= 0)
+        return 0;
+    __try
+    {
+        unsigned char* f = (unsigned char*)factory;
+        if (*(f + FAC_OFF_SUBSIDY) == 0 || *(f + FAC_OFF_CLOSED) != 0 || *(int*)(f + FAC_OFF_LEVEL) <= 0)
+            return 0;
+        long long minRaw = FacMinWageRaw(f);
+        return minRaw > 0 ? minRaw : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+// VA 0x4F4C0E: add esi,[esp+0x28] / mov eax,edx / adc eax,edi (8 байт); дальше xor edi,edi.
+// ESI:EAX = B. ECX/EDX после этого места не живы (перезаписываются ниже).
+__declspec(naked) static void FactoryMinWageBudgetThunk()
+{
+    __asm {
+        add esi, dword ptr [esp + 0x28]
+        mov eax, edx
+        adc eax, edi
+        pushad
+        push ebx
+        call FactoryMinWageBudgetExtra
+        add esp, 4
+        mov dword ptr [esp + 20], edx
+        mov dword ptr [esp + 24], eax
+        popad
+        add esi, ecx
+        adc eax, edx
+        jmp dword ptr [g_minWageBudgetResume]
+    }
+}
+
+static bool InstallFactoryMinWage()
+{
+    EnsureV2dllDefines();
+    static const unsigned char SIG[8]    = { 0x2B, 0xF8, 0x1B, 0xF2, 0x66, 0x0F, 0x57, 0xC0 };
+    static const unsigned char RESUME[6] = { 0x66, 0x0F, 0x13, 0x44, 0x24, 0x40 };
+    g_minWageResume = g_base + RVA_MIN_WAGE_RESUME;
+    bool ok = WriteJmpSite(RVA_MIN_WAGE_SITE, SIG, sizeof(SIG), 8,
+        RVA_MIN_WAGE_RESUME, RESUME, sizeof(RESUME),
+        (void*)&FactoryMinWageThunk, "FactoryMinWage");
+
+    static const unsigned char BSIG[8]    = { 0x03, 0x74, 0x24, 0x28, 0x8B, 0xC2, 0x13, 0xC7 };
+    static const unsigned char BRESUME[4] = { 0x33, 0xFF, 0x39, 0xBB };
+    g_minWageBudgetResume = g_base + RVA_MIN_WAGE_BUDGET_RESUME;
+    bool okBudget = WriteJmpSite(RVA_MIN_WAGE_BUDGET_SITE, BSIG, sizeof(BSIG), 8,
+        RVA_MIN_WAGE_BUDGET_RESUME, BRESUME, sizeof(BRESUME),
+        (void*)&FactoryMinWageBudgetThunk, "FactoryMinWage(цель субсидии)");
+
+    Log("FactoryMinWage: %s, цель субсидии %s (минимум %d.%03d в день на 10000 работников, 0 = выкл; factory_min_wage_per_10000 в common\\defines_v2dll.txt)",
+        ok ? "установлен" : "НЕ установлен", okBudget ? "установлена" : "НЕ установлена",
+        g_defMinWageMilli / 1000, g_defMinWageMilli % 1000);
+    return ok || okBudget;
 }
 
 
@@ -20078,11 +20113,11 @@ static bool Install()
     if (g_settings.patchFactoryClosePayout || g_settings.patchFactoryAutoClose)
         InstallFactoryClose();
 
-    if (g_settings.factoryExpandTrace)
-        InstallFactoryExpandTrace();
-
     if (g_settings.patchAiExpandStaffing)
         InstallAiExpandStaffing();
+
+    if (g_settings.patchFactoryMinWage)
+        InstallFactoryMinWage();
 
     if (g_settings.EventSounds)
         LoadEventMusicDll();

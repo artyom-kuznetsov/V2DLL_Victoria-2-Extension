@@ -89,6 +89,10 @@ Vanilla factories keep their savings (up to `MAX_FACTORY_MONEY_SAVE` x level) wh
 `PATCH_FACTORY_CLOSE_PAYOUT`: whenever a factory is closed (by hand, automatically by `PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE`, or when the game stops it at level 1), all the money stored in it is paid to the capitalists of its state (the same payout the game uses for a factory's surplus). If the state has no owners the money stays in the factory.  
 `PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE`: a factory that is not subsidized and has been unprofitable (sales below the cost of its input goods) for `factory_unprofitable_close_days` days in a row (set in `common\defines_v2dll.txt`) is closed automatically, as if closed by hand.  
 `FACTORY_CLOSE_DRY_RUN`: nothing is changed, the log only gets `[DRY]` lines saying which factories would be closed/paid.
+#### 15. PATCH_FACTORY_MIN_WAGE
+Every factory pays its workers at least X pounds per day per 10000 workers (default 7; set in `<mod>\common\defines_v2dll.txt`), whether or not it is profitable. The wage is paid only from the money the factory has. Where the profit gives a higher wage the game's own logic (the `leftover` share and the `minimum_wage` reform) applies as before: the larger value is paid.
+  
+
 ### UI
 #### 1. ENABLE_BUTTONS
 Adds support for a few new buttons:  
@@ -193,7 +197,6 @@ Used for debugging Economic №6.
 On by default. Observer only, changes nothing in the game: writes `Logs\v2dll_expand.log`, one line each time a factory starts to expand (date, country and factory type, level, how many of its workers are employed, the same for the whole state), separately for capitalist projects and for direct expansions by countries (AI or player). Used to find out how oversized, understaffed factories come about.
 #### 7. PATCH_AI_EXPAND_STAFFING
 On by default. AI countries expand an existing factory only if enough of its jobs are filled with workers. The vanilla AI builds the most profitable factory type up to huge levels with almost no workers (it looks at the unemployed share of the whole state, not at free craftsmen). The required share is `ai_factory_expand_min_staffing` (percent, default 90, `0` = vanilla behaviour) in `<mod>\common\defines_v2dll.txt`; capitalists need about 90 % in vanilla already. The player is not affected. All players of a multiplayer game need the same DLL and the same value.
-  
-  
+
 Russian Victoria 2 community: https://discord.gg/f3dpWFt2bR  
 Also check this out for other reverse engineering findings: https://github.com/maxioten/Victoria2-Reverse-Engineering/tree/main  
