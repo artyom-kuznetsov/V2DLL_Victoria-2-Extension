@@ -102,6 +102,7 @@ Key | Default | Kind | Address(es) | Section
 `PATCH_TECH_NULL_CHECK_FIXES` | on | HOOK ×2 | `0x3A918A`, `0x3ADE98` | 6
 `PATCH_SUPPLY_SOURCE_NULL_CHECK` | on | HOOK | `0xD15EB` | 6
 `PATCH_AI_NAVAL_BASE_LIMIT` | **off** (since 5.46) | HOOK ×3 | `0x457983`, `0x457D02`, `0x458282` | 6
+`PATCH_NEEDS_INCOME`, `needs_income_per_10000`, `needs_income_luxury_threshold` | on, 5, 90 | ENTRY hook simulation | `0x85390` | 4.16
 `PATCH_FPU_FORTRESS` | on | HOOK (function entry) | `0x5DF550` | 7
 `PATCH_D3D_FPU_PRESERVE` | on | IAT + VSLOT | d3d9 `Direct3DCreate9`; IDirect3D9 slot 16 | 7
 `PATCH_HEAP_LFH` | on | API | process heaps | 7
@@ -291,6 +292,12 @@ Pays a factory's stored money to the capitalists of its state whenever it is clo
 * **Cause.** `FUN_004808D0` (per-country daily pass over its states; country in `[esp+0x54]`) copies the rule `RULE_DELETE_FACTORY_IF_NO_INPUT` (country `+0xB18`) into `[esp+0x77]` and, if set, writes `state building +0x24 = (+0x128 < 1000) ? 1 : 0` for every factory. The rule `factory_priority` (country `+0xAF0`) is not consulted there. The rule set is the `CRulesSet` at country `+0xAA8` (byte flag of rule k at `+0x18+8k`: k=6 factory_priority, k=11 delete_factory_if_no_input; rule order is in `FUN_004731C0`).
 * **Hook.** `PrioAutoThunk` replaces `cmp byte [esp+0x77],0` and leaves ZF so that the auto-priority runs only when `factory_priority = no`. Vanilla policies keep their behaviour (priority=no <=> delete=yes). The other effect of `delete_factory_if_no_input` (stopping/deleting factories without input, `[esp+0x4b]`) is unchanged.
 * **Config.** `PATCH_FACTORY_PRIORITY_BY_RULE` (ini, default on).
+
+### 4.16 `PATCH_NEEDS_INCOME` — reuse of ENTRY hook `0x85390` (added 5.47), on
+
+* **Behaviour.** On the final daily POP pass every POP is checked once. If its stored luxury-needs fraction `pop+0x140` is strictly below the threshold, the POP receives `amount_per_10000 x size / 10000` pounds directly in `pop+0x180`. Defaults are 5 pounds per 10000 population at luxury below 90%; `needs_income_per_10000 = 0` disables payment. The payment is created at the POP and is not charged to the country treasury.
+* **Hook/gate.** `NeedsPopStepThunk` already wraps `FUN_00485390` (EAX = POP) for `PATCH_NEEDS_HONEST_UI`; it is installed when either patch is enabled. `PayNeedsIncome` runs only when the stack purchase flag `[ebp+0x14]` is nonzero, and an added `paidDay` in the POP table plus the game date at `0x25BA10` ensures one payment per POP per day even if several market passes have that flag.
+* **Config.** `PATCH_NEEDS_INCOME` (ini, default on), `needs_income_per_10000` (pounds per 10000 population, default 5) and `needs_income_luxury_threshold` (percent, default 90) in `<mod>\common\defines_v2dll.txt`. Missing keys are appended on first start. Multiplayer clients need identical values.
 
 ## 5. UI patches
 

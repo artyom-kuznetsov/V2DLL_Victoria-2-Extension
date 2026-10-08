@@ -94,6 +94,8 @@ Vanilla factories keep their savings (up to `MAX_FACTORY_MONEY_SAVE` x level) wh
 Every factory pays its workers at least X pounds per day per 10000 workers (default 7; set in `<mod>\common\defines_v2dll.txt`), whether or not it is profitable. The wage is paid only from the money the factory has. Where the profit gives a higher wage the game's own logic (the `leftover` share and the `minimum_wage` reform) applies as before: the larger value is paid.
 #### 17. PATCH_NEEDS_HONEST_UI
 Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. With this patch, real needs fulfillment is displayed.
+#### 18. PATCH_NEEDS_INCOME
+Every day, every POP receives `needs_income_per_10000` pounds per 10000 population if its luxury-needs fulfilment is strictly below `needs_income_luxury_threshold` percent. Defaults are `5` and `90` in `<mod>\common\defines_v2dll.txt`. The money is added directly to the POP and is not charged to the state treasury. All players of a multiplayer game need the same DLL and the same values.
   
 
 ### UI
