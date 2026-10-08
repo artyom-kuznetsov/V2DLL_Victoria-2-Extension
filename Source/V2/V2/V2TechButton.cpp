@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.47"
+#define MOD_VERSION "5.48"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -109,9 +109,6 @@ struct Settings
     // PATCH_NEEDS_HONEST_UI: доли выполнения потребностей попа на экране (подсказки, окно
     // попа) умножаются на фактическое покрытие общего пула денег типа попа. Только вид.
     bool patchNeedsHonestUi          = true;
-    // PATCH_NEEDS_INCOME: ежедневная выдача попам денег при невыполненной роскоши.
-    // Размер и порог задаются в common\defines_v2dll.txt.
-    bool patchNeedsIncome            = true;
     // PATCH_FACTORY_PRIORITY_BY_RULE: приоритеты фабрик страны перезаписываются движком не при
     // rules factory_priority = no, а при delete_factory_if_no_input = yes; патч переключает на
     // factory_priority = no.
@@ -4174,7 +4171,6 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_AI_NAVAL_BASE_LIMIT") == 0)       { g_settings.patchAiNavalBaseLimit       = v; return; }
     if (_stricmp(key, "PATCH_FACTORY_MIN_WAGE") == 0)          { g_settings.patchFactoryMinWage         = v; return; }
     if (_stricmp(key, "PATCH_NEEDS_HONEST_UI") == 0)           { g_settings.patchNeedsHonestUi          = v; return; }
-    if (_stricmp(key, "PATCH_NEEDS_INCOME") == 0)              { g_settings.patchNeedsIncome            = v; return; }
     if (_stricmp(key, "PATCH_FACTORY_PRIORITY_BY_RULE") == 0)  { g_settings.patchFactoryPriorityByRule  = v; return; }
     if (_stricmp(key, "PROD_TYPE_GATE_ALLOW_ALL") == 0)         { g_settings.prodTypeGateAllowAll        = v; return; }
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
@@ -4372,7 +4368,6 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_AI_EXPAND_STAFFING=%d\n"
         "PATCH_FACTORY_MIN_WAGE=%d\n"
         "PATCH_NEEDS_HONEST_UI=%d\n"
-        "PATCH_NEEDS_INCOME=%d\n"
         "PATCH_FACTORY_PRIORITY_BY_RULE=%d\n"
         "\n",
         (int)g_settings.priceDelta,
@@ -4395,7 +4390,6 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.patchAiExpandStaffing,
         (int)g_settings.patchFactoryMinWage,
         (int)g_settings.patchNeedsHonestUi,
-        (int)g_settings.patchNeedsIncome,
         (int)g_settings.patchFactoryPriorityByRule);
 
     fprintf(f,
@@ -8677,12 +8671,6 @@ static bool g_defAiNavalBaseKeySeen = false;
 // на 10000 работников, в тысячных (7 -> 7000). 0 = выкл (PATCH_FACTORY_MIN_WAGE).
 static int  g_defMinWageMilli = 7000;
 static bool g_defMinWageKeySeen = false;
-// needs_income_per_10000: фунтов в день на 10000 населения, в тысячных (5 -> 5000).
-static int  g_defNeedsIncomePer10000Milli = 5000;
-static bool g_defNeedsIncomeAmountSeen = false;
-// needs_income_luxury_threshold: если luxury-нужды строго меньше этого процента.
-static int  g_defNeedsIncomeLuxuryThresholdPct = 90;
-static bool g_defNeedsIncomeThresholdSeen = false;
 static char g_defMintingFormula[256] = "";
 static char g_defPath[MAX_PATH] = "";
 static bool g_defLoaded = false;
@@ -8775,22 +8763,6 @@ static void DefinesApplyLine(const char* key, const char* value)
         g_defMinWageMilli = (int)(d * 1000.0 + 0.5);
         g_defMinWageKeySeen = true;
     }
-    else if (_stricmp(key, "needs_income_per_10000") == 0)
-    {
-        double d = atof(value);
-        if (d < 0.0)
-            d = 0.0;
-        if (d > 1000000.0)
-            d = 1000000.0;
-        g_defNeedsIncomePer10000Milli = (int)(d * 1000.0 + 0.5);
-        g_defNeedsIncomeAmountSeen = true;
-    }
-    else if (_stricmp(key, "needs_income_luxury_threshold") == 0)
-    {
-        int d = atoi(value);
-        g_defNeedsIncomeLuxuryThresholdPct = d < 0 ? 0 : (d > 100 ? 100 : d);
-        g_defNeedsIncomeThresholdSeen = true;
-    }
     else if (_stricmp(key, "minting_formula") == 0)
     {
         strncpy_s(g_defMintingFormula, sizeof(g_defMintingFormula), value, _TRUNCATE);
@@ -8843,16 +8815,6 @@ static void FormatMinWageValue(char* out, size_t cap)
     else
         _snprintf_s(out, cap, _TRUNCATE, "%d.%03d", whole, frac);
 }
-
-static const char* const NEEDS_INCOME_DEFINES_BLOCK =
-    "\n"
-    "# --- Needs income (PATCH_NEEDS_INCOME in v2dll_settings.ini) ---\n"
-    "# Every day a POP receives needs_income_per_10000 pounds per 10000 population when its\n"
-    "# stored luxury-needs fraction is strictly below needs_income_luxury_threshold percent.\n"
-    "# The money is added to the POP directly and is not charged to the state treasury.\n"
-    "# Fractions are allowed (use a dot). 0 = no needs income.\n"
-    "needs_income_per_10000 = %s\n"
-    "needs_income_luxury_threshold = %d\n";
 
 static char g_legacyFormula[256];
 
@@ -8910,20 +8872,6 @@ static void EnsureV2dllDefines()
                 Log("defines_v2dll: в '%s' дописан factory_min_wage_per_10000 = %s", g_defPath, val);
             }
         }
-        if (!g_defNeedsIncomeAmountSeen || !g_defNeedsIncomeThresholdSeen)
-        {
-            FILE* nf = 0;
-            if (fopen_s(&nf, g_defPath, "a") == 0 && nf)
-            {
-                char val[32];
-                FormatMinWageValue(val, sizeof(val));
-                fprintf(nf, NEEDS_INCOME_DEFINES_BLOCK, val,
-                    g_defNeedsIncomeLuxuryThresholdPct);
-                fclose(nf);
-                Log("defines_v2dll: в '%s' дописаны needs_income_per_10000 = %s и needs_income_luxury_threshold = %d",
-                    g_defPath, val, g_defNeedsIncomeLuxuryThresholdPct);
-            }
-        }
         return;
     }
 
@@ -8975,12 +8923,6 @@ static void EnsureV2dllDefines()
         char val[32];
         FormatMinWageValue(val, sizeof(val));
         fprintf(f, MIN_WAGE_DEFINES_BLOCK, val);
-    }
-    {
-        char val[32];
-        FormatMinWageValue(val, sizeof(val));
-        fprintf(f, NEEDS_INCOME_DEFINES_BLOCK, val,
-            g_defNeedsIncomeLuxuryThresholdPct);
     }
     fclose(f);
 
@@ -19168,7 +19110,7 @@ static DWORD g_honestPopWinResume  = 0;
 static DWORD g_honestPopListResume = 0;
 
 // поп -> запись "страна x тип": открытая адресация, ключ - указатель попа.
-struct HonestPopSlot { unsigned char* pop; unsigned char* rec; long long paidDay; };
+struct HonestPopSlot { unsigned char* pop; unsigned char* rec; };
 static const int HONEST_POP_BITS = 19;
 static HonestPopSlot g_honestPop[1 << HONEST_POP_BITS];
 
@@ -19182,71 +19124,10 @@ static inline unsigned HonestHash(unsigned char* p, int bits)
     return (((unsigned)(DWORD_PTR)p >> 3) * 2654435761u) >> (32 - bits);
 }
 
-static const DWORD RVA_WORLD_DATE = 0x25BA10; // int64, игровое время
-
-// Возвращает true, если этому попу уже платили в текущий игровой день.
-static bool HonestPopNeedsIncomeGate(unsigned char* pop)
-{
-    long long day = *(long long*)(g_base + RVA_WORLD_DATE);
-    unsigned h = HonestHash(pop, HONEST_POP_BITS);
-    for (int i = 0; i < 64; ++i, h = (h + 1) & ((1u << HONEST_POP_BITS) - 1))
-    {
-        HonestPopSlot& s = g_honestPop[h];
-        if (s.pop == pop)
-        {
-            if (s.paidDay == day)
-                return true;
-            s.paidDay = day;
-            return false;
-        }
-        if (!s.pop)
-        {
-            s.pop = pop;
-            s.rec = 0;
-            s.paidDay = day;
-            return false;
-        }
-    }
-    return false;
-}
-
-// PATCH_NEEDS_INCOME: прямая выдача попу, а не расход казны. Вызов только на
-// покупочном проходе ([ebp+0x14] != 0); дата/таблица защищают от повторов.
-static void PayNeedsIncome(unsigned char* pop, unsigned char* frame)
-{
-    if (!g_settings.patchNeedsIncome || g_defNeedsIncomePer10000Milli <= 0)
-        return;
-    if (!pop || !frame || *(unsigned char*)(frame + 0x14) == 0)
-        return;
-
-    __try
-    {
-        if (*(int*)(pop + 8) != POP_ID_TYPE)
-            return;
-        long long lux = *(long long*)(pop + 0x140);
-        long long threshold = (long long)g_defNeedsIncomeLuxuryThresholdPct * 32768;
-        if (lux * 100 >= threshold)
-            return;
-
-        long long size = *(int*)(pop + 0x58);
-        if (size <= 0 || !HonestPopNeedsIncomeGate(pop))
-            return;
-
-        // 1 отображаемый фунт = 1000 * 2^15 внутренних единиц.
-        long long pay = (long long)g_defNeedsIncomePer10000Milli * size * 32768 / 10000;
-        if (pay > 0)
-            *(long long*)(pop + 0x180) += pay;
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-    }
-}
-
 static void __cdecl HonestPopStep(unsigned char* pop, unsigned char* frame)
 {
     __try
     {
-        PayNeedsIncome(pop, frame);
         unsigned char* rec = *(unsigned char**)(frame + 0xC);
         if (!pop || !rec)
             return;
@@ -19550,7 +19431,6 @@ static bool InstallPriorityByRule()
 
 static bool InstallNeedsHonestUi()
 {
-    EnsureV2dllDefines();
     static const unsigned char SIG_PURCHASE[6]  = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x1C };
     static const unsigned char RES_PURCHASE[4]  = { 0x53, 0x8B, 0x5D, 0x18 };
     static const unsigned char SIG_POPSTEP[6]   = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x40 };
@@ -19565,13 +19445,9 @@ static bool InstallNeedsHonestUi()
     // Сначала пишем запись попа и покрытие, потом подменяем чтения для экрана.
     g_needsPurchaseResume = g_base + RVA_NEEDS_PURCHASE_RESUME;
     g_needsPopStepResume  = g_base + RVA_NEEDS_POP_STEP_RESUME;
-    bool ok = true;
-    if (g_settings.patchNeedsHonestUi)
-    {
-        ok = WriteJmpSite(RVA_NEEDS_PURCHASE, SIG_PURCHASE, sizeof(SIG_PURCHASE), 6,
-            RVA_NEEDS_PURCHASE_RESUME, RES_PURCHASE, sizeof(RES_PURCHASE),
-            (void*)&NeedsPurchaseThunk, "NeedsHonestUi.purchase");
-    }
+    bool ok = WriteJmpSite(RVA_NEEDS_PURCHASE, SIG_PURCHASE, sizeof(SIG_PURCHASE), 6,
+        RVA_NEEDS_PURCHASE_RESUME, RES_PURCHASE, sizeof(RES_PURCHASE),
+        (void*)&NeedsPurchaseThunk, "NeedsHonestUi.purchase");
     ok = WriteJmpSite(RVA_NEEDS_POP_STEP, SIG_POPSTEP, sizeof(SIG_POPSTEP), 6,
         RVA_NEEDS_POP_STEP_RESUME, RES_POPSTEP, sizeof(RES_POPSTEP),
         (void*)&NeedsPopStepThunk, "NeedsHonestUi.popstep") && ok;
@@ -19583,29 +19459,18 @@ static bool InstallNeedsHonestUi()
     g_honestTipLuxuryResume   = g_base + RVA_HONEST_TIP_LUXURY + 12;
     g_honestPopWinResume      = g_base + RVA_HONEST_POPWIN_RESUME;
     g_honestPopListResume     = g_base + RVA_HONEST_POPLIST_RESUME;
-    if (g_settings.patchNeedsHonestUi)
-    {
-        WriteJmpSite(RVA_HONEST_TIP_LIFE, SIG_TIP_LIFE, sizeof(SIG_TIP_LIFE), 12,
-            RVA_HONEST_TIP_LIFE + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipLifeThunk, "NeedsHonestUi.tipLife");
-        WriteJmpSite(RVA_HONEST_TIP_EVERYDAY, SIG_TIP_EVD, sizeof(SIG_TIP_EVD), 12,
-            RVA_HONEST_TIP_EVERYDAY + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipEverydayThunk, "NeedsHonestUi.tipEveryday");
-        WriteJmpSite(RVA_HONEST_TIP_LUXURY, SIG_TIP_LUX, sizeof(SIG_TIP_LUX), 12,
-            RVA_HONEST_TIP_LUXURY + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipLuxuryThunk, "NeedsHonestUi.tipLuxury");
-        WriteJmpSite(RVA_HONEST_POPWIN, SIG_POPWIN, sizeof(SIG_POPWIN), 6,
-            RVA_HONEST_POPWIN_RESUME, RES_POPWIN, sizeof(RES_POPWIN), (void*)&HonestPopWinThunk, "NeedsHonestUi.popWindow");
-        static const unsigned char SIG_POPLIST[6] = { 0x89, 0x85, 0x60, 0xFF, 0xFF, 0xFF };
-        static const unsigned char RES_POPLIST[4] = { 0xC7, 0x45, 0xE0, 0x0F };
-        WriteJmpSite(RVA_HONEST_POPLIST, SIG_POPLIST, sizeof(SIG_POPLIST), 6,
-            RVA_HONEST_POPLIST_RESUME, RES_POPLIST, sizeof(RES_POPLIST), (void*)&HonestPopListThunk, "NeedsHonestUi.popList");
-    }
-    if (g_settings.patchNeedsIncome)
-    {
-        Log("NeedsIncome: %s (по %d.%03d фунта на 10000 населения при luxury < %d%%)",
-            ok ? "установлен" : "НЕ установлен",
-            g_defNeedsIncomePer10000Milli / 1000,
-            g_defNeedsIncomePer10000Milli % 1000,
-            g_defNeedsIncomeLuxuryThresholdPct);
-    }
+    WriteJmpSite(RVA_HONEST_TIP_LIFE, SIG_TIP_LIFE, sizeof(SIG_TIP_LIFE), 12,
+        RVA_HONEST_TIP_LIFE + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipLifeThunk, "NeedsHonestUi.tipLife");
+    WriteJmpSite(RVA_HONEST_TIP_EVERYDAY, SIG_TIP_EVD, sizeof(SIG_TIP_EVD), 12,
+        RVA_HONEST_TIP_EVERYDAY + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipEverydayThunk, "NeedsHonestUi.tipEveryday");
+    WriteJmpSite(RVA_HONEST_TIP_LUXURY, SIG_TIP_LUX, sizeof(SIG_TIP_LUX), 12,
+        RVA_HONEST_TIP_LUXURY + 12, RES_TIP, sizeof(RES_TIP), (void*)&HonestTipLuxuryThunk, "NeedsHonestUi.tipLuxury");
+    WriteJmpSite(RVA_HONEST_POPWIN, SIG_POPWIN, sizeof(SIG_POPWIN), 6,
+        RVA_HONEST_POPWIN_RESUME, RES_POPWIN, sizeof(RES_POPWIN), (void*)&HonestPopWinThunk, "NeedsHonestUi.popWindow");
+    static const unsigned char SIG_POPLIST[6] = { 0x89, 0x85, 0x60, 0xFF, 0xFF, 0xFF };
+    static const unsigned char RES_POPLIST[4] = { 0xC7, 0x45, 0xE0, 0x0F };
+    WriteJmpSite(RVA_HONEST_POPLIST, SIG_POPLIST, sizeof(SIG_POPLIST), 6,
+        RVA_HONEST_POPLIST_RESUME, RES_POPLIST, sizeof(RES_POPLIST), (void*)&HonestPopListThunk, "NeedsHonestUi.popList");
     return true;
 }
 
@@ -20980,7 +20845,7 @@ static bool Install()
     // Исправление вылета, без переключателя (как CivilizeNullCheck).
     InstallDestroyCmdNullCheck();
 
-    if (g_settings.patchNeedsHonestUi || g_settings.patchNeedsIncome)
+    if (g_settings.patchNeedsHonestUi)
         InstallNeedsHonestUi();
 
     if (g_settings.patchFactoryPriorityByRule)
