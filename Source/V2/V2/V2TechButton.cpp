@@ -169,6 +169,14 @@ struct Settings
     int  combatRollMin   = 0;   // минимум броска
     int  combatRollMax   = 4;   // максимум броска
 
+    // Резервы в бою: пехота и кавалерия (support == 0) разворачиваются
+    // только в свободные слоты ПЕРВОЙ линии, support-юниты (артиллерия,
+    // инженеры, самолёты) - только во ВТОРУЮ. Полная замена ванильной
+    // FUN_0059b190, которая клала все резервы сначала во вторую линию.
+    // См. InstallReserveFrontline ниже по файлу и
+    // v2_battle_re\README_БОЕВЫЕ_ЛИНИИ.md.
+    bool patchReserveFrontline = true;
+
     // Временная диагностика бага с чек-суммой (меняется при входе в
     // партию) - логирует в v2dll.log каждое обращение к источнику
     // чек-суммы. См. InstallChecksumDiagnostic ниже по файлу.
@@ -4392,6 +4400,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PROD_TYPE_GATE_ALLOW_ALL") == 0)         { g_settings.prodTypeGateAllowAll        = v; return; }
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
     if (_stricmp(key, "PATCH_COMBAT_ROLL") == 0)                { g_settings.patchCombatRoll             = v; return; }
+    if (_stricmp(key, "PATCH_RESERVE_FRONTLINE") == 0)          { g_settings.patchReserveFrontline       = v; return; }
     if (_stricmp(key, "PATCH_CHECKSUM_DIAGNOSTIC") == 0)        { g_settings.patchChecksumDiagnostic     = v; return; }
     if (_stricmp(key, "ENABLE_OOS_LOG") == 0)                   { g_settings.enableOosLog                = v; return; }
     if (_stricmp(key, "ENABLE_CRASH_LOG") == 0)                 { g_settings.enableCrashLog              = v; return; }
@@ -4541,6 +4550,7 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_COMBAT_ROLL=%d\n"
         "COMBAT_ROLL_MIN=%d\n"
         "COMBAT_ROLL_MAX=%d\n"
+        "PATCH_RESERVE_FRONTLINE=%d\n"
         "PATCH_COMBAT_LOSS_POPUP_ALL=%d\n"
         "\n",
         (int)FindExePatchEnabled("always_add_wargoals"),
@@ -4554,6 +4564,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.patchCombatRoll,
         g_settings.combatRollMin,
         g_settings.combatRollMax,
+        (int)g_settings.patchReserveFrontline,
         (int)FindExePatchEnabled("combat_loss_popup_all"));
 
     char extraWhitelistJoined[MAX_EXTRA_WHITELIST * EXTRA_WHITELIST_NAME_MAX] = "";
@@ -11345,6 +11356,172 @@ static bool InstallCombatRoll()
 
     Log("CombatRoll: диапазон %d..%d (модуль=%u)",
         g_settings.combatRollMin, g_settings.combatRollMax, modulo);
+    return true;
+}
+
+// ---------------------------------------------------------------
+// Резервы в бою: пехота и кавалерия (support == 0) - только в
+// ПЕРВУЮ линию, support-юниты (артиллерия/инженеры/самолёты) -
+// только во ВТОРУЮ. Полная замена FUN_0059b190 (RVA 0x19B190),
+// которая клала любые резервы сначала во вторую линию (транзитом),
+// из-за чего пехота занимала её слоты и мешала артиллерии.
+//
+// Раскладка объекта стороны боя (исследование полностью -
+// v2_battle_re\README_БОЕВЫЕ_ЛИНИИ.md):
+//   +0x6C   первая линия, 32 слота по 4 байта, центр = индекс 16
+//   +0xEC   вторая линия, 32 слота, центр = индекс 16
+//   +0x16C/+0x170/+0x174  резерв-список: head/tail/count
+//   +0x178  байт: режим "узлы не удалять, только помечать"
+// Узел списка: +0x0 полк, +0x4 prev, +0x8 next, +0xC флаг
+// использования. Полк: +0x38 тип, +0x3C сила (fixed 1000 = 1.0),
+// +0x40 орг (fixed). Тип: +0x228 recon, +0x23C support (fixed).
+// Оригинал: EDI = своя сторона, [ESP+4] = вражеская (в новой логике
+// не используется), эпилог RET 4. RNG: FUN_00401000 (cdecl,
+// float RandomFloat(float max)), free: FUN_00aae91b (cdecl).
+// Ширина фронта: FUN_0059c520([side+0x1C]). Проверку ванили
+// "у врага занят тот же слот первой линии" отбросили сознательно:
+// не-support резервы теперь идут прямо на любой пустой слот первой
+// линии в пределах ширины фронта.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_RESERVE_DEPLOY = 0x19B190;
+static const DWORD RVA_RANDOM_FLOAT   = 0x0401000;
+static const DWORD RVA_COMBAT_WIDTH   = 0x19C520;
+static const DWORD RVA_HEAP_FREE      = 0x2AE91B;
+
+static const unsigned char RESERVE_DEPLOY_SIG[13] =
+{ 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C, 0x8B, 0x47, 0x1C, 0x53, 0x56, 0x50, 0xE8 };
+
+typedef float (__cdecl *tV2RandomFloat)(float);
+typedef int   (__cdecl *tV2CombatWidth)(int);
+typedef void  (__cdecl *tV2HeapFree)(void*);
+
+// support >= 1.0 - юнит второй линии (граница как в ванили: < 1000
+// считается не-support при расстановке).
+static bool ReserveUnitIsSupport(unsigned char* regiment)
+{
+    unsigned char* type = *(unsigned char**)(regiment + 0x38);
+    return *(int*)(type + 0x23C) >= 1000;
+}
+
+// Первая запись резерва с головы списка: сила >= minStrength,
+// орг > 999, класс юнита совпадает с запрошенным. Аналог ванильного
+// FUN_0059ae90, но с выбором класса.
+static unsigned char* ReserveTakeNode(unsigned char* side, bool wantSupport, int minStrength)
+{
+    unsigned char* node = *(unsigned char**)(side + 0x16C);
+    while (node)
+    {
+        unsigned char* regiment = *(unsigned char**)node;
+        if (minStrength <= *(int*)(regiment + 0x3C) && 999 < *(int*)(regiment + 0x40)
+            && ReserveUnitIsSupport(regiment) == wantSupport)
+        {
+            return node;
+        }
+        node = *(unsigned char**)(node + 8);
+    }
+    return 0;
+}
+
+// Снятие узла с резерва один в один с оригиналом: в режиме side+0x178
+// узел только помечается флагом +0xC, иначе вычищается из списка,
+// счётчик декрементируется и узел освобождается.
+static void ReserveDropNode(unsigned char* side, unsigned char* node)
+{
+    unsigned char* ctrl = side + 0x16C;
+    if (*(ctrl + 0xC))
+    {
+        *(node + 0xC) = 1;
+        return;
+    }
+    unsigned char* prev = *(unsigned char**)(node + 4);
+    unsigned char* next = *(unsigned char**)(node + 8);
+    if (prev) *(unsigned char**)(prev + 8) = next;
+    if (next) *(unsigned char**)(next + 4) = prev;
+    if (node == *(unsigned char**)ctrl)       *(unsigned char**)ctrl = next;
+    if (node == *(unsigned char**)(ctrl + 4)) *(unsigned char**)(ctrl + 4) = prev;
+    --*(int*)(ctrl + 8);
+    ((tV2HeapFree)(g_base + RVA_HEAP_FREE))(node);
+}
+
+// Новая развёртка резервов. Слоты обходятся от центра к краям в
+// пределах ширины фронта (как в ванили): пустой слот первой линии
+// занимает не-support резерв, пустой слот второй линии - support.
+static void __cdecl ReserveDeployNew(unsigned char* side, int /*enemySide*/)
+{
+    void** front = (void**)(side + 0x6C);
+    void** back  = (void**)(side + 0xEC);
+    int width = ((tV2CombatWidth)(g_base + RVA_COMBAT_WIDTH))(*(int*)(side + 0x1C));
+    if (width > 31)
+        width = 31;
+    for (int k = 0; k < width; ++k)
+    {
+        int off = (k & 1) ? -((k + 1) / 2) : (k / 2);
+        int idx = off + 16;
+        if (idx < 0 || idx > 31)
+            continue;
+        if (!front[idx])
+        {
+            int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
+            unsigned char* node = ReserveTakeNode(side, false, minStrength);
+            if (node)
+            {
+                front[idx] = *(void**)node;
+                ReserveDropNode(side, node);
+            }
+        }
+        if (!back[idx])
+        {
+            int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
+            unsigned char* node = ReserveTakeNode(side, true, minStrength);
+            if (node)
+            {
+                back[idx] = *(void**)node;
+                ReserveDropNode(side, node);
+            }
+        }
+    }
+}
+
+__declspec(naked) static void ReserveDeployThunk()
+{
+    __asm
+    {
+        mov edx, [esp + 4]   // вражеская сторона - аргумент оригинала
+        pushad               // сохраняем всё, включая EDI (своя сторона)
+        push edx
+        push edi
+        call ReserveDeployNew
+        add esp, 8
+        popad
+        ret 4
+    }
+}
+
+static bool InstallReserveFrontline()
+{
+    unsigned char* hook = (unsigned char*)(g_base + RVA_RESERVE_DEPLOY);
+
+    if (memcmp(hook, RESERVE_DEPLOY_SIG, sizeof(RESERVE_DEPLOY_SIG)) != 0)
+    {
+        Log("ReserveFrontline: сигнатура не совпала (%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X) - не патчим",
+            hook[0], hook[1], hook[2], hook[3], hook[4], hook[5], hook[6], hook[7],
+            hook[8], hook[9], hook[10], hook[11], hook[12]);
+        return false;
+    }
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hook, 5, PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+
+    unsigned char patch[5];
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&ReserveDeployThunk - ((DWORD)hook + 5);
+    memcpy(hook, patch, sizeof(patch));
+    VirtualProtect(hook, 5, oldProtect, &oldProtect);
+
+    Log("ReserveFrontline: установлен на rva %06X (резервы: пехота/кавалерия -> первая линия, support -> вторая)",
+        RVA_RESERVE_DEPLOY);
     return true;
 }
 
@@ -21103,6 +21280,9 @@ static bool Install()
 
     if (g_settings.patchCombatRoll)
         InstallCombatRoll();
+
+    if (g_settings.patchReserveFrontline)
+        InstallReserveFrontline();
 
     if (g_settings.patchChecksumDiagnostic)
     {
