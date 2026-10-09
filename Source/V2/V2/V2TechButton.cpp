@@ -93,7 +93,7 @@ struct Settings
     // См. InstallFactoryClose. DRY_RUN: только лог, ничего не меняется.
     bool patchFactoryClosePayout     = true;
     bool patchFactoryAutoClose       = true;
-    bool factoryCloseDryRun          = true;
+    bool factoryCloseDryRun          = false;
     // PATCH_AI_EXPAND_STAFFING: ИИ-страна расширяет существующую фабрику
     // (FUN_00857530, выбор региона) только если она укомплектована рабочими
     // не меньше ai_factory_expand_min_staffing % (common\defines_v2dll.txt).
@@ -4550,8 +4550,8 @@ static void WriteDefaultSettings(const char* path)
         "PATCH_COMBAT_ROLL=%d\n"
         "COMBAT_ROLL_MIN=%d\n"
         "COMBAT_ROLL_MAX=%d\n"
-        "PATCH_RESERVE_FRONTLINE=%d\n"
         "PATCH_COMBAT_LOSS_POPUP_ALL=%d\n"
+        "PATCH_RESERVE_FRONTLINE=%d\n"
         "\n",
         (int)FindExePatchEnabled("always_add_wargoals"),
         (int)FindExePatchEnabled("land_reinforce"),
@@ -4564,8 +4564,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.patchCombatRoll,
         g_settings.combatRollMin,
         g_settings.combatRollMax,
-        (int)g_settings.patchReserveFrontline,
-        (int)FindExePatchEnabled("combat_loss_popup_all"));
+        (int)FindExePatchEnabled("combat_loss_popup_all"),
+        (int)g_settings.patchReserveFrontline);
 
     char extraWhitelistJoined[MAX_EXTRA_WHITELIST * EXTRA_WHITELIST_NAME_MAX] = "";
     for (int w = 0; w < g_extraWhitelistCount; ++w)
@@ -11385,15 +11385,18 @@ static bool InstallCombatRoll()
 // ---------------------------------------------------------------
 
 static const DWORD RVA_RESERVE_DEPLOY = 0x19B190;
-static const DWORD RVA_RANDOM_FLOAT   = 0x0401000;
+static const DWORD RVA_RESERVE_PULL   = 0x19B0E0;
+static const DWORD RVA_RANDOM_FLOAT   = 0x001000;   // FUN_00401000 - это VA; RVA = VA - 0x400000
 static const DWORD RVA_COMBAT_WIDTH   = 0x19C520;
-static const DWORD RVA_HEAP_FREE      = 0x2AE91B;
+static const DWORD RVA_HEAP_FREE      = 0x6AE91B;   // FUN_00AAE91B - это VA; RVA = VA - 0x400000
 
 static const unsigned char RESERVE_DEPLOY_SIG[13] =
 { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C, 0x8B, 0x47, 0x1C, 0x53, 0x56, 0x50, 0xE8 };
+static const unsigned char RESERVE_PULL_SIG[11] =
+{ 0x56, 0x8B, 0xB4, 0x88, 0xEC, 0x00, 0x00, 0x00, 0x85, 0xF6, 0x74 };
 
 typedef float (__cdecl *tV2RandomFloat)(float);
-typedef int   (__cdecl *tV2CombatWidth)(int);
+typedef int   (__stdcall *tV2CombatWidth)(int);   // FUN_0059c520: RET 4, сама чистит стек
 typedef void  (__cdecl *tV2HeapFree)(void*);
 
 // support >= 1.0 - юнит второй линии (граница как в ванили: < 1000
@@ -11481,6 +11484,27 @@ static void __cdecl ReserveDeployNew(unsigned char* side, int /*enemySide*/)
             }
         }
     }
+    // Добор первой линии артиллерией: если в резервах не осталось
+    // пехоты/кавалерии (юнитов первой линии), пустые слоты первой
+    // линии занимают support-резервы. Пока пехота есть - она важнее.
+    if (!ReserveTakeNode(side, false, 0))
+    {
+        for (int k = 0; k < width; ++k)
+        {
+            int off = (k & 1) ? -((k + 1) / 2) : (k / 2);
+            int idx = off + 16;
+            if (idx < 0 || idx > 31)
+                continue;
+            if (!front[idx])
+            {
+                unsigned char* node = ReserveTakeNode(side, true, 0);
+                if (!node)
+                    break;
+                front[idx] = *(void**)node;
+                ReserveDropNode(side, node);
+            }
+        }
+    }
 }
 
 __declspec(naked) static void ReserveDeployThunk()
@@ -11522,6 +11546,122 @@ static bool InstallReserveFrontline()
 
     Log("ReserveFrontline: установлен на rva %06X (резервы: пехота/кавалерия -> первая линия, support -> вторая)",
         RVA_RESERVE_DEPLOY);
+    return true;
+}
+
+// ---------------------------------------------------------------
+// Протяжка из второй линии в первую - FUN_0059b0e0 (RVA 0x19B0E0),
+// вызывается по слоту: EAX = сторона, ECX = индекс слота, эпилог RET.
+// Ваниль двигала вперёд ЛЮБОЙ юнит из второй линии, чей слот первой
+// линии опустел - так артиллерия оказывалась в первой линии. Новое
+// правило: support-юнит переезжает вперёд только если на всей стороне
+// не осталось пехоты/кавалерии, способной встать в первую линию
+// (во второй линии или в резервах). Боковой сдвиг для не-support
+// сохранён как в ваниле.
+// ---------------------------------------------------------------
+
+// Есть ли на стороне пехота/кавалерия, способная занять первую линию:
+// любой не-support во второй линии или разворачиваемый не-support
+// (сила > 96 промилле, орг >= 1.0) в резерв-списке 1.
+static bool HasDeployableFrontliner(unsigned char* side)
+{
+    void** front = (void**)(side + 0x6C);
+    void** back  = (void**)(side + 0xEC);
+    for (int i = 0; i < 32; ++i)
+    {
+        unsigned char* unit = (unsigned char*)back[i];
+        if (unit && !ReserveUnitIsSupport(unit))
+            return true;
+    }
+    unsigned char* node = *(unsigned char**)(side + 0x16C);
+    while (node)
+    {
+        unsigned char* regiment = *(unsigned char**)node;
+        if (!ReserveUnitIsSupport(regiment)
+            && 96 < *(int*)(regiment + 0x3C) && 999 < *(int*)(regiment + 0x40))
+        {
+            return true;
+        }
+        node = *(unsigned char**)(node + 8);
+    }
+    return false;
+}
+
+static void __cdecl ReservePullNew(unsigned char* side, int slot)
+{
+    void** front = (void**)(side + 0x6C);
+    void** back  = (void**)(side + 0xEC);
+    unsigned char* unit = (unsigned char*)back[slot];
+    if (!unit)
+        return;
+    bool support = ReserveUnitIsSupport(unit);
+    if (!front[slot])
+    {
+        if (!support || !HasDeployableFrontliner(side))
+        {
+            front[slot] = unit;
+            back[slot] = 0;
+            return;
+        }
+    }
+    if (!support)
+    {
+        int j = slot + 1;
+        if (j >= 0 && j < 0x1E && !front[j])
+        {
+            front[j] = unit;
+            back[slot] = 0;
+            return;
+        }
+        j = slot - 1;
+        if (j >= 0 && j < 0x1E && !front[j])
+        {
+            front[j] = unit;
+            back[slot] = 0;
+        }
+    }
+}
+
+__declspec(naked) static void ReservePullThunk()
+{
+    __asm
+    {
+        pushad               // сохраняем всё: EAX (сторона), ECX (слот), ESI
+        mov edx, ecx         // слот
+        mov ecx, eax         // сторона
+        push edx
+        push ecx
+        call ReservePullNew
+        add esp, 8
+        popad
+        ret
+    }
+}
+
+static bool InstallReservePull()
+{
+    unsigned char* hook = (unsigned char*)(g_base + RVA_RESERVE_PULL);
+
+    if (memcmp(hook, RESERVE_PULL_SIG, sizeof(RESERVE_PULL_SIG)) != 0)
+    {
+        Log("ReservePull: сигнатура не совпала (%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X) - не патчим",
+            hook[0], hook[1], hook[2], hook[3], hook[4], hook[5], hook[6], hook[7],
+            hook[8], hook[9], hook[10]);
+        return false;
+    }
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hook, 5, PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+
+    unsigned char patch[5];
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&ReservePullThunk - ((DWORD)hook + 5);
+    memcpy(hook, patch, sizeof(patch));
+    VirtualProtect(hook, 5, oldProtect, &oldProtect);
+
+    Log("ReservePull: установлен на rva %06X (артиллерия лезет в первую линию только без пехоты)",
+        RVA_RESERVE_PULL);
     return true;
 }
 
@@ -21283,6 +21423,9 @@ static bool Install()
 
     if (g_settings.patchReserveFrontline)
         InstallReserveFrontline();
+
+    if (g_settings.patchReserveFrontline)
+        InstallReservePull();
 
     if (g_settings.patchChecksumDiagnostic)
     {
