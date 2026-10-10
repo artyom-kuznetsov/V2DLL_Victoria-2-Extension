@@ -37,7 +37,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.52"
+#define MOD_VERSION "5.55"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -176,6 +176,12 @@ struct Settings
     // См. InstallReserveFrontline ниже по файлу и
     // v2_battle_re\README_БОЕВЫЕ_ЛИНИИ.md.
     bool patchReserveFrontline = true;
+
+    // Расщепление урона из второй линии: support-юнит (стреляющий со
+    // второй линии) наносит 80% урона цели в первой линии противника
+    // и 20% - юниту второй линии, стоящему прямо за целью (если он
+    // есть; иначе 100% в первую линию). См. InstallSecondLineSplash.
+    bool patchSecondLineSplash = true;
 
     // Временная диагностика бага с чек-суммой (меняется при входе в
     // партию) - логирует в v2dll.log каждое обращение к источнику
@@ -4401,6 +4407,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_EXPONENTIAL_PRICE_DELTA") == 0)    { g_settings.patchExponentialPriceDelta  = v; return; }
     if (_stricmp(key, "PATCH_COMBAT_ROLL") == 0)                { g_settings.patchCombatRoll             = v; return; }
     if (_stricmp(key, "PATCH_RESERVE_FRONTLINE") == 0)          { g_settings.patchReserveFrontline       = v; return; }
+    if (_stricmp(key, "PATCH_SECOND_LINE_SPLASH") == 0)         { g_settings.patchSecondLineSplash       = v; return; }
     if (_stricmp(key, "PATCH_CHECKSUM_DIAGNOSTIC") == 0)        { g_settings.patchChecksumDiagnostic     = v; return; }
     if (_stricmp(key, "ENABLE_OOS_LOG") == 0)                   { g_settings.enableOosLog                = v; return; }
     if (_stricmp(key, "ENABLE_CRASH_LOG") == 0)                 { g_settings.enableCrashLog              = v; return; }
@@ -4552,6 +4559,7 @@ static void WriteDefaultSettings(const char* path)
         "COMBAT_ROLL_MAX=%d\n"
         "PATCH_COMBAT_LOSS_POPUP_ALL=%d\n"
         "PATCH_RESERVE_FRONTLINE=%d\n"
+        "PATCH_SECOND_LINE_SPLASH=%d\n"
         "\n",
         (int)FindExePatchEnabled("always_add_wargoals"),
         (int)FindExePatchEnabled("land_reinforce"),
@@ -5375,6 +5383,39 @@ static int IsSubjectOf(void* countryX, int overlordIdx)
 
 static const char* TriStr(int v) { return v > 0 ? "да" : v == 0 ? "нет" : "?"; }
 
+// v5.53: запрет посадки на флот страны, с которой мы ВОЮЕМ. Тестер
+// сообщил, что во время войны смог использовать вражеский флот: проверка
+// союзника (alliance_with + вассал/сюзерен в обе стороны) войны не
+// учитывала вообще, и любой остаточный признак союза/подчинения у
+// воюющей пары пропускал врага. Поле войны взято у самой игры: триггер
+// war_with (CWarWithTrigger, RTTI -> vtable 0xE30D28, Evaluate слот 6 =
+// FUN_008D57E0) возвращает true, когда relation(A -> B) + 0x34 != 0
+// (плюс особый случай REB), где relation = country(A)+0xBE8 [индекс B];
+// alliance_with читает в той же записи +0x20. Проверяем в обе стороны.
+static const int OFF_RELATION_WAR = 0x34;
+
+static int IsWarRelation(void* countryA, int countryIdxB)
+{
+    __try
+    {
+        if (!countryA || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)countryA + OFF_COUNTRY_RELATIONS, 4)))
+            return -1;
+        void** relations = *(void***)((char*)countryA + OFF_COUNTRY_RELATIONS);
+        if (!relations || (g_fnIsBadReadPtr && g_fnIsBadReadPtr(relations + countryIdxB, 4)))
+            return -1;
+        void* relation = relations[countryIdxB];
+        if (!relation || (g_fnIsBadReadPtr && g_fnIsBadReadPtr((char*)relation + OFF_RELATION_WAR, 4)))
+            return -1;
+        return (*(int*)((char*)relation + OFF_RELATION_WAR) != 0) ? 1 : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+static LONG g_embarkWarVetoLogged = 0;
+
 // v4.74: однократная чисто читающая диагностика таблицы провинций
 // (DAT_0125870c = RVA 0xE5870C, +0x2238 -> массив province*, индекс =
 // ID провинции, подтверждено по FUN_004FB6F0/FUN_005D1570: ID берётся из
@@ -5473,9 +5514,26 @@ static int __cdecl IsOwnerAllied(int countryIdxA, int countryIdxB)
         }
     }
 
+    // v5.53: война перекрывает любой союз/подчинение (см. IsWarRelation).
+    int warAB = -2, warBA = -2;
+    if (result && countryIdxA >= 0 && countryIdxB >= 0)
+    {
+        warAB = IsWarRelation(GetCountryPtr(countryIdxA), countryIdxB);
+        warBA = IsWarRelation(GetCountryPtr(countryIdxB), countryIdxA);
+        if (warAB == 1 || warBA == 1)
+        {
+            if (InterlockedIncrement(&g_embarkWarVetoLogged) <= 40)
+                Log("AllyEmbark: ОТКАЗ %d/%d - страны воюют (война A/B=%s B/A=%s), союз=%s суб(A/B)=%s суб(B/A)=%s",
+                    countryIdxA, countryIdxB, TriStr(warAB), TriStr(warBA),
+                    TriStr(allied), TriStr(subAB), TriStr(subBA));
+            result = 0;
+        }
+    }
+
     if (InterlockedIncrement(&g_embarkAlliedLogged) <= 60)
-        LogDbg("AllyEmbark: %d/%d союз=%s суб(A/B)=%s суб(B/A)=%s -> %s",
+        LogDbg("AllyEmbark: %d/%d союз=%s суб(A/B)=%s суб(B/A)=%s война(A/B)=%s война(B/A)=%s -> %s",
             countryIdxA, countryIdxB, TriStr(allied), TriStr(subAB), TriStr(subBA),
+            TriStr(warAB), TriStr(warBA),
             result ? "союзники" : "не союзники");
     return result;
 }
@@ -6689,15 +6747,18 @@ __declspec(naked) static void EmbarkCapacityFilterThunk()
         cmp dword ptr [ebx + 0xC4], ecx
         jz resume_same
 
-        push eax
-        push edx
+        // v5.55: раньше здесь стояли push eax/edx ... pop edx/eax вокруг
+        // вызова - pop eax затирал РЕЗУЛЬТАТ IsOwnerAllied, и test eax
+        // видел старый eax (результат vtable+0x3c, ненулевой) -> любой
+        // флот в клетке всегда считался союзным, приказ на чужой флот
+        // принимался. Ни eax, ни ecx, ни edx после хука оригинал не
+        // читает (на обеих веточках они переопределяются), поэтому
+        // сохранять нечего; ebx/esi/edi сохраняет сама IsOwnerAllied.
         push ecx
         mov edx, dword ptr [ebx + 0xC4]
         push edx
         call IsOwnerAllied
         add esp, 8
-        pop edx
-        pop eax
         test eax, eax
         jnz resume_same
         jmp dword ptr [g_embarkCapacityResumeSkip]
@@ -11385,19 +11446,18 @@ static bool InstallCombatRoll()
 // ---------------------------------------------------------------
 
 static const DWORD RVA_RESERVE_DEPLOY = 0x19B190;
-static const DWORD RVA_RESERVE_PULL   = 0x19B0E0;
 static const DWORD RVA_RANDOM_FLOAT   = 0x001000;   // FUN_00401000 - это VA; RVA = VA - 0x400000
 static const DWORD RVA_COMBAT_WIDTH   = 0x19C520;
 static const DWORD RVA_HEAP_FREE      = 0x6AE91B;   // FUN_00AAE91B - это VA; RVA = VA - 0x400000
+static const DWORD RVA_HEAP_ALLOC     = 0x6AE9AF;   // FUN_00AAE9AF - это VA; RVA = VA - 0x400000
 
 static const unsigned char RESERVE_DEPLOY_SIG[13] =
 { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C, 0x8B, 0x47, 0x1C, 0x53, 0x56, 0x50, 0xE8 };
-static const unsigned char RESERVE_PULL_SIG[11] =
-{ 0x56, 0x8B, 0xB4, 0x88, 0xEC, 0x00, 0x00, 0x00, 0x85, 0xF6, 0x74 };
 
 typedef float (__cdecl *tV2RandomFloat)(float);
 typedef int   (__stdcall *tV2CombatWidth)(int);   // FUN_0059c520: RET 4, сама чистит стек
 typedef void  (__cdecl *tV2HeapFree)(void*);
+typedef void* (__cdecl *tV2HeapAlloc)(unsigned int);
 
 // support >= 1.0 - юнит второй линии (граница как в ванили: < 1000
 // считается не-support при расстановке).
@@ -11447,63 +11507,143 @@ static void ReserveDropNode(unsigned char* side, unsigned char* node)
     ((tV2HeapFree)(g_base + RVA_HEAP_FREE))(node);
 }
 
+// Добавление полка в резерв-список 1 (как в ванильных аппендах aef0/b840):
+// узел 16 байт, +0 полк, +4 prev, +8 next, +0xC флаг; хвост обновляется.
+static void AppendReserveNode(unsigned char* side, unsigned char* regiment)
+{
+    unsigned char* node = (unsigned char*)((tV2HeapAlloc)(g_base + RVA_HEAP_ALLOC))(0x10);
+    if (!node)
+        return;
+    unsigned char* tail = *(unsigned char**)(side + 0x170);
+    *(unsigned char**)node = regiment;
+    *(unsigned char**)(node + 4) = tail;
+    *(unsigned char**)(node + 8) = 0;
+    *(node + 0xC) = 0;
+    int count = *(int*)(side + 0x174);
+    *(unsigned char**)(side + 0x170) = node;
+    *(int*)(side + 0x174) = count + 1;
+    if (count == 0)
+        *(unsigned char**)(side + 0x16C) = node;
+    else
+        *(unsigned char**)(tail + 8) = node;
+}
+
 // Новая развёртка резервов. Слоты обходятся от центра к краям в
 // пределах ширины фронта (как в ванили): пустой слот первой линии
 // занимает не-support резерв, пустой слот второй линии - support.
-static void __cdecl ReserveDeployNew(unsigned char* side, int /*enemySide*/)
+// Пик из резерва: сначала первый подходящий support-юнит (артиллерия
+// приоритетнее для второй линии), если support в резерве нет -
+// первый подходящий пехотный/кавалерийский. minStrength=0 означает
+// "любой с орг >= 1.0".
+static unsigned char* ReserveTakeSupportFirst(unsigned char* side, int minStrength)
+{
+    unsigned char* node = ReserveTakeNode(side, true, minStrength);
+    if (node)
+        return node;
+    return ReserveTakeNode(side, false, minStrength);
+}
+
+// Есть ли в резервах вообще разворачиваемый юнит (любого класса).
+static bool ReserveHasDeployable(unsigned char* side)
+{
+    unsigned char* node = *(unsigned char**)(side + 0x16C);
+    while (node)
+    {
+        unsigned char* regiment = *(unsigned char**)node;
+        if (96 < *(int*)(regiment + 0x3C) && 999 < *(int*)(regiment + 0x40))
+            return true;
+        node = *(unsigned char**)(node + 8);
+    }
+    return false;
+}
+
+// Ванильная FUN_0059b190 один в один (три фазы, границы, проверки),
+// с единственным отличием: юнит для слота второй линии выбирается
+// support-приоритетом (артиллерия важнее пехоты). В ваниле фазы 1-2
+// наоборот берут только не-support, из-за чего пехота занимала
+// вторую линию, пока артиллерия ждала в резервах.
+static void __cdecl ReserveDeployNew(unsigned char* side, int enemySide)
 {
     void** front = (void**)(side + 0x6C);
     void** back  = (void**)(side + 0xEC);
+    void** enemyFront = (void**)(enemySide + 0x6C);
     int width = ((tV2CombatWidth)(g_base + RVA_COMBAT_WIDTH))(*(int*)(side + 0x1C));
     if (width > 31)
         width = 31;
+
+    // Замена пехоты/кавалерии во второй линии на support-юнитов из
+    // резервов. Ванильный b840 при переполнении первой линии оставлял
+    // пехоту в слотах второй линии, из-за чего резервные артиллерия и
+    // самолёты не могли туда встать. Пехота возвращается в резерв и
+    // попадёт во вторую линию, когда support в резерве кончится.
     for (int k = 0; k < width; ++k)
     {
         int off = (k & 1) ? -((k + 1) / 2) : (k / 2);
         int idx = off + 16;
-        if (idx < 0 || idx > 31)
+        if (idx < 0 || idx > 30)
             continue;
-        if (!front[idx])
-        {
-            int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
-            unsigned char* node = ReserveTakeNode(side, false, minStrength);
-            if (node)
-            {
-                front[idx] = *(void**)node;
-                ReserveDropNode(side, node);
-            }
-        }
-        if (!back[idx])
-        {
-            int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
-            unsigned char* node = ReserveTakeNode(side, true, minStrength);
-            if (node)
-            {
-                back[idx] = *(void**)node;
-                ReserveDropNode(side, node);
-            }
-        }
+        unsigned char* occupant = (unsigned char*)back[idx];
+        if (!occupant || ReserveUnitIsSupport(occupant))
+            continue;
+        unsigned char* snode = ReserveTakeNode(side, true, 0);
+        if (!snode)
+            break;
+        AppendReserveNode(side, occupant);
+        back[idx] = *(void**)snode;
+        ReserveDropNode(side, snode);
     }
-    // Добор первой линии артиллерией: если в резервах не осталось
-    // пехоты/кавалерии (юнитов первой линии), пустые слоты первой
-    // линии занимают support-резервы. Пока пехота есть - она важнее.
-    if (!ReserveTakeNode(side, false, 0))
+
+    // Фаза 1: оба слота пусты, у врага в этом направлении кто-то есть.
+    for (int k = 0; k < width; ++k)
     {
-        for (int k = 0; k < width; ++k)
-        {
-            int off = (k & 1) ? -((k + 1) / 2) : (k / 2);
-            int idx = off + 16;
-            if (idx < 0 || idx > 31)
-                continue;
-            if (!front[idx])
-            {
-                unsigned char* node = ReserveTakeNode(side, true, 0);
-                if (!node)
-                    break;
-                front[idx] = *(void**)node;
-                ReserveDropNode(side, node);
-            }
-        }
+        if (!ReserveHasDeployable(side))
+            break;
+        int off = (k & 1) ? -((k + 1) / 2) : (k / 2);
+        int idx = off + 16;
+        if (idx < 0 || idx > 30)
+            continue;
+        if (back[idx] || front[idx] || !enemyFront[idx])
+            continue;
+        int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
+        unsigned char* node = ReserveTakeSupportFirst(side, minStrength);
+        if (!node)
+            break;
+        back[idx] = *(void**)node;
+        ReserveDropNode(side, node);
+    }
+
+    // Фаза 2: оба слота пусты.
+    for (int k = 0; k < width; ++k)
+    {
+        int off = (k & 1) ? -((k + 1) / 2) : (k / 2);
+        int idx = off + 16;
+        if (idx < 0 || idx > 30)
+            continue;
+        if (back[idx] || front[idx])
+            continue;
+        int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
+        unsigned char* node = ReserveTakeSupportFirst(side, minStrength);
+        if (!node)
+            break;
+        back[idx] = *(void**)node;
+        ReserveDropNode(side, node);
+    }
+
+    // Фаза 3: слот второй линии пуст - любой юнит (support-приоритет).
+    for (int k = 0; k < width; ++k)
+    {
+        int off = (k & 1) ? -((k + 1) / 2) : (k / 2);
+        int idx = off + 16;
+        if (idx < 0 || idx > 30)
+            continue;
+        if (back[idx])
+            continue;
+        int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
+        unsigned char* node = ReserveTakeSupportFirst(side, minStrength);
+        if (!node)
+            break;
+        back[idx] = *(void**)node;
+        ReserveDropNode(side, node);
     }
 }
 
@@ -11544,111 +11684,110 @@ static bool InstallReserveFrontline()
     memcpy(hook, patch, sizeof(patch));
     VirtualProtect(hook, 5, oldProtect, &oldProtect);
 
-    Log("ReserveFrontline: установлен на rva %06X (резервы: пехота/кавалерия -> первая линия, support -> вторая)",
+    Log("ReserveFrontline: установлен на rva %06X (резервы во вторую линию: сначала support, пехота - когда support кончился)",
         RVA_RESERVE_DEPLOY);
     return true;
 }
 
 // ---------------------------------------------------------------
-// Протяжка из второй линии в первую - FUN_0059b0e0 (RVA 0x19B0E0),
-// вызывается по слоту: EAX = сторона, ECX = индекс слота, эпилог RET.
-// Ваниль двигала вперёд ЛЮБОЙ юнит из второй линии, чей слот первой
-// линии опустел - так артиллерия оказывалась в первой линии. Новое
-// правило: support-юнит переезжает вперёд только если на всей стороне
-// не осталось пехоты/кавалерии, способной встать в первую линию
-// (во второй линии или в резервах). Боковой сдвиг для не-support
-// сохранён как в ваниле.
+// Расщепление урона из второй линии. Точка: FUN_0059a8e0 (RVA
+// 0x19A8E0), применение урона цели:
+//   0x19AC8A  MOV EDX,[EBP+8]        ; EDX = орг-урон (fixed x1000)
+//   0x19AC8D  ADD [EBX+0x70],EDX     ; EBX = полк-цель (первая линия)
+//   0x19AC90  ADD [EBX+0x6C],EAX     ; EAX = урон по силе
+//   0x19AC93  POP EDI ... (resume)
+// EBP-кадр жив: [EBP+C] = сторона противника, [EBP+14] = множитель
+// атаки (первая линия всегда 1000, вторая - значение support).
+// Хук на 9 байт (все 3 инструкции), вся математика в хелпере:
+// 80% урона цели, 20% - юниту второй линии врага, стоящему ровно за
+// целью (тот же индекс слота); за целью пусто - 100% в первую линию.
+// Атаки из первой линии (множитель ровно 1000) не расщепляются.
 // ---------------------------------------------------------------
 
-// Есть ли на стороне пехота/кавалерия, способная занять первую линию:
-// любой не-support во второй линии или разворачиваемый не-support
-// (сила > 96 промилле, орг >= 1.0) в резерв-списке 1.
-static bool HasDeployableFrontliner(unsigned char* side)
+static const DWORD RVA_SPLASH_HOOK   = 0x19AC8A;
+static const DWORD RVA_SPLASH_RESUME = 0x19AC93;
+
+static const unsigned char SPLASH_HOOK_SIG[9] =
+{ 0x8B, 0x55, 0x08, 0x01, 0x53, 0x70, 0x01, 0x43, 0x6C };
+
+static DWORD g_splashResumeAddr = 0;
+
+static void __cdecl SecondLineSplashApply(
+    int target, int orgDmg, int strDmg, int enemySide, int attackMult)
 {
-    void** front = (void**)(side + 0x6C);
-    void** back  = (void**)(side + 0xEC);
+    // v5.54: вылет lua51.dll+0x104A0 (чтение enemySide+0x6C при enemySide==0,
+    // 1836-01-08, боевой день): [EBP+0xC] в FUN_0059A8E0 бывает нулевым/не
+    // стороной боя (другой вызывающий?). Тогда расщеплять нечем - бьём только
+    // цель, как у атак первой линии. Заодно проверяем читаемость обеих
+    // таблиц стороны (front +0x6C..+0xEC, back +0xEC..+0x16C) и тыловой юнит.
+    if (attackMult == 1000 || !enemySide ||
+        (g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)enemySide, 0x170)))
+    {
+        *(int*)(target + 0x70) += orgDmg;
+        *(int*)(target + 0x6C) += strDmg;
+        return;
+    }
+
+    int* enemyFront = (int*)(enemySide + 0x6C);
+    int* enemyBack  = (int*)(enemySide + 0xEC);
+    int rear = 0;
     for (int i = 0; i < 32; ++i)
     {
-        unsigned char* unit = (unsigned char*)back[i];
-        if (unit && !ReserveUnitIsSupport(unit))
-            return true;
-    }
-    unsigned char* node = *(unsigned char**)(side + 0x16C);
-    while (node)
-    {
-        unsigned char* regiment = *(unsigned char**)node;
-        if (!ReserveUnitIsSupport(regiment)
-            && 96 < *(int*)(regiment + 0x3C) && 999 < *(int*)(regiment + 0x40))
+        if (enemyFront[i] == target)
         {
-            return true;
+            rear = enemyBack[i];
+            break;
         }
-        node = *(unsigned char**)(node + 8);
     }
-    return false;
-}
+    if (rear && (g_fnIsBadReadPtr && g_fnIsBadReadPtr((void*)(rear + 0x6C), 8)))
+        rear = 0;
 
-static void __cdecl ReservePullNew(unsigned char* side, int slot)
-{
-    void** front = (void**)(side + 0x6C);
-    void** back  = (void**)(side + 0xEC);
-    unsigned char* unit = (unsigned char*)back[slot];
-    if (!unit)
-        return;
-    bool support = ReserveUnitIsSupport(unit);
-    if (!front[slot])
+    int orgBack = rear ? orgDmg / 5 : 0;
+    int strBack = rear ? strDmg / 5 : 0;
+    *(int*)(target + 0x70) += orgDmg - orgBack;
+    *(int*)(target + 0x6C) += strDmg - strBack;
+    if (rear)
     {
-        if (!support || !HasDeployableFrontliner(side))
-        {
-            front[slot] = unit;
-            back[slot] = 0;
-            return;
-        }
-    }
-    if (!support)
-    {
-        int j = slot + 1;
-        if (j >= 0 && j < 0x1E && !front[j])
-        {
-            front[j] = unit;
-            back[slot] = 0;
-            return;
-        }
-        j = slot - 1;
-        if (j >= 0 && j < 0x1E && !front[j])
-        {
-            front[j] = unit;
-            back[slot] = 0;
-        }
+        *(int*)(rear + 0x70) += orgBack;
+        *(int*)(rear + 0x6C) += strBack;
     }
 }
 
-__declspec(naked) static void ReservePullThunk()
+__declspec(naked) static void SecondLineSplashThunk()
 {
     __asm
     {
-        pushad               // сохраняем всё: EAX (сторона), ECX (слот), ESI
-        mov edx, ecx         // слот
-        mov ecx, eax         // сторона
+        pushad
+        mov eax, [esp + 0]      ; EAX = урон по силе
+        mov ecx, [esp + 8]      ; EDX = орг-урон
+        mov edx, ecx
+        mov ecx, [esp + 12]     ; EBX = цель
+        mov edi, [ebp + 0x14]   ; множитель атаки
+        push edi
+        mov edi, [ebp + 0xC]    ; сторона противника
+        push edi
+        push eax
         push edx
         push ecx
-        call ReservePullNew
-        add esp, 8
+        call SecondLineSplashApply
+        add esp, 20
         popad
-        ret
+        jmp dword ptr [g_splashResumeAddr]
     }
 }
 
-static bool InstallReservePull()
+static bool InstallSecondLineSplash()
 {
-    unsigned char* hook = (unsigned char*)(g_base + RVA_RESERVE_PULL);
+    unsigned char* hook = (unsigned char*)(g_base + RVA_SPLASH_HOOK);
 
-    if (memcmp(hook, RESERVE_PULL_SIG, sizeof(RESERVE_PULL_SIG)) != 0)
+    if (memcmp(hook, SPLASH_HOOK_SIG, sizeof(SPLASH_HOOK_SIG)) != 0)
     {
-        Log("ReservePull: сигнатура не совпала (%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X) - не патчим",
-            hook[0], hook[1], hook[2], hook[3], hook[4], hook[5], hook[6], hook[7],
-            hook[8], hook[9], hook[10]);
+        Log("SecondLineSplash: сигнатура не совпала (%02X %02X %02X %02X %02X %02X %02X %02X %02X) - не патчим",
+            hook[0], hook[1], hook[2], hook[3], hook[4], hook[5], hook[6], hook[7], hook[8]);
         return false;
     }
+
+    g_splashResumeAddr = g_base + RVA_SPLASH_RESUME;
 
     DWORD oldProtect = 0;
     if (!VirtualProtect(hook, 5, PAGE_EXECUTE_READWRITE, &oldProtect))
@@ -11656,15 +11795,14 @@ static bool InstallReservePull()
 
     unsigned char patch[5];
     patch[0] = 0xE9;
-    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&ReservePullThunk - ((DWORD)hook + 5);
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&SecondLineSplashThunk - ((DWORD)hook + 5);
     memcpy(hook, patch, sizeof(patch));
     VirtualProtect(hook, 5, oldProtect, &oldProtect);
 
-    Log("ReservePull: установлен на rva %06X (артиллерия лезет в первую линию только без пехоты)",
-        RVA_RESERVE_PULL);
+    Log("SecondLineSplash: установлен на rva %06X (урон из второй линии: 80% в первую, 20% за цель)",
+        RVA_SPLASH_HOOK);
     return true;
 }
-
 
 // ---------------------------------------------------------------
 // Диагностика бага с чек-суммой (временный патч, не для релиза)
@@ -21424,8 +21562,8 @@ static bool Install()
     if (g_settings.patchReserveFrontline)
         InstallReserveFrontline();
 
-    if (g_settings.patchReserveFrontline)
-        InstallReservePull();
+    if (g_settings.patchSecondLineSplash)
+        InstallSecondLineSplash();
 
     if (g_settings.patchChecksumDiagnostic)
     {
