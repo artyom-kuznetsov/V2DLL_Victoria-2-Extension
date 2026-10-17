@@ -67,9 +67,9 @@ Allows uncivilized countries to construct factories.
 Allows construction of all factories in colonial regions, not just whitelisted (see №10) and ones with "limit_by_local_supply = yes" attribute.
 #### 9. FACTORY_COLONIAL_EXTRA_WHITELIST=X
 Type in production types separated by comma to allow constructing them in colonial regions, if you do not intend allowing all factories.  
-Can work together with PATCH_LOCAL_SUPPLY_FACTORY_IGNORE_COLONIAL.  
+Can work together with FACTORY_COLONIAL_ALLOW_LOCAL_SUPPLY.  
 #### 10. FACTORY_REFUND_SAVINGS_ON_CLOSE
-Factory will transfer its savings to capitalists in region. Money will be wasted if there are none.
+Factory will transfer its savings to capitalists in region when closed. Money will be wasted if there are none.
 #### 11. PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE
 Unsubsidized unprofitable factories (income minus goods cost is negative, salaries are not included)
 will be automatically closed after 60 days (configurable in `<mod>/common/defines_v2dll.txt`).
@@ -77,9 +77,9 @@ will be automatically closed after 60 days (configurable in `<mod>/common/define
 AI countries expand an existing factory only if enough of its jobs are filled with workers.
 Fixes vanilla AI expanding factories to ridiculous levels for no reason.
 #### 13. FACTORY_FORCE_MIN_WAGE 
-Factories will be forced to pay minimum wage per 10K workers (configurable in `<mod>/common/defines_v2dll.txt`).
+Factories will be forced to pay a minimum wage of X pounds per 10K workers (configurable in `<mod>/common/defines_v2dll.txt`).
 #### 14. FACTORY_AI_FACTORY_PRIORITY_RULESWAP 
-AI will manage factory priotities if economic policy has `factory_priority = yes` instead of `delete_factory_if_no_input = yes`.
+AI will manage factory priotities if economic policy has `factory_priority = no` instead of `delete_factory_if_no_input = yes`.
 #### 15. POP_CARD_NEEDS_AFFECTED_BY_NEEDS_MODIFIERS_FIX
 Pop goods consumption in pop card will now be affected by pop need modifiers.
 #### 16. POP_BUDGET_PAYOUT_NEEDS_SCALED 
@@ -111,8 +111,8 @@ Production tab filters will now show all factories in a state with filtered fact
 #### 9. FACTORY_FILTER_BY_PRODUCERS_ONLY
 Production tab filters will show only producing factories of selected good, not both producers and consumers.
 #### 10. ENABLE_MUSIC_PLAYER
-Buttons located in topbar called "button_fe_player_pause", "button_fe_player_next" and a slider "fe_player_volume_slider"
-will pause, skip and configure music volume.
+Buttons located in topbar called `button_fe_player_pause`, `button_fe_player_next` and a slider `fe_player_volume_slider`
+will pause, skip and configure music volume. Check `Music Player Assets` folder for pre-made assets.
 #### 11. GOODS_ICONS_AS_SEPARATE_FILES
 On by default, does nothing until a good gets an `icon` key. Goods icons no longer have to live in the three big atlases (`gfx\interface\resources.dds`, `resources_big.dds`, `resources_small.dds`). Give a good in `common\goods.txt` a path to its own folder:
 ```
@@ -122,9 +122,9 @@ cotton = {
     icon = "gfx\\goods\\cotton"
 }
 ```
-and put the icons there: `big.dds` (the size of one frame of `resources_big.dds`), `normal.dds` (`resources.dds`) and `small.dds` (`resources_small.dds`); `.tga`, `.png` and `.bmp` work too. A missing size is made from the nearest present one by scaling; `icon` may also point to a single image (used for all three sizes). Goods without the key, or with nothing found, keep their frame from the atlas. The `icon` key is cut out of `goods.txt` before the game parses it, so the vanilla parser never sees it.
+and put the icons there: `big.dds` (the size of one frame of `resources_big.dds`), `normal.dds` (`resources.dds`) and `small.dds` (`resources_small.dds`); `.tga`, `.png` and `.bmp` work too. A missing size is made from the nearest present one by scaling; realistically this means you are allowed to only place the largest icon and other sized will be scaled down from it automatically. Goods without the key, or with nothing found, keep their frame from the atlas. The `icon` key is cut out of `goods.txt` before the game parses it, so the vanilla parser never sees it.
 #### 12. ENABLE_RESTART_GAME_BUTTON
-Button in "ESC" menu (`menubar.gui`) called `true_exit` will restart the game.
+Button in "ESC" menu (`menubar.gui`) called `true_exit` will restart the game with the same modset.
 #### 13. FIX_BUDGET_TOTAL_INCOME_LABEL
 The "Total income" row of the budget window did not include tariff income. This patch fixes it.
 #### 14. PATCH_NEEDS_HONEST_UI
@@ -146,7 +146,8 @@ Fixes miscellaneous crashes when opening tech tab.
 #### 7. PATCH_SUPPLY_SOURCE_NULL_CHECK
 Prevents game from crashing in miscellaneous scenarios with "limit_by_local_supply = yes" factories.
 #### 8. PATCH_AI_NAVAL_BASE_LIMIT
-When enabled, an AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of one state (`<mod>\common\defines_v2dll.txt`, default 1, `0` = no limit). The vanilla AI builds a naval base in every port province. The player and capitalists are not limited.
+When enabled, an AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of one state (`<mod>\common\defines_v2dll.txt`, default 1, `0` = no limit). The vanilla AI builds a naval base in every port province. The player and capitalists are not limited.  
+You don't need this if your mod only allows one naval base per state.
 #### 9. LOAD_DLL_FROM_MOD_FOLDER
 V2DLL will load `v2dll_mod.dll` in the mod folder. In case you want to add new patches for your mod independently.
   
@@ -165,7 +166,32 @@ Teaches the game the key `goods_consumption` in a building of `common\buildings.
 Adds daily consumption of set goods to country budget. You'll have to add a text label with name `naval_base_expense` to `country_budget.gui`.
 Only buildings with `province = yes` are supported. Up to 16 goods per building.
 Example:
-```goods_consumption = { cement = 5 steel = 5 }```
+```
+railroad = {   
+	type = infrastructure
+	goods_cost =
+	{
+		steel = 400
+	}
+	goods_consumption = {
+		cement = 0.5	# 8
+		steel = 1		# 16
+		glass = 1		# 4
+		timber = 1		# 4		# TOTAL 32
+	}
+	time = 365
+	visibility = yes
+	onmap = yes
+	max_level = 7
+	province = yes
+	
+	infrastructure = 0.16
+	movement_cost = -0.05
+	
+	pop_build_factory = yes
+	spawn_railway_track = yes
+}
+```
 #### 3. ENABLE_EVENT_SOUNDS
 Enables playing sounds on certain events. Like the super-events. 
 Read `/watch/music.txt` file for more information (made by maxioten).
@@ -179,7 +205,8 @@ Fixes some math errors related to multi-threading (fixes some of desync cases) (
 Decreases RAM fragmentation over long game sessions (might decrease RAM usage) (made by av213238).
 #### 4. ENGINE_WORKER_THREADS
 Set to 0 to automatically use all available threads. This will improve performance. 
-In theory, might reduce desync probability if all lobby participants have the same setting (made by av213238).
+In theory, might reduce desync probability if all lobby participants have the same setting.
+Note that performance will be closer to terrible with several instances of the game launched simultaneously (made by av213238).
 #### 5. PATCH_POP_QUANTIZE / POP_QUANTIZE_KEEP_BITS
 Rouns up microscopic pop attributes (money, savings, etc) that you would never even see in game. 
 Might decrease related desync probability and improve performance a bit (rounds up to 12 bits by default, vanilla is 15) (made by av213238).
@@ -190,9 +217,9 @@ Force disables VSYNC. Disabling may cause freezes and stutters. (made by av21323
 #### 9. D3D_FPS_LIMIT
 FPS Limiter. Set to 0 to disable (made by av213238).
 #### 10. FIX_SFX_MIXER_LAG
-Fixes behaviour where game constantly tries to access sound mixer for no reason. Enable sleeper patches above. (made by av213238).
+Fixes behaviour where game constantly tries to access sound mixer for no reason. Enable `REMOVE_SLEEPERS` above. (made by av213238).
 #### 11. FIX_ARMY_WINDOW_LAG
-Fixes stutters while army/armies are selected (made by av213238).
+Fixes stutters while one or several armies are selected (made by av213238).
 #### 12. PATCH_HIGH_PRIORITY
 Prioritizes the game process. Supposed a marginal performance gain (made by av213238).
 #### 13. PATCH_COMPRESS_FLAG_CACHE
