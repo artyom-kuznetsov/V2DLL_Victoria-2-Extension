@@ -1,0 +1,456 @@
+2026-10-18 14:05:22 INFO  FindVtableFunctions.java> FINDVTABLE DONE CMoveCommand::vftable  
+2026-10-18 14:06:14 INFO  ListFunctionRefs.java> LISTREFS DONE  
+2026-10-18 14:06:46 INFO  DumpVtable.java> DUMPVTABLE DONE 00e03394  
+2026-10-18 14:07:15 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:07:15 INFO  ExportMpSyncDecomp.java> FUNC FUN_005de730 @ 005de730 head 55 8B EC 56 8B F1 E8 25 (requested 005DE730)  
+2026-10-18 14:07:15 INFO  ExportMpSyncDecomp.java> FUNC FUN_009a29f0 @ 009a29f0 head 55 8B EC 56 8B 75 08 83 (requested 009A29F0)  
+2026-10-18 14:07:15 INFO  ExportMpSyncDecomp.java> FUNC FUN_005df0c0 @ 005df0c0 head 55 8B EC 83 E4 F8 81 EC (requested 005DF0C0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_009a2a90 @ 009a2a90 head 55 8B EC 83 E4 F8 6A FF (requested 009A2A90)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005df230 @ 005df230 head 55 8B EC 8B 45 0C 3D 35 (requested 005DF230)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_004010c0 @ 004010c0 head C3 CC CC CC CC CC CC CC (requested 004010C0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005deae0 @ 005deae0 head 55 8B EC 83 E4 F8 51 53 (requested 005DEAE0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005df0b0 @ 005df0b0 head B8 F8 02 00 00 C3 CC CC (requested 005DF0B0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_007d97f0 @ 007d97f0 head 8B 41 24 C3 CC CC CC CC (requested 007D97F0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_009a2710 @ 009a2710 head 66 8B 41 28 C3 CC CC CC (requested 009A2710)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_009a2720 @ 009a2720 head 55 8B EC 66 8B 45 08 66 (requested 009A2720)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_009a2730 @ 009a2730 head 55 8B EC 8B 45 08 89 41 (requested 009A2730)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_0058cfd0 @ 0058cfd0 head 32 C0 C3 CC CC CC CC CC (requested 0058CFD0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005df330 @ 005df330 head 55 8B EC 6A FF 68 03 16 (requested 005DF330)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005df4b0 @ 005df4b0 head 55 8B EC 83 E4 F8 83 EC (requested 005DF4B0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005df3a0 @ 005df3a0 head 55 8B EC 6A FF 68 06 5C (requested 005DF3A0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005de9d0 @ 005de9d0 head 55 8B EC 6A FF 68 39 5C (requested 005DE9D0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005de610 @ 005de610 head 55 8B EC 6A FF 68 CB 5B (requested 005DE610)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> FUNC FUN_005de7d0 @ 005de7d0 head 55 8B EC 64 A1 00 00 00 (requested 005DE7D0)  
+2026-10-18 14:07:16 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:07:57 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_009c16d0 @ 009c16d0 head 55 8B EC 83 E4 F8 81 7D (requested 009C16D0)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cf450 @ 005cf450 head 55 8B EC 83 EC 30 53 8B (requested 005CF450)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005ded20 @ 005ded20 head 55 8B EC 83 E4 F8 64 A1 (requested 005DED20)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1bb0 @ 005d1bb0 head 55 8B EC 64 A1 00 00 00 (requested 005D1BB0)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d0eb0 @ 005d0eb0 head 55 8B EC 64 A1 00 00 00 (requested 005D0EB0)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005ab7f0 @ 005ab7f0 head 55 8B EC 83 E4 F8 83 EC (requested 005AB7F0)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_0057aab0 @ 0057aab0 head 55 8B EC 56 57 8B F1 8B (requested 0057AAB0)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_00409810 @ 00409810 head 55 8B EC 81 EC 04 01 00 (requested 00409810)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e5a20 @ 005e5a20 head 55 8B EC 81 EC 04 01 00 (requested 005E5A20)  
+2026-10-18 14:07:58 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1fc0 @ 005d1fc0 head 55 8B EC 83 E4 F8 64 A1 (requested 005D1FC0)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d24a0 @ 005d24a0 head 55 8B EC 83 EC 10 53 56 (requested 005D24A0)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cbe00 @ 005cbe00 head 55 8B EC 83 EC 08 53 8B (requested 005CBE00)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cbf30 @ 005cbf30 head 8B 56 74 8B 4A 14 8B 41 (requested 005CBF30)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cbec0 @ 005cbec0 head 83 79 74 00 56 74 46 8B (requested 005CBEC0)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cf2e0 @ 005cf2e0 head 55 8B EC 83 E4 F8 83 EC (requested 005CF2E0)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_005b9690 @ 005b9690 head 55 8B EC 83 E4 F8 8B 11 (requested 005B9690)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_009888f0 @ 009888f0 head 55 8B EC 6A FF 68 B8 E5 (requested 009888F0)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> FUNC FUN_00988fa0 @ 00988fa0 head 55 8B EC 6A FF 68 08 C1 (requested 00988FA0)  
+2026-10-18 14:08:45 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:09:04 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:09:04 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d4420 @ 005d4420 head 55 8B EC 8B 86 DC 00 00 (requested 005D4420)  
+2026-10-18 14:09:04 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d4540 @ 005d4540 head 55 8B EC 83 E4 F8 64 A1 (requested 005D4540)  
+2026-10-18 14:09:05 INFO  ExportMpSyncDecomp.java> FUNC FUN_004c8580 @ 004c8580 head 55 8B EC 8B 4D 0C 8B 81 (requested 004C8580)  
+2026-10-18 14:09:05 INFO  ExportMpSyncDecomp.java> FUNC FUN_00643ce0 @ 00643ce0 head 55 8B EC 64 A1 00 00 00 (requested 00643CE0)  
+2026-10-18 14:09:05 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:09:37 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:09:38 INFO  ExportMpSyncDecomp.java> STRINGS 'siege': 40 hits -> strings_siege.txt  
+2026-10-18 14:09:39 INFO  ExportMpSyncDecomp.java> STRINGS 'retreat': 18 hits -> strings_retreat.txt  
+2026-10-18 14:09:39 INFO  ExportMpSyncDecomp.java> STRINGS 'transport': 29 hits -> strings_transport.txt  
+2026-10-18 14:09:40 INFO  ExportMpSyncDecomp.java> STRINGS 'disembark': 0 hits -> strings_disembark.txt  
+2026-10-18 14:09:40 INFO  ExportMpSyncDecomp.java> STRINGS 'rebel': 78 hits -> strings_rebel.txt  
+2026-10-18 14:09:40 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:09:59 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:10:00 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059e300 @ 0059e300 head 55 8B EC 83 E4 F8 6A FF (requested 0059E300)  
+2026-10-18 14:10:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005aa190 @ 005aa190 head 55 8B EC 83 E4 F8 6A FF (requested 005AA190)  
+2026-10-18 14:10:01 INFO  ExportMpSyncDecomp.java> NOFUNC at 005BBA  
+2026-10-18 14:10:01 INFO  ExportMpSyncDecomp.java> NOFUNC at A0  
+2026-10-18 14:10:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d6580 @ 005d6580 head 55 8B EC 6A FF 68 75 FA (requested 005D6580)  
+2026-10-18 14:10:02 INFO  ExportMpSyncDecomp.java> FUNC FUN_0042e410 @ 0042e410 head 55 8B EC 83 E4 F8 6A FF (requested 0042E410)  
+2026-10-18 14:11:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_004aafd0 @ 004aafd0 head 55 8B EC 83 E4 F8 6A FF (requested 004AAFD0)  
+2026-10-18 14:11:34 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:12:17 INFO  FindVtableFunctions.java> FINDVTABLE DONE SiegeCombat  
+2026-10-18 14:13:07 INFO  FindRttiVtable.java> FINDRTTI DONE CSiegeCombat  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a9f70 @ 005a9f70 head 55 8B EC 56 8B F1 E8 D5 (requested 005A9F70)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_005aa110 @ 005aa110 head 55 8B EC 81 EC 04 01 00 (requested 005AA110)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_005aa0d0 @ 005aa0d0 head 55 8B EC 53 8B 5D 08 56 (requested 005AA0D0)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059c0d0 @ 0059c0d0 head 53 56 8B F1 8B 46 10 57 (requested 0059C0D0)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a9fa0 @ 005a9fa0 head 55 8B EC 6A FF 68 C6 A1 (requested 005A9FA0)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_005ab710 @ 005ab710 head 55 8B EC 8B 41 18 8B 88 (requested 005AB710)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_005aa180 @ 005aa180 head B8 6D 03 00 00 C3 CC CC (requested 005AA180)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_005c5de0 @ 005c5de0 head 55 8B EC 8B 45 08 C7 00 (requested 005C5DE0)  
+2026-10-18 14:13:24 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059c630 @ 0059c630 head 55 8B EC 83 E4 F8 A1 E8 (requested 0059C630)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_005aa0b0 @ 005aa0b0 head 56 8B F1 E8 48 42 FF FF (requested 005AA0B0)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a9040 @ 005a9040 head 55 8B EC 64 A1 00 00 00 (requested 005A9040)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_005aa190 @ 005aa190 head 55 8B EC 83 E4 F8 6A FF (requested 005AA190)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a9600 @ 005a9600 head 55 8B EC 8B 45 08 89 41 (requested 005A9600)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_005ab650 @ 005ab650 head 55 8B EC 83 EC 08 53 56 (requested 005AB650)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_005b5120 @ 005b5120 head 83 E9 08 E9 48 4E FF FF (requested 005B5120)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059bde0 @ 0059bde0 head B8 07 00 00 00 C3 CC CC (requested 0059BDE0)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_006ba800 @ 006ba800 head 55 8B EC 8B 45 08 33 C9 (requested 006BA800)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059bdf0 @ 0059bdf0 head A1 E8 88 25 01 8B 80 24 (requested 0059BDF0)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059be10 @ 0059be10 head A1 E8 88 25 01 56 8B B0 (requested 0059BE10)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059be60 @ 0059be60 head 55 8B EC 83 E4 F8 83 EC (requested 0059BE60)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_00593740 @ 00593740 head 55 8B EC 51 56 8B 75 08 (requested 00593740)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_00595b20 @ 00595b20 head 55 8B EC 56 8B F1 C7 06 (requested 00595B20)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> FUNC FUN_00a46a60 @ 00a46a60 head C2 04 00 CC CC CC CC CC (requested 00A46A60)  
+2026-10-18 14:13:25 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:14:20 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:14:20 INFO  ExportMpSyncDecomp.java> FUNC FUN_00595660 @ 00595660 head 55 8B EC 83 EC 10 53 8B (requested 00595660)  
+2026-10-18 14:14:20 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a0180 @ 005a0180 head 55 8B EC 6A FF 64 A1 00 (requested 005A0180)  
+2026-10-18 14:16:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_00595760 @ 00595760 head 55 8B EC 83 E4 F8 6A FF (requested 00595760)  
+2026-10-18 14:16:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a9610 @ 005a9610 head 8B 4F 10 56 8B F0 8B 01 (requested 005A9610)  
+2026-10-18 14:16:01 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:16:36 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:16:36 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059ca40 @ 0059ca40 head 55 8B EC 83 E4 F8 64 A1 (requested 0059CA40)  
+2026-10-18 14:16:36 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a9d30 @ 005a9d30 head 55 8B EC 83 E4 F8 A1 E8 (requested 005A9D30)  
+2026-10-18 14:16:36 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a9640 @ 005a9640 head 56 8B F0 8B 07 8B 50 24 (requested 005A9640)  
+2026-10-18 14:16:37 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:17:04 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:17:05 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCNaval': 3 hits -> strings___AVCNaval.txt  
+2026-10-18 14:17:05 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCArmy': 1 hits -> strings___AVCArmy.txt  
+2026-10-18 14:17:06 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCTransport': 0 hits -> strings___AVCTransport.txt  
+2026-10-18 14:17:06 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCFleet': 0 hits -> strings___AVCFleet.txt  
+2026-10-18 14:17:06 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:17:26 INFO  FindRttiVtable.java> FINDRTTI DONE CNavalCombat  
+2026-10-18 14:17:41 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:17:42 INFO  ExportMpSyncDecomp.java> STRINGS 'load_army': 1 hits -> strings_load_army.txt  
+2026-10-18 14:17:43 INFO  ExportMpSyncDecomp.java> STRINGS 'unload': 8 hits -> strings_unload.txt  
+2026-10-18 14:17:43 INFO  ExportMpSyncDecomp.java> STRINGS 'naval_': 110 hits -> strings_naval_.txt  
+2026-10-18 14:17:43 INFO  ExportMpSyncDecomp.java> STRINGS 'move_to': 0 hits -> strings_move_to.txt  
+2026-10-18 14:17:44 INFO  ExportMpSyncDecomp.java> STRINGS 'BOARD': 15 hits -> strings_BOARD.txt  
+2026-10-18 14:17:44 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:18:01 INFO  FindRttiVtable.java> FINDRTTI DONE CUnloadArmyCommand  
+2026-10-18 14:18:16 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:18:17 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCLoad': 1 hits -> strings___AVCLoad.txt  
+2026-10-18 14:18:18 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCMerge': 1 hits -> strings___AVCMerge.txt  
+2026-10-18 14:18:18 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCSplit': 1 hits -> strings___AVCSplit.txt  
+2026-10-18 14:18:19 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCArmyCommand': 0 hits -> strings___AVCArmyCommand.txt  
+2026-10-18 14:18:19 INFO  ExportMpSyncDecomp.java> STRINGS '.?AVCBoard': 0 hits -> strings___AVCBoard.txt  
+2026-10-18 14:18:19 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:18:42 INFO  FindRttiVtable.java> FINDRTTI DONE CLoadArmyCommand  
+2026-10-18 14:18:50 INFO  FindRttiVtable.java> FINDRTTI DONE CSplitAndLoadArmyCommand  
+2026-10-18 14:18:59 INFO  FindRttiVtable.java> FINDRTTI DONE CMergeCommand  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e3480 @ 005e3480 head 55 8B EC 83 E4 F8 64 A1 (requested 005E3480)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e3830 @ 005e3830 head 55 8B EC 83 E4 F8 83 EC (requested 005E3830)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e4530 @ 005e4530 head 55 8B EC 83 E4 F8 6A FF (requested 005E4530)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e49a0 @ 005e49a0 head 55 8B EC 83 E4 F8 83 EC (requested 005E49A0)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e3b50 @ 005e3b50 head 55 8B EC 83 E4 F8 64 A1 (requested 005E3B50)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e41e0 @ 005e41e0 head 55 8B EC 83 E4 F8 83 EC (requested 005E41E0)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e1590 @ 005e1590 head 55 8B EC 83 E4 F8 6A FF (requested 005E1590)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e1be0 @ 005e1be0 head 55 8B EC 83 E4 F8 6A FF (requested 005E1BE0)  
+2026-10-18 14:19:14 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:20:06 INFO  DumpVtable.java> DUMPVTABLE DONE 00e03614  
+2026-10-18 14:20:12 INFO  DumpVtable.java> DUMPVTABLE DONE 00e03694  
+2026-10-18 14:20:18 INFO  DumpVtable.java> DUMPVTABLE DONE 00e03654  
+2026-10-18 14:20:24 INFO  DumpVtable.java> DUMPVTABLE DONE 00e03514  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e32e0 @ 005e32e0 head 55 8B EC 6A FF 68 CB 5B (requested 005E32E0)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e33e0 @ 005e33e0 head 55 8B EC 64 A1 00 00 00 (requested 005E33E0)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e48f0 @ 005e48f0 head 55 8B EC 64 A1 00 00 00 (requested 005E48F0)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e4320 @ 005e4320 head 55 8B EC 6A FF 68 CE 5A (requested 005E4320)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e4480 @ 005e4480 head 55 8B EC 64 A1 00 00 00 (requested 005E4480)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e38f0 @ 005e38f0 head 55 8B EC 6A FF 68 CE 5A (requested 005E38F0)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e3a60 @ 005e3a60 head 55 8B EC 6A FF 68 8E 5A (requested 005E3A60)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e4100 @ 005e4100 head 55 8B EC 64 A1 00 00 00 (requested 005E4100)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e12c0 @ 005e12c0 head 55 8B EC 64 A1 00 00 00 (requested 005E12C0)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e13b0 @ 005e13b0 head 55 8B EC 6A FF 68 71 5B (requested 005E13B0)  
+2026-10-18 14:20:41 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:21:06 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:21:06 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d77a0 @ 005d77a0 head 8B 81 C4 00 00 00 3B 87 (requested 005D77A0)  
+2026-10-18 14:21:06 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d7810 @ 005d7810 head 8B 07 8B 50 2C 53 8B CF (requested 005D7810)  
+2026-10-18 14:21:06 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d78d0 @ 005d78d0 head 55 8B EC 83 E4 F8 6A FF (requested 005D78D0)  
+2026-10-18 14:21:06 INFO  ExportMpSyncDecomp.java> FUNC FUN_005e5800 @ 005e5800 head 55 8B EC 83 E4 F8 83 EC (requested 005E5800)  
+2026-10-18 14:21:06 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d5bc0 @ 005d5bc0 head 55 8B EC 83 EC 08 53 8B (requested 005D5BC0)  
+2026-10-18 14:21:06 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:27:37 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_00594800 @ 00594800 head 55 8B EC 6A FF 68 85 FC (requested 00594800)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_00595db0 @ 00595db0 head 55 8B EC 64 A1 00 00 00 (requested 00595DB0)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dc460 @ 005dc460 head 55 8B EC 51 8B 06 53 57 (requested 005DC460)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dc0e0 @ 005dc0e0 head 55 8B EC 51 0F 57 C0 F2 (requested 005DC0E0)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dc560 @ 005dc560 head 8B 11 33 C0 85 D2 74 27 (requested 005DC560)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dc200 @ 005dc200 head 55 8B EC 51 0F 57 C0 F2 (requested 005DC200)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dc2a0 @ 005dc2a0 head 55 8B EC 0F 57 C0 F2 0F (requested 005DC2A0)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d0650 @ 005d0650 head 8B 49 38 33 C0 85 C9 74 (requested 005D0650)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d5680 @ 005d5680 head 55 8B EC 83 EC 0C 8B 45 (requested 005D5680)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059c3d0 @ 0059c3d0 head 55 8B EC 83 EC 10 A1 E8 (requested 0059C3D0)  
+2026-10-18 14:27:38 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:28:07 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:28:07 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dc330 @ 005dc330 head 55 8B EC 83 EC 0C 0F 57 (requested 005DC330)  
+2026-10-18 14:28:07 INFO  ExportMpSyncDecomp.java> FUNC FUN_008b0060 @ 008b0060 head 33 C9 B8 FF 01 00 00 89 (requested 008B0060)  
+2026-10-18 14:28:07 INFO  ExportMpSyncDecomp.java> FUNC FUN_005ab840 @ 005ab840 head 55 8B EC 8B 45 08 53 56 (requested 005AB840)  
+2026-10-18 14:28:07 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:28:26 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:28:27 INFO  ExportMpSyncDecomp.java> FUNC FUN_005c0160 @ 005c0160 head 55 8B EC 83 E4 F8 64 A1 (requested 005C0160)  
+2026-10-18 14:28:27 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_00593060 @ 00593060 head 55 8B EC 64 A1 00 00 00 (requested 00593060)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_005c1a10 @ 005c1a10 head 55 8B EC 6A FF 68 8B F8 (requested 005C1A10)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_00595b90 @ 00595b90 head 55 8B EC 51 53 56 8B 71 (requested 00595B90)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dc180 @ 005dc180 head 55 8B EC 0F 57 C0 F2 0F (requested 005DC180)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_005dba20 @ 005dba20 head 53 56 8B 30 33 DB 85 F6 (requested 005DBA20)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_005934e0 @ 005934e0 head 55 8B EC 6A FF 68 F8 DE (requested 005934E0)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_00595bf0 @ 00595bf0 head 55 8B EC 83 EC 2C 53 56 (requested 00595BF0)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_005935d0 @ 005935d0 head 55 8B EC 53 8B 5D 08 56 (requested 005935D0)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_00593ca0 @ 00593ca0 head 55 8B EC 83 EC 0C 8B 45 (requested 00593CA0)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_00593b60 @ 00593b60 head 55 8B EC 64 A1 00 00 00 (requested 00593B60)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_00593c00 @ 00593c00 head 55 8B EC 64 A1 00 00 00 (requested 00593C00)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_005a96f0 @ 005a96f0 head 55 8B EC 6A FF 68 61 60 (requested 005A96F0)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_0051af10 @ 0051af10 head 55 8B EC 83 E4 F8 83 EC (requested 0051AF10)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> FUNC FUN_0059dbf0 @ 0059dbf0 head 55 8B EC 6A FF 68 D3 E9 (requested 0059DBF0)  
+2026-10-18 14:32:22 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:33:01 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:33:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1360 @ 005d1360 head 55 8B EC 64 A1 00 00 00 (requested 005D1360)  
+2026-10-18 14:33:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d0fe0 @ 005d0fe0 head 55 8B EC 64 A1 00 00 00 (requested 005D0FE0)  
+2026-10-18 14:33:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d0670 @ 005d0670 head 55 8B EC 83 E4 F8 6A FF (requested 005D0C50)  
+2026-10-18 14:33:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d0670 @ 005d0670 head 55 8B EC 83 E4 F8 6A FF (requested 005D0D20)  
+2026-10-18 14:33:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d0670 @ 005d0670 head 55 8B EC 83 E4 F8 6A FF (requested 005D0E00)  
+2026-10-18 14:33:01 INFO  ExportMpSyncDecomp.java> FUNC FUN_005c68c0 @ 005c68c0 head 55 8B EC 64 A1 00 00 00 (requested 005C68C0)  
+2026-10-18 14:33:02 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cae80 @ 005cae80 head 55 8B EC 64 A1 00 00 00 (requested 005CAE80)  
+2026-10-18 14:33:02 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cb1b0 @ 005cb1b0 head 85 C0 74 04 83 C0 38 C3 (requested 005CB1B0)  
+2026-10-18 14:33:02 INFO  ExportMpSyncDecomp.java> FUNC FUN_005cb230 @ 005cb230 head 55 8B EC 51 8B 47 38 53 (requested 005CB230)  
+2026-10-18 14:33:02 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:33:28 INFO  ListFunctionRefs.java> LISTREFS DONE  
+2026-10-18 14:33:41 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:33:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005c92a0 @ 005c92a0 head 55 8B EC 83 EC 0C 83 7E (requested 005C92A0)  
+2026-10-18 14:33:41 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d25c0 @ 005d25c0 head 55 8B EC 83 E4 F8 64 A1 (requested 005D25C0)  
+2026-10-18 14:33:42 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:33:57 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1570 @ 005d1570 head 55 8B EC 83 EC 08 53 8B (requested 005D1570)  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1750 @ 005d1750 head 83 B9 EC 00 00 00 00 75 (requested 005D1750)  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1890 @ 005d1890 head 55 8B EC 83 E4 F8 64 A1 (requested 005D1890)  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d3980 @ 005d3980 head 55 8B EC 64 A1 00 00 00 (requested 005D3980)  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d3950 @ 005d3950 head F3 0F 11 80 B8 00 00 00 (requested 005D3950)  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1e60 @ 005d1e60 head 55 8B EC 64 A1 00 00 00 (requested 005D1E60)  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d57a0 @ 005d57a0 head 55 8B EC 83 EC 14 53 56 (requested 005D57A0)  
+2026-10-18 14:33:58 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 14:34:26 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 14:34:26 INFO  ExportMpSyncDecomp.java> FUNC FUN_005d1790 @ 005d1790 head 55 8B EC 51 53 8B 5D 0C (requested 005D1790)  
+2026-10-18 14:34:26 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports  
+2026-10-18 15:27:52 INFO  InventoryFunctions.java> INVENTORY total=63855 covered=262 missing=63593  
+2026-10-18 15:30:27 INFO  ExportMissingBatch.java> BATCH 0 progress=100/500 failed=0  
+2026-10-18 15:30:29 INFO  ExportMissingBatch.java> BATCH 0 progress=200/500 failed=0  
+2026-10-18 15:30:33 INFO  ExportMissingBatch.java> BATCH 0 progress=300/500 failed=0  
+2026-10-18 15:30:36 INFO  ExportMissingBatch.java> BATCH 0 progress=400/500 failed=0  
+2026-10-18 15:30:39 INFO  ExportMissingBatch.java> BATCH 0 progress=500/500 failed=0  
+2026-10-18 15:30:39 INFO  ExportMissingBatch.java> BATCH DONE start=0 exported=500 failed=0 seenMissing=13605  
+2026-10-18 15:31:22 INFO  ExportMissingBatch.java> BATCH 0 progress=100/500 failed=0  
+2026-10-18 15:31:23 INFO  ExportMissingBatch.java> BATCH 0 progress=200/500 failed=0  
+2026-10-18 15:31:25 INFO  ExportMissingBatch.java> BATCH 0 progress=300/500 failed=0  
+2026-10-18 15:31:28 INFO  ExportMissingBatch.java> BATCH 0 progress=400/500 failed=0  
+2026-10-18 15:31:30 INFO  ExportMissingBatch.java> BATCH 0 progress=500/500 failed=0  
+2026-10-18 15:31:30 INFO  ExportMissingBatch.java> BATCH DONE start=0 exported=500 failed=0 seenMissing=13605  
+2026-10-18 15:32:05 INFO  ExportMissingBatch.java> BATCH DONE start=0 exported=1 failed=0 seenMissing=18005  
+2026-10-18 15:32:28 INFO  ExportMissingBatch.java> BATCH 500 progress=100/2500 failed=0  
+2026-10-18 15:32:30 INFO  ExportMissingBatch.java> BATCH 500 progress=200/2500 failed=0  
+2026-10-18 15:32:31 INFO  ExportMissingBatch.java> BATCH 500 progress=300/2500 failed=0  
+2026-10-18 15:32:33 INFO  ExportMissingBatch.java> BATCH 500 progress=400/2500 failed=0  
+2026-10-18 15:32:34 INFO  ExportMissingBatch.java> BATCH 500 progress=500/2500 failed=0  
+2026-10-18 15:32:36 INFO  ExportMissingBatch.java> BATCH 500 progress=600/2500 failed=0  
+2026-10-18 15:32:37 INFO  ExportMissingBatch.java> BATCH 500 progress=700/2500 failed=0  
+2026-10-18 15:32:38 INFO  ExportMissingBatch.java> BATCH 500 progress=800/2500 failed=0  
+2026-10-18 15:32:40 INFO  ExportMissingBatch.java> BATCH 500 progress=900/2500 failed=0  
+2026-10-18 15:32:45 INFO  ExportMissingBatch.java> BATCH 500 progress=1000/2500 failed=0  
+2026-10-18 15:32:51 INFO  ExportMissingBatch.java> BATCH 500 progress=1100/2500 failed=0  
+2026-10-18 15:32:52 INFO  ExportMissingBatch.java> BATCH 500 progress=1200/2500 failed=0  
+2026-10-18 15:32:56 INFO  ExportMissingBatch.java> BATCH 500 progress=1300/2500 failed=0  
+2026-10-18 15:32:58 INFO  ExportMissingBatch.java> BATCH 500 progress=1400/2500 failed=0  
+2026-10-18 15:33:00 INFO  ExportMissingBatch.java> BATCH 500 progress=1500/2500 failed=0  
+2026-10-18 15:33:00 INFO  ExportMissingBatch.java> BATCH 500 progress=1600/2500 failed=0  
+2026-10-18 15:33:02 INFO  ExportMissingBatch.java> BATCH 500 progress=1700/2500 failed=0  
+2026-10-18 15:33:05 INFO  ExportMissingBatch.java> BATCH 500 progress=1800/2500 failed=0  
+2026-10-18 15:33:06 INFO  ExportMissingBatch.java> BATCH 500 progress=1900/2500 failed=0  
+2026-10-18 15:33:09 INFO  ExportMissingBatch.java> BATCH 500 progress=2000/2500 failed=0  
+2026-10-18 15:33:14 INFO  ExportMissingBatch.java> BATCH 500 progress=2100/2500 failed=0  
+2026-10-18 15:33:29 INFO  ExportMissingBatch.java> BATCH 500 progress=2200/2500 failed=0  
+2026-10-18 15:33:32 INFO  ExportMissingBatch.java> BATCH 500 progress=2300/2500 failed=0  
+2026-10-18 15:33:37 INFO  ExportMissingBatch.java> BATCH 500 progress=2400/2500 failed=0  
+2026-10-18 15:33:45 INFO  ExportMissingBatch.java> BATCH 500 progress=2500/2500 failed=0  
+2026-10-18 15:33:45 INFO  ExportMissingBatch.java> BATCH DONE start=500 exported=2500 failed=0 seenMissing=18005  
+2026-10-18 15:34:00 INFO  ExportMissingBatch.java> BATCH 3000 progress=100/2500 failed=0  
+2026-10-18 15:34:11 INFO  ExportMissingBatch.java> BATCH 3000 progress=200/2500 failed=0  
+2026-10-18 15:34:14 INFO  ExportMissingBatch.java> BATCH 3000 progress=300/2500 failed=0  
+2026-10-18 15:34:17 INFO  ExportMissingBatch.java> BATCH 3000 progress=400/2500 failed=0  
+2026-10-18 15:34:19 INFO  ExportMissingBatch.java> BATCH 3000 progress=500/2500 failed=0  
+2026-10-18 15:34:20 INFO  ExportMissingBatch.java> BATCH 3000 progress=600/2500 failed=0  
+2026-10-18 15:34:21 INFO  ExportMissingBatch.java> BATCH 3000 progress=700/2500 failed=0  
+2026-10-18 15:34:21 INFO  ExportMissingBatch.java> BATCH 3000 progress=800/2500 failed=0  
+2026-10-18 15:34:23 INFO  ExportMissingBatch.java> BATCH 3000 progress=900/2500 failed=0  
+2026-10-18 15:34:25 INFO  ExportMissingBatch.java> BATCH 3000 progress=1000/2500 failed=0  
+2026-10-18 15:34:36 INFO  ExportMissingBatch.java> BATCH 3000 progress=1100/2500 failed=0  
+2026-10-18 15:34:38 INFO  ExportMissingBatch.java> BATCH 3000 progress=1200/2500 failed=0  
+2026-10-18 15:34:42 INFO  ExportMissingBatch.java> BATCH 3000 progress=1300/2500 failed=0  
+2026-10-18 15:34:43 INFO  ExportMissingBatch.java> BATCH 3000 progress=1400/2500 failed=0  
+2026-10-18 15:34:43 INFO  ExportMissingBatch.java> BATCH 3000 progress=1500/2500 failed=0  
+2026-10-18 15:34:45 INFO  ExportMissingBatch.java> BATCH 3000 progress=1600/2500 failed=0  
+2026-10-18 15:34:45 INFO  ExportMissingBatch.java> BATCH 3000 progress=1700/2500 failed=0  
+2026-10-18 15:34:51 INFO  ExportMissingBatch.java> BATCH 3000 progress=1800/2500 failed=0  
+2026-10-18 15:34:56 INFO  ExportMissingBatch.java> BATCH 3000 progress=1900/2500 failed=0  
+2026-10-18 15:35:22 INFO  ExportMissingBatch.java> BATCH 3000 progress=2000/2500 failed=0  
+2026-10-18 15:35:23 INFO  ExportMissingBatch.java> BATCH 3000 progress=2100/2500 failed=0  
+2026-10-18 15:35:39 INFO  ExportMissingBatch.java> BATCH 3000 progress=2200/2500 failed=0  
+2026-10-18 15:35:54 INFO  ExportMissingBatch.java> BATCH 3000 progress=2300/2500 failed=1  
+2026-10-18 15:35:55 INFO  ExportMissingBatch.java> BATCH 3000 progress=2400/2500 failed=1  
+2026-10-18 15:36:24 INFO  ExportMissingBatch.java> BATCH 3000 progress=2500/2500 failed=3  
+2026-10-18 15:36:24 INFO  ExportMissingBatch.java> BATCH DONE start=3000 exported=2500 failed=3 seenMissing=18005  
+2026-10-18 15:36:42 INFO  ExportMissingBatch.java> BATCH 5500 progress=100/2500 failed=0  
+2026-10-18 15:36:43 INFO  ExportMissingBatch.java> BATCH 5500 progress=200/2500 failed=0  
+2026-10-18 15:36:48 INFO  ExportMissingBatch.java> BATCH 5500 progress=300/2500 failed=0  
+2026-10-18 15:36:51 INFO  ExportMissingBatch.java> BATCH 5500 progress=400/2500 failed=0  
+2026-10-18 15:37:03 INFO  ExportMissingBatch.java> BATCH 5500 progress=500/2500 failed=1  
+2026-10-18 15:37:20 INFO  ExportMissingBatch.java> BATCH 5500 progress=600/2500 failed=1  
+2026-10-18 15:37:52 INFO  ExportMissingBatch.java> BATCH 5500 progress=700/2500 failed=2  
+2026-10-18 15:38:04 INFO  ExportMissingBatch.java> BATCH 5500 progress=800/2500 failed=2  
+2026-10-18 15:38:10 INFO  ExportMissingBatch.java> BATCH 5500 progress=900/2500 failed=2  
+2026-10-18 15:38:37 INFO  ExportMissingBatch.java> BATCH 5500 progress=1000/2500 failed=2  
+2026-10-18 15:39:01 INFO  ExportMissingBatch.java> BATCH 5500 progress=1100/2500 failed=3  
+2026-10-18 15:39:04 INFO  ExportMissingBatch.java> BATCH 5500 progress=1200/2500 failed=3  
+2026-10-18 15:39:05 INFO  ExportMissingBatch.java> BATCH 5500 progress=1300/2500 failed=3  
+2026-10-18 15:39:06 INFO  ExportMissingBatch.java> BATCH 5500 progress=1400/2500 failed=3  
+2026-10-18 15:39:08 INFO  ExportMissingBatch.java> BATCH 5500 progress=1500/2500 failed=3  
+2026-10-18 15:39:38 INFO  ExportMissingBatch.java> BATCH 5500 progress=1600/2500 failed=4  
+2026-10-18 15:39:42 INFO  ExportMissingBatch.java> BATCH 5500 progress=1700/2500 failed=4  
+2026-10-18 15:39:52 INFO  ExportMissingBatch.java> BATCH 5500 progress=1800/2500 failed=4  
+2026-10-18 15:39:58 INFO  ExportMissingBatch.java> BATCH 5500 progress=1900/2500 failed=4  
+2026-10-18 15:40:05 INFO  ExportMissingBatch.java> BATCH 5500 progress=2000/2500 failed=4  
+2026-10-18 15:40:06 INFO  ExportMissingBatch.java> BATCH 5500 progress=2100/2500 failed=4  
+2026-10-18 15:40:09 INFO  ExportMissingBatch.java> BATCH 5500 progress=2200/2500 failed=4  
+2026-10-18 15:40:13 INFO  ExportMissingBatch.java> BATCH 5500 progress=2300/2500 failed=4  
+2026-10-18 15:40:24 INFO  ExportMissingBatch.java> BATCH 5500 progress=2400/2500 failed=4  
+2026-10-18 15:40:25 INFO  ExportMissingBatch.java> BATCH 5500 progress=2500/2500 failed=4  
+2026-10-18 15:40:25 INFO  ExportMissingBatch.java> BATCH DONE start=5500 exported=2500 failed=4 seenMissing=18005  
+2026-10-18 15:40:40 INFO  ExportMissingBatch.java> BATCH 8000 progress=100/2500 failed=0  
+2026-10-18 15:40:47 INFO  ExportMissingBatch.java> BATCH 8000 progress=200/2500 failed=0  
+2026-10-18 15:41:05 INFO  ExportMissingBatch.java> BATCH 8000 progress=300/2500 failed=1  
+2026-10-18 15:41:12 INFO  ExportMissingBatch.java> BATCH 8000 progress=400/2500 failed=1  
+2026-10-18 15:41:14 INFO  ExportMissingBatch.java> BATCH 8000 progress=500/2500 failed=1  
+2026-10-18 15:41:16 INFO  ExportMissingBatch.java> BATCH 8000 progress=600/2500 failed=1  
+2026-10-18 15:41:19 INFO  ExportMissingBatch.java> BATCH 8000 progress=700/2500 failed=1  
+2026-10-18 15:41:27 INFO  ExportMissingBatch.java> BATCH 8000 progress=800/2500 failed=1  
+2026-10-18 15:41:28 INFO  ExportMissingBatch.java> BATCH 8000 progress=900/2500 failed=1  
+2026-10-18 15:41:37 INFO  ExportMissingBatch.java> BATCH 8000 progress=1000/2500 failed=1  
+2026-10-18 15:41:38 INFO  ExportMissingBatch.java> BATCH 8000 progress=1100/2500 failed=1  
+2026-10-18 15:41:38 INFO  ExportMissingBatch.java> BATCH 8000 progress=1200/2500 failed=1  
+2026-10-18 15:41:39 INFO  ExportMissingBatch.java> BATCH 8000 progress=1300/2500 failed=1  
+2026-10-18 15:41:39 INFO  ExportMissingBatch.java> BATCH 8000 progress=1400/2500 failed=1  
+2026-10-18 15:41:41 INFO  ExportMissingBatch.java> BATCH 8000 progress=1500/2500 failed=1  
+2026-10-18 15:41:44 INFO  ExportMissingBatch.java> BATCH 8000 progress=1600/2500 failed=1  
+2026-10-18 15:41:45 INFO  ExportMissingBatch.java> BATCH 8000 progress=1700/2500 failed=1  
+2026-10-18 15:41:47 INFO  ExportMissingBatch.java> BATCH 8000 progress=1800/2500 failed=1  
+2026-10-18 15:41:50 INFO  ExportMissingBatch.java> BATCH 8000 progress=1900/2500 failed=1  
+2026-10-18 15:41:53 INFO  ExportMissingBatch.java> BATCH 8000 progress=2000/2500 failed=1  
+2026-10-18 15:41:54 INFO  ExportMissingBatch.java> BATCH 8000 progress=2100/2500 failed=1  
+2026-10-18 15:41:56 INFO  ExportMissingBatch.java> BATCH 8000 progress=2200/2500 failed=1  
+2026-10-18 15:41:59 INFO  ExportMissingBatch.java> BATCH 8000 progress=2300/2500 failed=1  
+2026-10-18 15:42:02 INFO  ExportMissingBatch.java> BATCH 8000 progress=2400/2500 failed=1  
+2026-10-18 15:42:04 INFO  ExportMissingBatch.java> BATCH 8000 progress=2500/2500 failed=1  
+2026-10-18 15:42:04 INFO  ExportMissingBatch.java> BATCH DONE start=8000 exported=2500 failed=1 seenMissing=18005  
+2026-10-18 15:42:19 INFO  ExportMissingBatch.java> BATCH 10500 progress=100/2500 failed=0  
+2026-10-18 15:42:20 INFO  ExportMissingBatch.java> BATCH 10500 progress=200/2500 failed=0  
+2026-10-18 15:42:24 INFO  ExportMissingBatch.java> BATCH 10500 progress=300/2500 failed=0  
+2026-10-18 15:42:31 INFO  ExportMissingBatch.java> BATCH 10500 progress=400/2500 failed=0  
+2026-10-18 15:42:35 INFO  ExportMissingBatch.java> BATCH 10500 progress=500/2500 failed=0  
+2026-10-18 15:42:36 INFO  ExportMissingBatch.java> BATCH 10500 progress=600/2500 failed=0  
+2026-10-18 15:42:40 INFO  ExportMissingBatch.java> BATCH 10500 progress=700/2500 failed=0  
+2026-10-18 15:42:48 INFO  ExportMissingBatch.java> BATCH 10500 progress=800/2500 failed=0  
+2026-10-18 15:42:56 INFO  ExportMissingBatch.java> BATCH 10500 progress=900/2500 failed=0  
+2026-10-18 15:42:58 INFO  ExportMissingBatch.java> BATCH 10500 progress=1000/2500 failed=0  
+2026-10-18 15:43:12 INFO  ExportMissingBatch.java> BATCH 10500 progress=1100/2500 failed=1  
+2026-10-18 15:43:15 INFO  ExportMissingBatch.java> BATCH 10500 progress=1200/2500 failed=1  
+2026-10-18 15:43:16 INFO  ExportMissingBatch.java> BATCH 10500 progress=1300/2500 failed=1  
+2026-10-18 15:43:17 INFO  ExportMissingBatch.java> BATCH 10500 progress=1400/2500 failed=1  
+2026-10-18 15:43:22 INFO  ExportMissingBatch.java> BATCH 10500 progress=1500/2500 failed=1  
+2026-10-18 15:43:23 INFO  ExportMissingBatch.java> BATCH 10500 progress=1600/2500 failed=1  
+2026-10-18 15:43:23 INFO  ExportMissingBatch.java> BATCH 10500 progress=1700/2500 failed=1  
+2026-10-18 15:43:25 INFO  ExportMissingBatch.java> BATCH 10500 progress=1800/2500 failed=1  
+2026-10-18 15:43:26 INFO  ExportMissingBatch.java> BATCH 10500 progress=1900/2500 failed=1  
+2026-10-18 15:43:26 INFO  ExportMissingBatch.java> BATCH 10500 progress=2000/2500 failed=1  
+2026-10-18 15:43:36 INFO  ExportMissingBatch.java> BATCH 10500 progress=2100/2500 failed=1  
+2026-10-18 15:43:36 INFO  ExportMissingBatch.java> BATCH 10500 progress=2200/2500 failed=1  
+2026-10-18 15:43:38 INFO  ExportMissingBatch.java> BATCH 10500 progress=2300/2500 failed=1  
+2026-10-18 15:43:39 INFO  ExportMissingBatch.java> BATCH 10500 progress=2400/2500 failed=1  
+2026-10-18 15:43:40 INFO  ExportMissingBatch.java> BATCH 10500 progress=2500/2500 failed=1  
+2026-10-18 15:43:40 INFO  ExportMissingBatch.java> BATCH DONE start=10500 exported=2500 failed=1 seenMissing=18005  
+2026-10-18 15:43:56 INFO  ExportMissingBatch.java> BATCH 13000 progress=100/2500 failed=0  
+2026-10-18 15:43:58 INFO  ExportMissingBatch.java> BATCH 13000 progress=200/2500 failed=0  
+2026-10-18 15:44:00 INFO  ExportMissingBatch.java> BATCH 13000 progress=300/2500 failed=0  
+2026-10-18 15:44:01 INFO  ExportMissingBatch.java> BATCH 13000 progress=400/2500 failed=0  
+2026-10-18 15:44:01 INFO  ExportMissingBatch.java> BATCH 13000 progress=500/2500 failed=0  
+2026-10-18 15:44:04 INFO  ExportMissingBatch.java> BATCH 13000 progress=600/2500 failed=0  
+2026-10-18 15:44:06 INFO  ExportMissingBatch.java> BATCH 13000 progress=700/2500 failed=0  
+2026-10-18 15:44:10 INFO  ExportMissingBatch.java> BATCH 13000 progress=800/2500 failed=0  
+2026-10-18 15:44:11 INFO  ExportMissingBatch.java> BATCH 13000 progress=900/2500 failed=0  
+2026-10-18 15:44:12 INFO  ExportMissingBatch.java> BATCH 13000 progress=1000/2500 failed=0  
+2026-10-18 15:44:15 INFO  ExportMissingBatch.java> BATCH 13000 progress=1100/2500 failed=0  
+2026-10-18 15:44:17 INFO  ExportMissingBatch.java> BATCH 13000 progress=1200/2500 failed=0  
+2026-10-18 15:44:17 INFO  ExportMissingBatch.java> BATCH 13000 progress=1300/2500 failed=0  
+2026-10-18 15:44:18 INFO  ExportMissingBatch.java> BATCH 13000 progress=1400/2500 failed=0  
+2026-10-18 15:44:19 INFO  ExportMissingBatch.java> BATCH 13000 progress=1500/2500 failed=0  
+2026-10-18 15:44:20 INFO  ExportMissingBatch.java> BATCH 13000 progress=1600/2500 failed=0  
+2026-10-18 15:44:22 INFO  ExportMissingBatch.java> BATCH 13000 progress=1700/2500 failed=0  
+2026-10-18 15:44:23 INFO  ExportMissingBatch.java> BATCH 13000 progress=1800/2500 failed=0  
+2026-10-18 15:44:24 INFO  ExportMissingBatch.java> BATCH 13000 progress=1900/2500 failed=0  
+2026-10-18 15:44:30 INFO  ExportMissingBatch.java> BATCH 13000 progress=2000/2500 failed=0  
+2026-10-18 15:44:31 INFO  ExportMissingBatch.java> BATCH 13000 progress=2100/2500 failed=0  
+2026-10-18 15:44:32 INFO  ExportMissingBatch.java> BATCH 13000 progress=2200/2500 failed=0  
+2026-10-18 15:44:33 INFO  ExportMissingBatch.java> BATCH 13000 progress=2300/2500 failed=0  
+2026-10-18 15:44:34 INFO  ExportMissingBatch.java> BATCH 13000 progress=2400/2500 failed=0  
+2026-10-18 15:44:35 INFO  ExportMissingBatch.java> BATCH 13000 progress=2500/2500 failed=0  
+2026-10-18 15:44:35 INFO  ExportMissingBatch.java> BATCH DONE start=13000 exported=2500 failed=0 seenMissing=18005  
+2026-10-18 15:45:06 INFO  ExportMissingBatch.java> BATCH 15500 progress=100/2500 failed=1  
+2026-10-18 15:45:07 INFO  ExportMissingBatch.java> BATCH 15500 progress=200/2500 failed=1  
+2026-10-18 15:45:08 INFO  ExportMissingBatch.java> BATCH 15500 progress=300/2500 failed=1  
+2026-10-18 15:45:09 INFO  ExportMissingBatch.java> BATCH 15500 progress=400/2500 failed=1  
+2026-10-18 15:45:10 INFO  ExportMissingBatch.java> BATCH 15500 progress=500/2500 failed=1  
+2026-10-18 15:45:10 INFO  ExportMissingBatch.java> BATCH 15500 progress=600/2500 failed=1  
+2026-10-18 15:45:12 INFO  ExportMissingBatch.java> BATCH 15500 progress=700/2500 failed=1  
+2026-10-18 15:45:13 INFO  ExportMissingBatch.java> BATCH 15500 progress=800/2500 failed=1  
+2026-10-18 15:45:15 INFO  ExportMissingBatch.java> BATCH 15500 progress=900/2500 failed=1  
+2026-10-18 15:45:16 INFO  ExportMissingBatch.java> BATCH 15500 progress=1000/2500 failed=1  
+2026-10-18 15:45:17 INFO  ExportMissingBatch.java> BATCH 15500 progress=1100/2500 failed=1  
+2026-10-18 15:45:18 INFO  ExportMissingBatch.java> BATCH 15500 progress=1200/2500 failed=1  
+2026-10-18 15:45:19 INFO  ExportMissingBatch.java> BATCH 15500 progress=1300/2500 failed=1  
+2026-10-18 15:45:20 INFO  ExportMissingBatch.java> BATCH 15500 progress=1400/2500 failed=1  
+2026-10-18 15:45:21 INFO  ExportMissingBatch.java> BATCH 15500 progress=1500/2500 failed=1  
+2026-10-18 15:45:29 INFO  ExportMissingBatch.java> BATCH 15500 progress=1600/2500 failed=1  
+2026-10-18 15:45:30 INFO  ExportMissingBatch.java> BATCH 15500 progress=1700/2500 failed=1  
+2026-10-18 15:45:31 INFO  ExportMissingBatch.java> BATCH 15500 progress=1800/2500 failed=1  
+2026-10-18 15:45:32 INFO  ExportMissingBatch.java> BATCH 15500 progress=1900/2500 failed=1  
+2026-10-18 15:45:33 INFO  ExportMissingBatch.java> BATCH 15500 progress=2000/2500 failed=1  
+2026-10-18 15:45:33 INFO  ExportMissingBatch.java> BATCH 15500 progress=2100/2500 failed=1  
+2026-10-18 15:45:34 INFO  ExportMissingBatch.java> BATCH 15500 progress=2200/2500 failed=1  
+2026-10-18 15:45:35 INFO  ExportMissingBatch.java> BATCH 15500 progress=2300/2500 failed=1  
+2026-10-18 15:45:36 INFO  ExportMissingBatch.java> BATCH 15500 progress=2400/2500 failed=1  
+2026-10-18 15:45:37 INFO  ExportMissingBatch.java> BATCH 15500 progress=2500/2500 failed=1  
+2026-10-18 15:45:37 INFO  ExportMissingBatch.java> BATCH DONE start=15500 exported=2500 failed=1 seenMissing=18005  
+2026-10-18 15:45:53 INFO  ExportMissingBatch.java> BATCH DONE start=18000 exported=5 failed=0 seenMissing=18005  
+2026-10-18 15:47:05 INFO  ExportMpSyncDecomp.java> PROGRAM name=v2game.exe path=/I:/Vic2_Dev/V2BDSM/v2game.exe imageBase=00400000  
+2026-10-18 15:47:05 INFO  ExportMpSyncDecomp.java> FUNC FUN_00639120 @ 00639120 head 55 8B EC 6A FF 68 8C 38 (requested 00639120)  
+2026-10-18 15:48:12 INFO  ExportMpSyncDecomp.java> FUNC FUN_006592f0 @ 006592f0 head 55 8B EC 6A FF 64 A1 00 (requested 006592F0)  
+2026-10-18 15:51:03 INFO  ExportMpSyncDecomp.java> FUNC FUN_00662010 @ 00662010 head 55 8B EC 83 E4 C0 6A FF (requested 00662010)  
+2026-10-18 15:53:54 INFO  ExportMpSyncDecomp.java> FUNC FUN_0069c6f0 @ 0069c6f0 head 55 8B EC 6A FF 68 00 52 (requested 0069C6F0)  
+2026-10-18 15:54:03 INFO  ExportMpSyncDecomp.java> FUNC FUN_006c2e50 @ 006c2e50 head 55 8B EC 6A FF 68 F0 B5 (requested 006C2E50)  
+2026-10-18 15:54:17 INFO  ExportMpSyncDecomp.java> FUNC FUN_0070ec60 @ 0070ec60 head 55 8B EC 6A FF 68 17 CD (requested 0070EC60)  
+2026-10-18 15:54:33 INFO  ExportMpSyncDecomp.java> FUNC FUN_00740050 @ 00740050 head 55 8B EC 83 E4 F8 6A FF (requested 00740050)  
+2026-10-18 15:54:52 INFO  ExportMpSyncDecomp.java> FUNC FUN_007ed4d0 @ 007ed4d0 head 55 8B EC 6A FF 68 C2 A0 (requested 007ED4D0)  
+2026-10-18 15:55:09 INFO  ExportMpSyncDecomp.java> FUNC FUN_009796b0 @ 009796b0 head 55 8B EC 6A FF 68 2A B3 (requested 009796B0)  
+2026-10-18 15:56:39 INFO  ExportMpSyncDecomp.java> FUNC FUN_00a93bfc @ 00a93bfc head 8B FF 55 8B EC 8B 45 08 (requested 00A93BFC)  
+2026-10-18 15:58:11 INFO  ExportMpSyncDecomp.java> EXPORT DONE -> I:\Vic2_Dev\V2BDSM\mod\2\.ghidra_exports_retry  
+2026-10-18 16:00:34 INFO  InventoryFunctions.java> INVENTORY total=63855 real=18267 coveredReal=18267 missingReal=0 ignoredUnwind=45588  
+2026-10-18 16:03:56 INFO  ExportLargeFunction.java> OK 0056f850 chars=179527  
+2026-10-18 16:03:56 INFO  ExportLargeFunction.java> LARGE EXPORT DONE  
+2026-10-18 16:07:58 INFO  BuildSemanticCatalog.java> SEMANTIC CATALOG functions=18267 categories=13 unclassified=15116  
+2026-10-18 16:09:43 INFO  BuildSemanticCatalog.java> SEMANTIC CATALOG functions=18267 categories=26 unclassified=4732  
+2026-10-18 16:10:54 INFO  BuildSemanticCatalog.java> SEMANTIC CATALOG functions=18267 categories=24 unclassified=12472  
+2026-10-18 18:41:08 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:42:46 INFO  DumpMemoryConstants.java> CONSTANTS DONE  
+2026-10-18 18:43:14 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:44:14 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:44:41 INFO  DumpMemoryConstants.java> CONSTANTS DONE  
+2026-10-18 18:45:25 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:46:04 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:47:11 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:49:44 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:50:47 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:51:30 INFO  DumpMemoryConstants.java> CONSTANTS DONE  
+2026-10-18 18:59:23 INFO  DumpDisassemblyRange.java> DISASM DONE  
+2026-10-18 18:59:36 INFO  DumpDisassemblyRange.java> DISASM DONE  

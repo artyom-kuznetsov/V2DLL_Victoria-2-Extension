@@ -1,0 +1,122 @@
+// FUN_008384d0 @ 008384d0 body=[[008384d0, 008386d5]]
+
+
+void FUN_008384d0(undefined4 param_1,undefined4 param_2)
+
+{
+  int in_ECX;
+  int local_d4;
+  int local_d0;
+  int local_cc;
+  undefined ***local_c8;
+  undefined ***local_c4;
+  undefined ***local_c0;
+  undefined **local_bc;
+  undefined4 local_b8;
+  undefined4 local_b4;
+  undefined4 local_b0;
+  undefined4 *local_ac;
+  int local_a8;
+  undefined4 local_a4;
+  undefined4 local_a0;
+  undefined1 local_9c;
+  undefined4 local_98;
+  undefined **local_94;
+  undefined4 local_90;
+  undefined4 local_8c;
+  undefined4 local_88;
+  undefined4 *local_84;
+  int local_80;
+  undefined4 local_7c;
+  undefined4 local_78;
+  undefined1 local_74;
+  undefined4 local_70;
+  undefined **local_6c;
+  undefined4 local_68;
+  undefined4 local_64;
+  undefined4 local_60;
+  undefined4 *local_5c;
+  int local_58;
+  undefined4 local_54;
+  undefined4 local_50;
+  undefined1 local_4c;
+  undefined4 local_48;
+  undefined1 local_44 [4];
+  undefined **local_40;
+  undefined4 local_3c;
+  undefined4 local_38;
+  undefined4 local_34;
+  undefined4 *local_30;
+  int local_2c;
+  undefined4 local_28;
+  undefined4 local_24;
+  undefined1 local_20;
+  undefined4 local_1c;
+  void *local_14;
+  undefined1 *puStack_10;
+  undefined4 local_c;
+  
+  local_c = 0xffffffff;
+  puStack_10 = &LAB_00bb4f06;
+  local_14 = ExceptionList;
+  local_c8 = *(undefined ****)(in_ECX + 0x34);
+  local_cc = *(int *)(*(int *)(DAT_012587e4 + 4) + *(int *)(in_ECX + 0x38) * 4);
+  local_d4 = local_cc + 0x3dc;
+  local_d0 = local_cc + 0x3c0;
+  local_cc = local_cc + 0x3a4;
+  ExceptionList = &local_14;
+  FUN_00833410(in_ECX,&local_c8,&local_d4,3,local_44,param_1,param_2,0);
+  if (local_c4 != (undefined ***)0x0) {
+    local_a4 = *(undefined4 *)(DAT_012588e8 + 0xb0c);
+    local_38 = *(undefined4 *)(in_ECX + 0x34);
+    local_34 = *(undefined4 *)(in_ECX + 0x38);
+    local_3c = 0x18d;
+    local_30 = local_c8;
+    local_2c = (int)local_c4;
+    local_20 = 0;
+    local_1c = 0;
+    local_40 = CDecreaseRelationAction::vftable;
+    local_b8 = 0x18d;
+    local_b4 = *(undefined4 *)(in_ECX + 0x34);
+    local_b0 = *(undefined4 *)(in_ECX + 0x38);
+    local_ac = local_c8;
+    local_a8 = (int)local_c4;
+    local_9c = 0;
+    local_98 = 0;
+    local_bc = CCancelAllianceAction::vftable;
+    local_8c = *(undefined4 *)(in_ECX + 0x34);
+    local_88 = *(undefined4 *)(in_ECX + 0x38);
+    local_90 = 0x18d;
+    local_84 = local_c8;
+    local_80 = (int)local_c4;
+    local_74 = 0;
+    local_70 = 0;
+    local_94 = CCancelGiveMilitaryAccessAction::vftable;
+    local_64 = *(undefined4 *)(in_ECX + 0x34);
+    local_60 = *(undefined4 *)(in_ECX + 0x38);
+    local_68 = 0x18d;
+    local_5c = local_c8;
+    local_58 = (int)local_c4;
+    local_4c = 0;
+    local_48 = 0;
+    local_6c = CCancelAskMilitaryAccessAction::vftable;
+    local_c = 3;
+    local_c8 = &local_bc;
+    local_c4 = &local_94;
+    local_d4 = 1;
+    local_d0 = 1;
+    local_cc = 1;
+    local_c0 = &local_6c;
+    local_a0 = local_a4;
+    local_7c = local_a4;
+    local_78 = local_a4;
+    local_54 = local_a4;
+    local_50 = local_a4;
+    local_28 = local_a4;
+    local_24 = local_a4;
+    FUN_00836080(in_ECX,&local_c8,&local_d4,3);
+  }
+  ExceptionList = local_14;
+  return;
+}
+

@@ -1,0 +1,2 @@
+00aade41	UNCONDITIONAL_CALL	__Towlower @ 00aaddf1
+00aadeaa	UNCONDITIONAL_CALL	__Towupper @ 00aade57

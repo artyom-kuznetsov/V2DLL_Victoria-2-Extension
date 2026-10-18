@@ -1,0 +1,2 @@
+00abbf9d	UNCONDITIONAL_CALL	__write_nolock @ 00abbc98
+00abbfca	UNCONDITIONAL_CALL	__write_nolock @ 00abbc98

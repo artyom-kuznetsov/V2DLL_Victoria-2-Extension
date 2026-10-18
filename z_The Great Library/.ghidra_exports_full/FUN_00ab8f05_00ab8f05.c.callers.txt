@@ -1,0 +1,2 @@
+00aaec75	UNCONDITIONAL_CALL	_LocaleUpdate @ 00aaec1a
+00ab9228	UNCONDITIONAL_CALL	__setmbcp @ 00ab920e

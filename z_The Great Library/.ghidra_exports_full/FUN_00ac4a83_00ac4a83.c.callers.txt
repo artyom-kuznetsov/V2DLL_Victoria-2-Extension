@@ -1,0 +1,7 @@
+00ac5509	UNCONDITIONAL_CALL	getCallingConvention @ 00ac5484
+00ac73eb	UNCONDITIONAL_CALL	getBasedType @ 00ac73e1
+00ac8aff	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac8b44	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac8b68	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac8bb0	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac8bd4	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b

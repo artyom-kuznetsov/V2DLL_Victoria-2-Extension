@@ -1,0 +1,3 @@
+00abd06d	UNCONDITIONAL_CALL	__getstream @ 00abcfff
+00aafbeb	UNCONDITIONAL_CALL	flsall @ 00aafba5
+00ab413f	UNCONDITIONAL_CALL	_puts @ 00ab4097

@@ -1,0 +1,1 @@
+00abae42	UNCONDITIONAL_CALL	_strtol @ 00abae21

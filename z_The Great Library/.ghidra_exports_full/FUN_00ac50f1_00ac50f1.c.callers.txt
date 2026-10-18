@@ -1,0 +1,8 @@
+00ac53fd	UNCONDITIONAL_CALL	operator+= @ 00ac53df
+00ac53d3	UNCONDITIONAL_CALL	operator+ @ 00ac53bb
+00ac576b	UNCONDITIONAL_CALL	getArgumentList @ 00ac5671
+00ac612b	UNCONDITIONAL_CALL	getVfTableType @ 00ac6016
+00ac745b	UNCONDITIONAL_CALL	getBasedType @ 00ac73e1
+00ac8dcb	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac5d4d	UNCONDITIONAL_CALL	getExtendedDataIndirectType @ 00ac5c1b
+00ac5f84	UNCONDITIONAL_CALL	getArrayType @ 00ac5de3

@@ -1,0 +1,3 @@
+00ab96db	UNCONDITIONAL_CALL	___updatetlocinfo @ 00ab9686
+00ab6a00	UNCONDITIONAL_CALL	_setlocale @ 00ab6935
+00ab6a24	UNCONDITIONAL_CALL	_setlocale @ 00ab6935

@@ -1,0 +1,6 @@
+00f10b28  [.?AVCNavalDistanceTracker@@]
+      (no refs)
+00f12ae4  [.?AVCNavalCombat@@]
+      (no refs)
+00f12b84  [.?AVCNavalCombatant@@]
+      (no refs)

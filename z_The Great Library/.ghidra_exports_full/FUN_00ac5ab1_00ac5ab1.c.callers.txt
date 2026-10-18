@@ -1,0 +1,3 @@
+00ac7aab	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac5bc7	UNCONDITIONAL_CALL	getThrowTypes @ 00ac5b91
+00ac897c	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c

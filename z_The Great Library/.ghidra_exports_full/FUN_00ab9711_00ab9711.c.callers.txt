@@ -1,0 +1,1 @@
+00ab9848	UNCONDITIONAL_CALL	__getptd_noexit @ 00ab9836

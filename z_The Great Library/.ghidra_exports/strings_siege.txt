@@ -1,0 +1,85 @@
+00df4738  [SIEGE_BRIGADES_MIN]
+      ref 004305dd DATA in FUN_0042e410 @ 0042e410
+00df474c  [SIEGE_BRIGADES_MAX]
+      ref 00430609 DATA in FUN_0042e410 @ 0042e410
+00df4760  [SIEGE_BRIGADES_BONUS]
+      ref 00430625 DATA in FUN_0042e410 @ 0042e410
+00df4778  [RECON_SIEGE_EFFECT]
+      ref 00430661 DATA in FUN_0042e410 @ 0042e410
+00df478c  [SIEGE_ATTRITION]
+      ref 0043068d DATA in FUN_0042e410 @ 0042e410
+00df851c  [siege_mapicon]
+      ref 00444095 DATA in FUN_00444040 @ 00444040
+00df852c  [PV_SIEGE_PROGRESS]
+      ref 00442013 DATA in FUN_00441f60 @ 00441f60
+      ref 0074628e DATA in FUN_007443d0 @ 007443d0
+00df8548  [siege_progress_bar]
+      ref 004422f0 DATA in FUN_004422d0 @ 004422d0
+00df9758  [has_siege]
+      ref 0044dad8 DATA in FUN_0044cea0 @ 0044cea0
+      ref 00c4479c DATA in FUN_00c381c0 @ 00c381c0
+00dfcf5c  [SUPPLY_SIEGE]
+      ref 004b4ac2 DATA in FUN_004b3e00 @ 004b3e00
+00dfdce4  [REVOLTSIEGE]
+      ref 004e576e DATA in FUN_004e5210 @ 004e5210
+00e01f5c  [SIEGETHEMREBEL]
+      ref 0059eb8a DATA in FUN_0059e300 @ 0059e300
+00e01f6c  [SIEGETHEM]
+      ref 0059eb95 DATA in FUN_0059e300 @ 0059e300
+00e01f78  [SIEGEUSREBEL]
+      ref 0059ecda DATA in FUN_0059e300 @ 0059e300
+00e01f88  [SIEGEUS]
+      ref 0059ece5 DATA in FUN_0059e300 @ 0059e300
+00e020d4  [SIEGE_OF]
+      ref 005a926a DATA in FUN_005a9230 @ 005a9230
+00e020ec  [on_siege_won]
+      ref 005aab24 DATA in FUN_005aa190 @ 005aa190
+00e020fc  [SIEGE_DEFEAT]
+      ref 005aaf32 DATA in FUN_005aa190 @ 005aa190
+00e02114  [SIEGE_REASON_DESC_LIVE]
+      ref 005ab058 DATA in FUN_005aa190 @ 005aa190
+00e02134  [SIEGEOVER]
+      ref 005ab558 DATA in FUN_005aa190 @ 005aa190
+00e027a8  [SIEGE]
+      ref 005bc434 DATA in FUN_005bbaa0 @ 005bbaa0
+00e02e04  [SIEGE_EXTRA_ATTR]
+      ref 005d6d3c DATA in FUN_005d6580 @ 005d6580
+00e08954  [siege]
+      ref 00642906 DATA in FUN_00642490 @ 00642490
+      ref 00c5419e DATA in FUN_00c381c0 @ 00c381c0
+00e0d06c  [OL_SIEGES_TOOLTIP]
+      ref 006c0e31 DATA in FUN_006bf740 @ 006bf740
+00e0d080  [OL_HOSTILE_SIEGES_TOOLTIP]
+      ref 006c0f0e DATA in FUN_006bf740 @ 006bf740
+00e0d188  [OL_SIEGES]
+      ref 006c2f94 DATA in FUN_006c2e50 @ 006c2e50
+00e0d194  [OL_HOSTILE_SIEGES]
+      ref 006c2f9e DATA in FUN_006c2e50 @ 006c2e50
+00e0d3f0  [outliner_view_sieges]
+      ref 006c7579 DATA in FUN_006c72a0 @ 006c72a0
+      ref 006c7a7b DATA in FUN_006c7720 @ 006c7720
+00e0d408  [outliner_view_hostile_sieges]
+      ref 006c7580 DATA in FUN_006c72a0 @ 006c72a0
+      ref 006c7ad4 DATA in FUN_006c7720 @ 006c7720
+00e15efc  [siege_entry]
+      ref 0078bf97 DATA in FUN_0078bf70 @ 0078bf70
+00e1fa6c  [siege_won_effect]
+      ref 00c4bbba DATA in FUN_00c381c0 @ 00c381c0
+00e1fa80  [siege_won_trigger]
+      ref 00c4bb8e DATA in FUN_00c381c0 @ 00c381c0
+00e223bc  [detach_siege]
+      ref 00c44dcc DATA in FUN_00c381c0 @ 00c381c0
+00e225c8  [change_siege]
+      ref 00c447c8 DATA in FUN_00c381c0 @ 00c381c0
+00e226d0  [unit_in_siege]
+      ref 00c44484 DATA in FUN_00c381c0 @ 00c381c0
+00e2353c  [siege_combat]
+      ref 00c41514 DATA in FUN_00c381c0 @ 00c381c0
+00f1063c  [.?AVCSiegeMapIcon@@]
+      (no refs)
+00f12ac8  [.?AVCSiegeCombat@@]
+      (no refs)
+00f16a38  [.?AV?$CButtonObserverGlue@VCSiegeEntry@@@@]
+      (no refs)
+00f16a6c  [.?AVCSiegeEntry@@]
+      (no refs)

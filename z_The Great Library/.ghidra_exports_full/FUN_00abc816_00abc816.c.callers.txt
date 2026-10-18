@@ -1,0 +1,1 @@
+00abc805	UNCONDITIONAL_CALL	__ftelli64 @ 00abc7b3

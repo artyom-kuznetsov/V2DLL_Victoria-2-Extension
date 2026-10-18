@@ -1,0 +1,1 @@
+00ac0fb6	UNCONDITIONAL_CALL	__mbctolower @ 00ac0fac

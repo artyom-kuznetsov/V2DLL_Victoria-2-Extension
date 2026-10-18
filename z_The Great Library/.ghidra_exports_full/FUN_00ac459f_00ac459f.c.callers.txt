@@ -1,0 +1,2 @@
+00ac7495	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac47a6	UNCONDITIONAL_CALL	getTypeEncoding @ 00ac459f

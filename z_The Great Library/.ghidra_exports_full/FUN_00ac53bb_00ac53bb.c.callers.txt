@@ -1,0 +1,3 @@
+00ac6b77	UNCONDITIONAL_CALL	getOperatorName @ 00ac6860
+00ac5c0a	UNCONDITIONAL_CALL	getThrowTypes @ 00ac5b91
+00ac5fbc	UNCONDITIONAL_CALL	getArrayType @ 00ac5de3

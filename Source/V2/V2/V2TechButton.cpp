@@ -40,7 +40,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.83"
+#define MOD_VERSION "5.90"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -146,6 +146,11 @@ struct Settings
     // Ежедневный доход "minting" по формуле из <мод>\common\minting.txt
     // (см. InstallMinting). Без файла формулы ничего не делает.
     bool minting                     = true;
+    // POP_SALARY_ADDITIONAL_MULTIPLIER: каждое зачисление дохода попу (зарплата, доля
+    // владельца, доход ремесленника, выплата из бюджета) после вычета налога
+    // увеличивается на pop_salary_additional_multiplier % - формула по стране в
+    // common\defines_v2dll.txt, считается раз в игровой месяц (как minting_formula).
+    bool popSalaryAdditionalMultiplier = true;
     // Ключ goods_consumption в common\buildings.txt: чтение блока (иначе
     // игра падает) и ежедневная закупка товаров государством по рыночной
     // цене для каждого такого здания в стране; сумма - в строке бюджета
@@ -222,6 +227,10 @@ struct Settings
     // 3-буквенные теги через запятую/пробел, до 4 (DR0..DR3). Пусто = "KUK".
     // Читается один раз на входе первого дневного тика.
     char mwTags[64] = "";
+    // Автоматическая отправка списка human-стран штатной командой игры.
+    // Хост авторитетен; клиентские INI не нужны. Ключ входит в отпечаток:
+    // все игроки обязаны иметь одинаковый DLL и одинаковое значение.
+    bool mpHostHumanSync = true;
     // PATCH_STATE_SAVINGS_CAP / STATE_SAVINGS_CAP_POUNDS (5.76): лечение
     // рассинхрона "казна vs сбережения штата". Сбережения штата (+0x228) в
     // MP-сейве обрезаются по int32 (65536.00 = 0x80000000), излишек попадает
@@ -4504,6 +4513,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "SP_WINDOW_FROM") == 0)                   { strncpy_s(g_settings.spWindowFrom, value, _TRUNCATE); return; }
     if (_stricmp(key, "SP_WINDOW_TO") == 0)                     { strncpy_s(g_settings.spWindowTo, value, _TRUNCATE); return; }
     if (_stricmp(key, "MONEY_WATCH_TAGS") == 0)                 { strncpy_s(g_settings.mwTags, value, _TRUNCATE); return; }
+    if (_stricmp(key, "MP_HOST_HUMAN_SYNC") == 0)               { g_settings.mpHostHumanSync = v; return; }
     if (_stricmp(key, "PATCH_STATE_SAVINGS_CAP") == 0)          { g_settings.patchStateSavingsCap        = v; return; }
     if (_stricmp(key, "STATE_SAVINGS_CAP_POUNDS") == 0)         { g_settings.stateSavingsCapPounds       = atoi(value); return; }
     if (_stricmp(key, "ENABLE_CRASH_LOG") == 0)                 { g_settings.enableCrashLog              = v; return; }
@@ -4567,6 +4577,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "ENABLE_EVENT_SOUNDS") == 0)               { g_settings.EventSounds                 = v; return; }
     if (_stricmp(key, "ENABLE_RESTART_GAME_BUTTON") == 0)                     { g_settings.enableRestartGameButton                = v; return; }
     if (_stricmp(key, "ENABLE_MINTING") == 0)                   { g_settings.minting                     = v; return; }
+    if (_stricmp(key, "POP_SALARY_ADDITIONAL_MULTIPLIER") == 0) { g_settings.popSalaryAdditionalMultiplier = v; return; }
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "ENABLE_ASSIMILATE_BLOCK") == 0)          { g_settings.assimilateBlock             = v; return; }
     if (_stricmp(key, "LOAD_DLL_FROM_MOD_FOLDER") == 0)                      { g_settings.loadDllFromModFolder                  = v; return; }
@@ -4755,10 +4766,12 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_ASSIMILATE_BLOCK=%d\n"
         "ENABLE_EVENT_SOUNDS=%d\n"
         "BUILDING_GOODS_CONSUMPTION=%d\n"
+        "POP_SALARY_ADDITIONAL_MULTIPLIER=%d\n"
         "\n",
         (int)g_settings.assimilateBlock,
         (int)g_settings.EventSounds,
-        (int)g_settings.goodsConsumption);
+        (int)g_settings.goodsConsumption,
+        (int)g_settings.popSalaryAdditionalMultiplier);
 
     fprintf(f,
         "; Stability and Performance\n"
@@ -4821,7 +4834,8 @@ static void WriteDefaultSettings(const char* path)
         "STATE_SAVINGS_CAP_POUNDS=%d\n"
         "SP_WINDOW_FROM=%s\n"
         "SP_WINDOW_TO=%s\n"
-        "MONEY_WATCH_TAGS=%s\n",
+        "MONEY_WATCH_TAGS=%s\n"
+        "MP_HOST_HUMAN_SYNC=%d\n",
         (int)g_settings.log,
         (int)g_settings.debugLog,
         (int)g_settings.enableOosLog,
@@ -4833,7 +4847,8 @@ static void WriteDefaultSettings(const char* path)
         g_settings.stateSavingsCapPounds,
         g_settings.spWindowFrom,
         g_settings.spWindowTo,
-        g_settings.mwTags);
+        g_settings.mwTags,
+        (int)g_settings.mpHostHumanSync);
 
     fclose(f);
 }
@@ -7965,8 +7980,8 @@ static const MintVarName MINT_VARS[] =
 };
 static const int MINT_VAR_NAMES = sizeof(MINT_VARS) / sizeof(MINT_VARS[0]);
 static const int MINT_VAR_COUNT = 2;
-static const int MINT_MAX_NODES = 96;
-static const int MINT_MAX_CVARS = 8;
+static const int MINT_MAX_NODES = 192;
+static const int MINT_MAX_CVARS = 16;
 
 static char g_mintCVarNames[MINT_MAX_CVARS][64];
 static int  g_mintCVarCount = 0;
@@ -8322,6 +8337,10 @@ static bool g_defAiNavalBaseKeySeen = false;
 // на 10000 работников, в тысячных (7 -> 7000). 0 = выкл (FACTORY_FORCE_MIN_WAGE).
 static int  g_defMinWageMilli = 7000;
 static bool g_defMinWageKeySeen = false;
+// pop_salary_additional_multiplier: формула (проценты) прибавки к доходу попов страны
+// после налога (POP_SALARY_ADDITIONAL_MULTIPLIER); число тоже формула. 0 = выкл.
+static char g_defPopSalaryFormula[256] = "10";
+static bool g_defPopSalaryKeySeen = false;
 static char g_defMintingFormula[256] = "";
 static char g_defPath[MAX_PATH] = "";
 static bool g_defLoaded = false;
@@ -8414,6 +8433,11 @@ static void DefinesApplyLine(const char* key, const char* value)
         g_defMinWageMilli = (int)(d * 1000.0 + 0.5);
         g_defMinWageKeySeen = true;
     }
+    else if (_stricmp(key, "pop_salary_additional_multiplier") == 0)
+    {
+        strncpy_s(g_defPopSalaryFormula, sizeof(g_defPopSalaryFormula), value, _TRUNCATE);
+        g_defPopSalaryKeySeen = true;
+    }
     else if (_stricmp(key, "minting_formula") == 0)
     {
         strncpy_s(g_defMintingFormula, sizeof(g_defMintingFormula), value, _TRUNCATE);
@@ -8451,6 +8475,19 @@ static const char* const MIN_WAGE_DEFINES_BLOCK =
     "# so that the factory can still buy all its input goods.\n"
     "# Fractions are allowed (use a dot). 0 = off (the game's own minimum wage only).\n"
     "factory_min_wage_per_10000 = %s\n";
+
+static const char* const POP_SALARY_DEFINES_BLOCK =
+    "\n"
+    "# --- Pop salary bonus (POP_SALARY_ADDITIONAL_MULTIPLIER in v2dll_settings.ini) ---\n"
+    "# Every income a pop receives (factory wages, RGO and artisan income, owners' profit share,\n"
+    "# budget payouts to clergy/bureaucrats/soldiers) is increased by this many percent AFTER the\n"
+    "# income tax is taken, so the pops keep the extra money to spend. The extra money is created\n"
+    "# out of nothing: the employer, the factory and the treasury do not pay it, taxes are\n"
+    "# not charged on it. A formula like minting_formula (same variables and operators), evaluated\n"
+    "# per country once per game month, so it can differ by country and change during the game.\n"
+    "# The national modifier pop_income_modifier (technologies, inventions, events, ...; 0.1 = +10%)\n"
+    "# is added to the result. Result in percent, 0..1000 (negative = 0). 0 = no formula bonus.\n"
+    "pop_salary_additional_multiplier = %s\n";
 
 static void FormatMinWageValue(char* out, size_t cap)
 {
@@ -8523,6 +8560,16 @@ static void EnsureV2dllDefines()
                 Log("defines_v2dll: в '%s' дописан factory_min_wage_per_10000 = %s", g_defPath, val);
             }
         }
+        if (!g_defPopSalaryKeySeen)
+        {
+            FILE* pf = 0;
+            if (fopen_s(&pf, g_defPath, "a") == 0 && pf)
+            {
+                fprintf(pf, POP_SALARY_DEFINES_BLOCK, g_defPopSalaryFormula);
+                fclose(pf);
+                Log("defines_v2dll: в '%s' дописан pop_salary_additional_multiplier = %s", g_defPath, g_defPopSalaryFormula);
+            }
+        }
         return;
     }
 
@@ -8574,6 +8621,7 @@ static void EnsureV2dllDefines()
         char val[32];
         FormatMinWageValue(val, sizeof(val));
         fprintf(f, MIN_WAGE_DEFINES_BLOCK, val);
+        fprintf(f, POP_SALARY_DEFINES_BLOCK, g_defPopSalaryFormula);
     }
     fclose(f);
 
@@ -10558,9 +10606,12 @@ __declspec(naked) static void GoodsExpenseTopbarTextThunk()
 static DWORD g_dailyOrig = 0;
 static bool  g_dailyInstalled = false;
 
+static void PopSalaryDailyUpdate(void* country);
+
 static void __cdecl CountryDailyHook(void* country)
 {
     MintingDailyCredit(country);
+    PopSalaryDailyUpdate(country);
 }
 
 // Тот же контракт, что у FUN_00538200 (stdcall, страна в стеке): всё
@@ -11397,10 +11448,12 @@ static const unsigned char LOBBY_ENTRY_SIG[6] = { 0x8B, 0x80, 0x30, 0x01, 0x00, 
 
 static DWORD g_lobbyEntryResumeAddr = 0;
 static int g_lobbyEntryHits = 0;
+static void ResendHostHumanVector(int lobbyHit);
 
 static void __cdecl LogLobbyEntry(void* pObj)
 {
     ++g_lobbyEntryHits;
+    ResendHostHumanVector(g_lobbyEntryHits);
 
     DWORD raw = 0;
     __try { raw = *(DWORD*)((char*)pObj + 0x130); }
@@ -14747,6 +14800,53 @@ bool StealToTrampoline(DWORD rva, unsigned steal, unsigned char* tramp, int tram
     return true;
 }
 
+// FUN_00A62EA0 (server.cpp) выполняется только на host. Хук ничего не меняет
+// в пакете: только фиксирует роль машины. Сигнатура проверяется до патча.
+static const DWORD RVA_SERVER_SEND = 0x662EA0;
+static const unsigned char SERVER_SEND_SIG[8] =
+    { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x6A, 0xFF };
+static volatile LONG g_mpServerSeen = 0;
+static void* g_realServerSend = 0;
+__declspec(align(16)) static unsigned char g_trampServerSend[32];
+
+static void __cdecl MarkServerSide()
+{
+    InterlockedExchange(&g_mpServerSeen, 1);
+}
+
+__declspec(naked) static void ServerSendThunk()
+{
+    __asm {
+        pushfd
+        pushad
+        call MarkServerSide
+        popad
+        popfd
+        jmp dword ptr [g_realServerSend]
+    }
+}
+
+static bool InstallServerRoleProbe()
+{
+    if (g_mpServerSeen)
+        return true;
+
+    unsigned char* p = (unsigned char*)(g_base + RVA_SERVER_SEND);
+    if (memcmp(p, SERVER_SEND_SIG, sizeof(SERVER_SEND_SIG)) != 0)
+    {
+        Log("HostHumanSync: сигнатура server.cpp не совпала (%02X %02X %02X %02X %02X %02X %02X %02X)",
+            p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+        return false;
+    }
+
+    bool ok = StealToTrampoline(RVA_SERVER_SEND, sizeof(SERVER_SEND_SIG),
+        g_trampServerSend, sizeof(g_trampServerSend), SERVER_SEND_SIG,
+        (void*)&ServerSendThunk, &g_realServerSend, "HostHumanSync(server)");
+    if (ok)
+        Log("HostHumanSync: определение host установлен (rva %06X)", RVA_SERVER_SEND);
+    return ok;
+}
+
 // Mid-CALL wrap: jmp на хук, который сам вызывает оригинал и возвращается
 // на src+n. Нельзя StealToTrampoline — tramp с E8+jmp-after не возвращает.
 static bool PlantMidJump(DWORD rva, unsigned n, const unsigned char* expect, void* hook, const char* tag)
@@ -16190,6 +16290,169 @@ static int CountryHumanFlag(int idx)
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
         return -1;
+    }
+}
+
+// Host-authoritative синхронизация без INI. Мы не пишем session+0xAEC напрямую:
+// host отправляет штатную CSetCountryControllerCommand через обычную очередь
+// команд. Для всех human-стран host, кроме его собственной страны, команда
+// говорит "назначить remote human"; старый контроллер сознательно не
+// освобождается (old-id=0), чтобы команда не могла отобрать страну у игрока.
+typedef void* (__cdecl *GameNewFn)(size_t);
+typedef void* (__cdecl *SetControllerCtorFn)(void*, DWORD, DWORD, DWORD, DWORD, DWORD);
+typedef void* (__thiscall *GetNetDescriptorFn)(void*);
+typedef void  (__thiscall *SubmitCommandFn)(void*, void*);
+
+static const DWORD RVA_GAME_NEW          = 0x6AE9AF;
+static const unsigned char GAME_NEW_SIG[5] = { 0x8B, 0xFF, 0x55, 0x8B, 0xEC };
+static const DWORD RVA_SET_CONTROLLER_CTOR = 0x3297A0;
+static const unsigned char SET_CONTROLLER_CTOR_SIG[5] = { 0x55, 0x8B, 0xEC, 0x64, 0xA1 };
+
+static bool HostSyncSignaturesOk()
+{
+    static bool checked = false;
+    static bool ok = false;
+    if (checked)
+        return ok;
+    checked = true;
+
+    unsigned char* pNew = (unsigned char*)(g_base + RVA_GAME_NEW);
+    unsigned char* pCtor = (unsigned char*)(g_base + RVA_SET_CONTROLLER_CTOR);
+    ok = memcmp(pNew, GAME_NEW_SIG, sizeof(GAME_NEW_SIG)) == 0 &&
+         memcmp(pCtor, SET_CONTROLLER_CTOR_SIG, sizeof(SET_CONTROLLER_CTOR_SIG)) == 0;
+    if (!ok)
+        Log("HostHumanSync: сигнатуры native-помощников не совпали (new=%02X%02X, ctor=%02X%02X)",
+            pNew[0], pNew[2], pCtor[0], pCtor[2]);
+    return ok;
+}
+
+static void ResendHostHumanVector(int lobbyHit)
+{
+    if (!g_settings.mpHostHumanSync || !g_mpServerSeen || !g_base || !HostSyncSignaturesOk())
+        return;
+
+    static int lastLobbyHit = 0;
+    if (lastLobbyHit == lobbyHit)
+        return;
+
+    char* session = *(char**)(g_base + RVA_SESSION_PTR);
+    if (!session || SafeIsBadReadPtr(session, 0xB70))
+        return;
+
+    int state = 0;
+    __try { state = *(int*)(session + 0x2C); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return; }
+    if (state == 4)
+    {
+        Log("HostHumanSync: пропуск в работающей партии (state=4)");
+        return;
+    }
+
+    char* humans = *(char**)(session + SP_SESSION_HUMANS);
+    char* humanEnd = *(char**)(session + SP_SESSION_HUMANS + 4);
+    char* countries = *(char**)(session + SP_SESSION_COUNTRIES);
+    char* countryEnd = *(char**)(session + SP_SESSION_COUNTRIES + 4);
+    if (!humans || !countries || humanEnd < humans || countryEnd < countries ||
+        (humanEnd - humans) < 0 || (countryEnd - countries) < 0 ||
+        (humanEnd - humans) > 4 * 4096 || (countryEnd - countries) > 4 * 4096)
+        return;
+
+    int count = (int)((humanEnd - humans) / 4);
+    int countryCount = (int)((countryEnd - countries) / 4);
+    if (count < 0 || countryCount < 0 || count > 4096 || countryCount > 4096)
+        return;
+
+    void* netObject = *(void**)(session + 0xB24);
+    if (!netObject || SafeIsBadReadPtr(netObject, sizeof(void*)))
+        return;
+    void* netVtable = *(void**)netObject;
+    if (!netVtable || SafeIsBadReadPtr(netVtable, 0x48))
+        return;
+    void* netDescriptor = ((GetNetDescriptorFn)*(void**)((char*)netVtable + 0x44))(netObject);
+    if (!netDescriptor || SafeIsBadReadPtr(netDescriptor, 0x70))
+        return;
+
+    void* dispatcher = *(void**)((char*)netDescriptor + 0x38);
+    if (!dispatcher || SafeIsBadReadPtr(dispatcher, sizeof(void*)))
+        return;
+    void* dispatcherVtable = *(void**)dispatcher;
+    if (!dispatcherVtable || SafeIsBadReadPtr(dispatcherVtable, 0x20))
+        return;
+
+    SubmitCommandFn submit = (SubmitCommandFn)*(void**)((char*)dispatcherVtable + 0x18);
+    GameNewFn gameNew = (GameNewFn)(g_base + RVA_GAME_NEW);
+    SetControllerCtorFn controllerCtor = (SetControllerCtorFn)(g_base + RVA_SET_CONTROLLER_CTOR);
+    if (!submit || SafeIsBadReadPtr(submit, 16) || !gameNew || !controllerCtor)
+        return;
+
+    int hostCountry = *(int*)((char*)netDescriptor + 0x6C);
+    if (hostCountry < 0 || hostCountry >= countryCount)
+    {
+        Log("HostHumanSync: некорректная host-страна %d (countries=%d)", hostCountry, countryCount);
+        return;
+    }
+
+    int sent = 0;
+    char sentTags[64][4];
+    for (int idx = 0; idx < count && idx < countryCount && sent < 64; ++idx)
+    {
+        int human = 0;
+        char* country = 0;
+        __try
+        {
+            human = *(int*)(humans + idx * 4);
+            country = *(char**)(countries + idx * 4);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) { break; }
+
+        if (human == 0 || idx == hostCountry || !country || SafeIsBadReadPtr(country, 0x20))
+            continue;
+
+        char t0 = country[0x1C], t1 = country[0x1D], t2 = country[0x1E];
+        if (!((t0 >= 'A' && t0 <= 'Z') || (t0 >= '0' && t0 <= '9') || t0 == '_') ||
+            !((t1 >= 'A' && t1 <= 'Z') || (t1 >= '0' && t1 <= '9') || t1 == '_') ||
+            !((t2 >= 'A' && t2 <= 'Z') || (t2 >= '0' && t2 <= '9') || t2 == '_'))
+            continue;
+
+        DWORD tag = (DWORD)(unsigned char)t0 | ((DWORD)(unsigned char)t1 << 8) |
+                    ((DWORD)(unsigned char)t2 << 16);
+        void* cmd = 0;
+        __try { cmd = gameNew(0x50); }
+        __except (EXCEPTION_EXECUTE_HANDLER) { cmd = 0; }
+        if (!cmd)
+            break;
+
+        __try
+        {
+            controllerCtor(cmd, tag, (DWORD)idx, 0x2D2D2D, 0, (DWORD)idx);
+            submit(dispatcher, cmd);
+            sentTags[sent][0] = t0;
+            sentTags[sent][1] = t1;
+            sentTags[sent][2] = t2;
+            sentTags[sent][3] = 0;
+            ++sent;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            break;
+        }
+    }
+
+    lastLobbyHit = lobbyHit;
+    if (sent)
+    {
+        char list[64 * 5] = "";
+        for (int i = 0; i < sent; ++i)
+        {
+            if (i) strcat_s(list, sizeof(list), ",");
+            strcat_s(list, sizeof(list), sentTags[i]);
+        }
+        Log("HostHumanSync: host отправил %d human-стран [%s] (host=%d, state=%d)",
+            sent, list, hostCountry, state);
+    }
+    else
+    {
+        Log("HostHumanSync: host country=%d, non-host human-стран нет (state=%d)", hostCountry, state);
     }
 }
 
@@ -21359,6 +21622,264 @@ static bool InstallFactoryMinWage()
 }
 
 // ---------------------------------------------------------------
+// POP_SALARY_ADDITIONAL_MULTIPLIER: доход попов после налога + X %, X по стране.
+//
+// Карта (Ghidra, подробно в PATCHES.md 4.19): любой облагаемый налогом доход попа
+// проходит одну и ту же пару вызовов: FUN_00439780 (EDI -> налог, он же
+// накапливается по страте в налоговом объекте страны) и сразу за ней
+// FUN_0095A5F0 (EAX = поп, ESI = категория дохода, стек: сумма int64, ret 0x8):
+// pop+0x180 (деньги) += сумма, +0x1D8+ESI*8 и +0x218 (статистика дохода) +=
+// сумма. Сумма на стеке уже равна "доход минус налог". Семь вызовов:
+//   0x489812  FUN_00488080  доход ремесленников/производящих попов
+//   0x4CFFB7, 0x4D002B  FUN_004CFE20  доли владельцев (капиталисты, RGO-владельцы)
+//   0x4EF365, 0x4EF3DA  FUN_004EF240  зарплата работникам фабрик/RGO
+//   0x50C110, 0x50C1C0  FUN_0050B9B0  выплаты из бюджета (образование и т.д.)
+// Остальные вызовы FUN_0095A5F0 (покупки потребностей - отрицательные суммы,
+// слияние попов, дарение) не трогаем.
+//
+// Подмена: rel32 в каждом из семи call'ов ведёт на тонкий thunk, который
+// увеличивает сумму на стеке на X % страны попа (если сумма > 0) и прыгает в
+// оригинал (callee чистит стек, EAX/ESI не меняются). Налог посчитан от суммы без
+// бонуса и на бонус не начисляется. Деньги на бонус берутся "из воздуха".
+//
+// X страны - формула pop_salary_additional_multiplier (тот же разбор и
+// переменные, что у minting_formula), значение в десятых долях процента лежит в
+// массиве по индексу страны (country+0x20) и пересчитывается в общем дневном
+// хуке страны только при смене игрового месяца (и раз в 8 дней, пока 0 - на
+// старте переменные ещё не заданы), по часам мира, поэтому одинаково у всех
+// игроков. Горячий путь без проверок даты: поп -> провинция (+0x64) ->
+// владелец (+0x12C) -> элемент массива.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_POP_INCOME_FN = 0x55A5F0;
+static const DWORD RVA_POP_INCOME_SITES[7] = {
+    0x89812, 0xCFFB7, 0xD002B, 0xEF365, 0xEF3DA, 0x10C110, 0x10C1C0
+};
+static const int POPSAL_MAX         = 1024;
+static const int POP_OFF_PROVINCE   = 0x64;
+static const int PROV_OFF_OWNER_IDX = 0x12C;
+static const int COUNTRY_OFF_INDEX  = 0x20;
+static const int COUNTRY_OFF_MODIFIERS = 0xA60;
+// Модификатор pop_income_modifier: ключевое слово существующего, нигде не используемого
+// rgo_input (слот 54 блока модификаторов страны, токен 0x847, текст MODIFIER_RGO_INPUT).
+static const int   POPSAL_MOD_SLOT       = 54;
+static const DWORD RVA_KW_NAME_IMM       = 0x84EA7B;   // imm32 в "mov edx, offset 'rgo_input'" (FUN_00C381C0)
+static const DWORD RVA_KW_NAME_STR       = 0xA1EA7C;   // строка "rgo_input" в .rdata
+static const DWORD RVA_KW_OBJECT         = 0xEEE3C4;   // статический объект ключевого слова {токен, имя[255]}
+static const int   POPSAL_MOD_TOKEN      = 0x847;
+static char g_popIncomeKeyword[] = "pop_income_modifier";
+
+static DWORD g_popIncomeOrig = 0;
+static bool  g_popSalReady = false;
+static int   g_popSalRoot = -1;
+static int   g_popSalTenths[POPSAL_MAX];
+static int   g_popSalMonth[POPSAL_MAX];
+static int   g_popSalRetry[POPSAL_MAX];
+static int   g_popSalLastHours = 0;
+static int   g_popSalMonthKey = 0;
+static bool  g_popSalTimeKnown = false;
+static LONG  g_popSalLogged = 0;
+
+static int PopSalaryComputeTenths(void* country)
+{
+    long long t = 0;
+    if (g_popSalRoot >= 0)
+    {
+        double vars[MINT_VAR_COUNT];
+        unsigned scoreLo = *(unsigned*)((char*)country + OFF_COUNTRY_INDUSTRY_SCORE);
+        int      scoreHi = *(int*)((char*)country + OFF_COUNTRY_INDUSTRY_SCORE + 4);
+        vars[0] = ((double)scoreHi * 4294967296.0 + (double)scoreLo) / 32768.0;
+        vars[1] = (double)*(int*)((char*)country + OFF_COUNTRY_POPULATION);
+        t = (MintToFixed(MintEval(g_popSalRoot, vars, country)) * 10 + 16384) >> 15;
+        if (t < 0)
+            t = 0;
+    }
+    // Национальный модификатор pop_income_modifier: тысячные (0.1 -> 100) = десятые доли процента.
+    unsigned char* block = *(unsigned char**)((char*)country + COUNTRY_OFF_MODIFIERS);
+    if (block)
+        t += *(int*)(block + POPSAL_MOD_SLOT * 8);
+    return t < 0 ? 0 : (t > 10000 ? 10000 : (int)t);
+}
+
+// Из общего дневного хука страны (CountryDailyHook).
+static void PopSalaryDailyUpdate(void* country)
+{
+    if (!g_popSalReady || !country)
+        return;
+    __try
+    {
+        unsigned idx = *(unsigned*)((char*)country + COUNTRY_OFF_INDEX);
+        void* world = *(void**)(g_base + RVA_WORLD_PTR);
+        if (idx >= (unsigned)POPSAL_MAX || !world)
+            return;
+        int hours = *(int*)((char*)world + OFF_WORLD_TIME);
+        if (hours != g_popSalLastHours)
+        {
+            int h = 0, monthKey = 0;
+            if (!MintingTimeNow(&h, &monthKey))
+                return;
+            if (g_popSalTimeKnown && hours != g_popSalLastHours + 24)
+            {
+                memset(g_popSalTenths, 0, sizeof(g_popSalTenths));
+                memset(g_popSalMonth, 0, sizeof(g_popSalMonth));
+                memset(g_popSalRetry, 0, sizeof(g_popSalRetry));
+            }
+            g_popSalLastHours = hours;
+            g_popSalMonthKey = monthKey;
+            g_popSalTimeKnown = true;
+        }
+        if (g_popSalMonth[idx] != g_popSalMonthKey || (g_popSalTenths[idx] == 0 && hours >= g_popSalRetry[idx]))
+        {
+            g_popSalTenths[idx] = PopSalaryComputeTenths(country);
+            g_popSalMonth[idx] = g_popSalMonthKey;
+            g_popSalRetry[idx] = hours + 8 * 24;
+            if (country == GetLocalPlayerCountry() && InterlockedIncrement(&g_popSalLogged) <= 24)
+                LogDbg("PopSalaryBonus: месяц %d, прибавка к доходу попов игрока %d.%d %%",
+                    g_popSalMonthKey, g_popSalTenths[idx] / 10, g_popSalTenths[idx] % 10);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static long long __cdecl PopSalaryBonusAdjust(unsigned char* pop, unsigned int lo, int hi)
+{
+    long long x = ((long long)hi << 32) | (unsigned long long)lo;
+    if (x <= 0)
+        return x;
+    unsigned char* prov = *(unsigned char**)(pop + POP_OFF_PROVINCE);
+    if (!prov)
+        return x;
+    unsigned idx = *(unsigned*)(prov + PROV_OFF_OWNER_IDX);
+    if (idx >= (unsigned)POPSAL_MAX)
+        return x;
+    int t = g_popSalTenths[idx];
+    if (t == 0)
+        return x;
+    // x * t / 1000 без переполнения int64.
+    return x + x / 1000 * t + (x % 1000) * t / 1000;
+}
+
+__declspec(naked) static void PopSalaryBonusThunk()
+{
+    __asm {
+        push eax
+        push dword ptr [esp + 0xC]
+        push dword ptr [esp + 0xC]
+        push eax
+        call PopSalaryBonusAdjust
+        add esp, 12
+        mov dword ptr [esp + 8], eax
+        mov dword ptr [esp + 0xC], edx
+        pop eax
+        jmp dword ptr [g_popIncomeOrig]
+    }
+}
+
+// Вызывать после InstallMinting: формула кладётся в общий пул узлов minting.
+static void InstallPopIncomeKeyword()
+{
+    unsigned char* imm = (unsigned char*)(g_base + RVA_KW_NAME_IMM);
+    const char* want = (const char*)(g_base + RVA_KW_NAME_STR);
+    DWORD oldProtect = 0;
+    if (imm[-1] == 0xBA && *(DWORD*)imm == (DWORD)(DWORD_PTR)want && strcmp(want, "rgo_input") == 0 &&
+        VirtualProtect(imm, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+    {
+        *(DWORD*)imm = (DWORD)(DWORD_PTR)g_popIncomeKeyword;
+        VirtualProtect(imm, 4, oldProtect, &oldProtect);
+        Log("PopSalaryBonus: ключевое слово pop_income_modifier (вместо rgo_input) установлено rva %06X", RVA_KW_NAME_IMM);
+    }
+    else
+    {
+        Log("PopSalaryBonus: сигнатура ключевого слова не совпала rva %06X - модификатор pop_income_modifier недоступен",
+            RVA_KW_NAME_IMM);
+    }
+
+    // Если таблица ключевых слов уже заполнена, переименовываем готовый объект.
+    unsigned char* obj = (unsigned char*)(g_base + RVA_KW_OBJECT);
+    if (*(int*)obj == POPSAL_MOD_TOKEN && strcmp((const char*)obj + 4, "rgo_input") == 0 &&
+        VirtualProtect(obj, 8, PAGE_READWRITE, &oldProtect))
+    {
+        strcpy_s((char*)obj + 4, 255, g_popIncomeKeyword);
+        VirtualProtect(obj, 8, oldProtect, &oldProtect);
+        Log("PopSalaryBonus: объект ключевого слова уже был создан - переименован");
+    }
+}
+
+// Вызывать после InstallMinting: формула кладётся в общий пул узлов minting.
+static bool InstallPopSalaryBonus()
+{
+    EnsureV2dllDefines();
+    InstallPopIncomeKeyword();
+
+    // Формула необязательна: без неё (пусто или константа 0) бонус даёт только pop_income_modifier.
+    g_popSalRoot = -1;
+    char text[256];
+    strncpy_s(text, sizeof(text), g_defPopSalaryFormula, _TRUNCATE);
+    g_mintCur = text;
+    g_mintErr = false;
+    if (text[0])
+    {
+        int root = MintParseExpr();
+        MintSkipWs();
+        if (g_mintErr || root < 0 || *g_mintCur != 0)
+        {
+            Log("PopSalaryBonus: не удалось разобрать формулу '%s' (позиция %d) - формула не используется",
+                text, (int)(g_mintCur - text));
+        }
+        else if (!(g_mintNodes[root].op == MN_NUM && g_mintNodes[root].num < 0.05))
+        {
+            g_popSalRoot = root;
+        }
+    }
+
+    g_popIncomeOrig = g_base + RVA_POP_INCOME_FN;
+    static const unsigned char PROLOGUE[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xB8, 0x84 };
+    if (memcmp((void*)g_popIncomeOrig, PROLOGUE, sizeof(PROLOGUE)) != 0)
+    {
+        Log("PopSalaryBonus: FUN_0095A5F0 не совпала по прологу - не установлен");
+        return false;
+    }
+    g_fnIsBadReadPtr = SafeIsBadReadPtr;
+    if (!InstallCountryDailyCall())
+    {
+        Log("PopSalaryBonus: дневной хук не встал - не установлен");
+        return false;
+    }
+
+    const int N = (int)(sizeof(RVA_POP_INCOME_SITES) / sizeof(RVA_POP_INCOME_SITES[0]));
+    int done = 0;
+    for (int i = 0; i < N; ++i)
+    {
+        unsigned char* call = (unsigned char*)(g_base + RVA_POP_INCOME_SITES[i]);
+        DWORD expectRel = g_popIncomeOrig - ((DWORD)(DWORD_PTR)call + 5);
+        if (call[0] != 0xE8 || *(DWORD*)(call + 1) != expectRel)
+        {
+            Log("PopSalaryBonus: сигнатура call не совпала rva %06X (%02X %02X %02X %02X %02X)",
+                RVA_POP_INCOME_SITES[i], call[0], call[1], call[2], call[3], call[4]);
+            continue;
+        }
+        DWORD rel = (DWORD)(DWORD_PTR)&PopSalaryBonusThunk - ((DWORD)(DWORD_PTR)call + 5);
+        DWORD oldProtect = 0;
+        if (!VirtualProtect(call + 1, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+            continue;
+        *(DWORD*)(call + 1) = rel;
+        VirtualProtect(call + 1, 4, oldProtect, &oldProtect);
+        ++done;
+    }
+    g_popSalReady = done > 0;
+
+    for (int i = 0; i < g_mintCVarCount; ++i)
+        Log("PopSalaryBonus: '%s' - переменная страны (0, если не задана)", g_mintCVarNames[i]);
+    double sample[MINT_VAR_COUNT] = { 1000.0, 4000000.0 };
+    Log("PopSalaryBonus: подменено call'ов %d из %d, формула '%s'%s; пример без переменных страны: "
+        "industry_score=1000, total_population=4000000 -> %.1f %% (pop_salary_additional_multiplier в common\\defines_v2dll.txt)",
+        done, N, text, g_popSalRoot >= 0 ? "" : " (не используется)", g_popSalRoot >= 0 ? MintEval(g_popSalRoot, sample, 0) : 0.0);
+    return done > 0;
+}
+
+// ---------------------------------------------------------------
 // DestroyCmdNullCheck (5.34): вылет в проверке команды "снести здание".
 //
 // FUN_0057CFD0 (проверка CDestroyStateBuildingCommand; создают её ИИ в
@@ -24616,12 +25137,13 @@ namespace FastAiQueue
     }
     static void __stdcall Run(void* queueRef)
     {
-        LONGLONG start = Qpc();
         DWORD world = *(DWORD*)(DWORD_PTR)g_worldSlot;
         bool maxSpeed = world && *(int*)(DWORD_PTR)(world + kWorldSpeed) == (int)kMaxSpeed;
         if (maxSpeed) DecisionCull::FrameBegin(queueRef);
         g_aiFrameUpdate(queueRef);
-        while (maxSpeed && PendingJobs(queueRef) > 0 && Qpc() - start < g_maxFrameTicks)
+        // Без ограничения по QPC: машины с разной загрузкой иначе заканчивали
+        // день на разных границах кадров, что небезопасно для lockstep-MP.
+        while (maxSpeed && PendingJobs(queueRef) > 0)
             g_aiFrameUpdate(queueRef);
         if (maxSpeed) DecisionCull::FrameEnd();
     }
@@ -25247,6 +25769,9 @@ static bool Install()
     if (g_settings.minting)
         InstallMinting();
 
+    if (g_settings.popSalaryAdditionalMultiplier)
+        InstallPopSalaryBonus();
+
     InstallGoodsConsumption();
 
     if (g_settings.assimilateBlock)
@@ -25292,6 +25817,8 @@ static bool Install()
 
     {
         InstallChecksumDiagnostic();
+        if (g_settings.mpHostHumanSync)
+            InstallServerRoleProbe();
         InstallLobbyEntryHook();
     }
 

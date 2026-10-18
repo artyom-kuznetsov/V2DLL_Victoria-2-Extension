@@ -1,0 +1,2 @@
+00aaf840	UNCONDITIONAL_CALL	__fclose_nolock @ 00aaf800
+00ab3d43	UNCONDITIONAL_CALL	__stat64i32 @ 00ab3b44

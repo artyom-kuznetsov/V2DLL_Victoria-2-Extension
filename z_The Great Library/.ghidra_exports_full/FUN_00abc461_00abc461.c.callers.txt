@@ -1,0 +1,1 @@
+00abc450	UNCONDITIONAL_CALL	__write @ 00abc395

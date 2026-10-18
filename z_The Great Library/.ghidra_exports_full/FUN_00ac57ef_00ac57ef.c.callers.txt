@@ -1,0 +1,7 @@
+00ac74e1	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac8fb4	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac9811	UNCONDITIONAL_CALL	getPrimaryDataType @ 00ac966f
+00ac6644	UNCONDITIONAL_CALL	getPtrRefDataType @ 00ac656a
+00ac8677	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c
+00ac86dc	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c
+00ac963a	UNCONDITIONAL_CALL	getBasicDataType @ 00ac92ac

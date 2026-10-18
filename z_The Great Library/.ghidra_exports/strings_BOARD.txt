@@ -1,0 +1,30 @@
+00dc4994  [ERROR_INVALID_KEYBOARD_HANDLE]
+      ref 00a9b49d DATA in ?
+00dc4dc0  [ERROR_CLIPBOARD_NOT_OPEN]
+      ref 00a9b317 DATA in ?
+00df0078  [Copy selected provinces ids to clipboard]
+      (no refs)
+00df1b74  [ provinces copied to clipboard.]
+      ref 00420e06 DATA in FUN_00420bb0 @ 00420bb0
+00e1eba4  [unitstatsBillboardType]
+      ref 00c4e686 DATA in FUN_00c381c0 @ 00c381c0
+00e1ee14  [weatherBillboardType]
+      ref 00c4df4e DATA in FUN_00c381c0 @ 00c381c0
+00e250e8  [billboardType]
+      ref 00c3bfd4 DATA in FUN_00c381c0 @ 00c381c0
+00e40104  [Billboard]
+      ref 00a2fbb3 DATA in FUN_00a2fb10 @ 00a2fb10
+00e40110  [gfx/FX/billboard.fx]
+      ref 00a2fbd1 DATA in FUN_00a2fb10 @ 00a2fb10
+00eef55e  [SetClipboardData]
+      (no refs)
+00eef572  [OpenClipboard]
+      (no refs)
+00eef582  [EmptyClipboard]
+      (no refs)
+00eef594  [CloseClipboard]
+      (no refs)
+00f17b68  [.?AVCBillboardType@@]
+      (no refs)
+00f17b88  [.?AVCUnitstatsBillboardType@@]
+      (no refs)

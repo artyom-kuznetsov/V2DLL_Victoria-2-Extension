@@ -1,0 +1,1 @@
+00abc974	UNCONDITIONAL_CALL	__lseeki64 @ 00abc8a5

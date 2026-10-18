@@ -1,0 +1,26 @@
+// FUN_00874160 @ 00874160 body=[[00874160, 008741c3]]
+
+
+int FUN_00874160(uint param_1)
+
+{
+  int iVar1;
+  int *piVar2;
+  int iVar3;
+  uint uVar4;
+  
+  lua_pushlstring();
+  lua_rawget();
+  piVar2 = (int *)lua_touserdata();
+  lua_settop();
+  iVar1 = *piVar2;
+  uVar4 = piVar2[1] - iVar1 >> 2;
+  if ((uVar4 <= param_1) || (iVar3 = *(int *)(iVar1 + param_1 * 4), iVar3 == 0)) {
+    if (uVar4 <= DAT_013f3648) {
+      return 0;
+    }
+    iVar3 = *(int *)(iVar1 + DAT_013f3648 * 4);
+  }
+  return iVar3;
+}
+

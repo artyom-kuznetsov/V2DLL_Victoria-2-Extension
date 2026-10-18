@@ -1,0 +1,2 @@
+00acca20	UNCONDITIONAL_CALL	__chsize_nolock @ 00acc984
+00acca64	UNCONDITIONAL_CALL	__chsize_nolock @ 00acc984

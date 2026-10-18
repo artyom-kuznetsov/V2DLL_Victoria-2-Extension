@@ -1,0 +1,187 @@
+00df0878  [Breaks country with first rebel faction in specified country.]
+      (no refs)
+00df12e8  [Country broken by rebel faction ]
+      ref 0041ce94 DATA in FUN_0041cd70 @ 0041cd70
+00df130c  [There are no rebel factions to break the country.]
+      ref 0041cf0e DATA in FUN_0041cd70 @ 0041cd70
+00df3364  [REBEL_ACCEPTANCE_MONTHS]
+      ref 0042e8aa DATA in FUN_0042e410 @ 0042e410
+00df7a7c  [MIL_TO_JOIN_REBEL]
+      ref 00435299 DATA in FUN_0042e410 @ 0042e410
+00df7c90  [REBEL_OCCUPATION_STRENGTH_BONUS]
+      ref 0043564a DATA in FUN_0042e410 @ 0042e410
+00dfa904  [REBEL_BREAK_COUNTRY]
+      ref 0046700d DATA in FUN_00466e90 @ 00466e90
+00dfdc18  [rebelfaction.cpp]
+      ref 004e13e3 DATA in FUN_004e12a0 @ 004e12a0
+00dfdc2c  [Bad pop read for rebel faction ]
+      ref 004e1432 DATA in FUN_004e12a0 @ 004e12a0
+00dfdcd4  [REBELS]
+      ref 004e547c DATA in FUN_004e5210 @ 004e5210
+00dfde18  [rebeltype.cpp]
+      ref 004ec0d0 DATA in FUN_004ebd10 @ 004ebd10
+00dfde40  [Rebel Type #]
+      ref 004ebfd9 DATA in FUN_004ebd10 @ 004ebd10
+00dff44c  [COUNTRYALERT_NO_HaveRebels]
+      ref 0053a9fe DATA in FUN_0053a6d0 @ 0053a6d0
+00dff4fc  [SOIS_HAS_REBELS_WARNING]
+      ref 0053ae93 DATA in FUN_0053a6d0 @ 0053a6d0
+00dff5fc  [COUNTRYALERT_HaveRebels]
+      ref 0053c550 DATA in FUN_0053a6d0 @ 0053a6d0
+00dff634  [COUNTRYALERT_HaveOrganizingRebels]
+      ref 0053c7ba DATA in FUN_0053a6d0 @ 0053a6d0
+00e0090c  [TECH_REBEL_ORG_GAIN]
+      ref 00574a2c DATA in FUN_0056f850 @ 0056f850
+00e01f5c  [SIEGETHEMREBEL]
+      ref 0059eb8a DATA in FUN_0059e300 @ 0059e300
+00e01f78  [SIEGEUSREBEL]
+      ref 0059ecda DATA in FUN_0059e300 @ 0059e300
+00e01fa0  [ATTACKTHEMREBEL]
+      ref 0059f508 DATA in FUN_0059e300 @ 0059e300
+00e01fdc  [ATTACKUSREBEL]
+      ref 0059fcc6 DATA in FUN_0059e300 @ 0059e300
+00e07e44  [/rebel_types.txt]
+      ref 00639649 DATA in FUN_00639120 @ 00639120
+      ref 0063a6e1 DATA in FUN_00639120 @ 00639120
+      ref 0063a727 DATA in FUN_00639120 @ 00639120
+00e08324  [Rebel Types Initialized]
+      ref 0063dbb4 DATA in FUN_00639120 @ 00639120
+00e0cf1c  [OL_REBEL_OCCUPATIONS_TOOLTIP]
+      ref 006bf855 DATA in FUN_006bf740 @ 006bf740
+00e0d170  [OL_REBEL_OCCUPATIONS]
+      ref 006c2f8a DATA in FUN_006c2e50 @ 006c2e50
+00e0d2fc  [outliner_view_rebel_occupations]
+      ref 006c753a DATA in FUN_006c72a0 @ 006c72a0
+      ref 006c775c DATA in FUN_006c7720 @ 006c7720
+00e0d554  [POLITICSVIEW_REBELS]
+      ref 006dd349 DATA in FUN_006dd080 @ 006dd080
+      ref 006dd58f DATA in FUN_006dd080 @ 006dd080
+      ref 006d3ab3 DATA in FUN_006d2dd0 @ 006d2dd0
+      ref 00f09564 DATA in ?
+00e0d6f4  [rebel_window]
+      ref 006cf1e8 DATA in FUN_006cf1c0 @ 006cf1c0
+00e0d750  [rebel_icon_revoltrisk]
+      ref 006cf9a5 READ in FUN_006cf8e0 @ 006cf8e0
+      ref 006cf99e DATA in FUN_006cf8e0 @ 006cf8e0
+00e0d790  [rebel_icon_brigadeready]
+      ref 006cf9d9 DATA in FUN_006cf8e0 @ 006cf8e0
+00e0d7a8  [NUMBER_OF_REBELS_READY]
+      ref 006cfedb DATA in FUN_006cf8e0 @ 006cf8e0
+00e0d7c0  [rebel_icon_brigadeactive]
+      ref 006cfa0f DATA in FUN_006cf8e0 @ 006cf8e0
+00e0d7dc  [NUMBER_OF_REBELS_ACTIVE]
+      ref 006cfe3a DATA in FUN_006cf8e0 @ 006cf8e0
+00e0d7f4  [rebel_icon_support]
+      ref 006cfa60 DATA in FUN_006cf8e0 @ 006cf8e0
+00e0d818  [TOTAL_REBEL_POP]
+      ref 006cfd15 DATA in FUN_006cf8e0 @ 006cf8e0
+00e0d830  [rebel_icon_power]
+      ref 006cfa92 DATA in FUN_006cf8e0 @ 006cf8e0
+00e0dbf4  [rebel_listbox]
+      ref 006dd23d DATA in FUN_006dd080 @ 006dd080
+      ref 006d3aca DATA in FUN_006d2dd0 @ 006d2dd0
+00e102ac  [rebel_view]
+      ref 0070a885 DATA in FUN_0070a340 @ 0070a340
+00e1098c  [alert_have_rebels]
+      ref 00712e1a DATA in FUN_007129a0 @ 007129a0
+      ref 007130e8 DATA in FUN_007129a0 @ 007129a0
+      ref 0071092c DATA in FUN_0070ec60 @ 0070ec60
+      ref 007169a2 DATA in FUN_00713a90 @ 00713a90
+00e12f14  [rebel_percent]
+      ref 0074681a READ in FUN_007443d0 @ 007443d0
+      ref 0074233f DATA in FUN_00740050 @ 00740050
+      ref 00746811 DATA in FUN_007443d0 @ 007443d0
+00e132e4  [rebel_icon]
+      ref 007467e6 READ in FUN_007443d0 @ 007443d0
+      ref 007467dd DATA in FUN_007443d0 @ 007443d0
+00e15e78  [rebel_faction]
+      ref 00794237 DATA in FUN_007938e0 @ 007938e0
+      ref 00789ee5 DATA in FUN_00789a60 @ 00789a60
+      ref 00980fc2 DATA in FUN_009808e0 @ 009808e0
+      ref 00794162 DATA in FUN_007938e0 @ 007938e0
+      ref 0079419f DATA in FUN_007938e0 @ 007938e0
+      ref 007941d1 DATA in FUN_007938e0 @ 007938e0
+      ref 00c4bc3e DATA in FUN_00c381c0 @ 00c381c0
+00e160f8  [enable_rebel_button]
+      ref 0078ef4a DATA in FUN_0078e820 @ 0078e820
+      ref 0078f036 DATA in FUN_0078e820 @ 0078e820
+      ref 0078f333 DATA in FUN_0078e820 @ 0078e820
+      ref 0078e298 DATA in FUN_0078dee0 @ 0078dee0
+      ref 007906bf DATA in FUN_0078f980 @ 0078f980
+00e1610c  [disable_rebel_button]
+      ref 0078efac DATA in FUN_0078e820 @ 0078e820
+      ref 0078f08e DATA in FUN_0078e820 @ 0078e820
+      ref 0078f228 DATA in FUN_0078e820 @ 0078e820
+      ref 0078f395 DATA in FUN_0078e820 @ 0078e820
+      ref 0078e2eb DATA in FUN_0078dee0 @ 0078dee0
+      ref 00790754 DATA in FUN_0078f980 @ 0078f980
+00e161e8  [UNIT_ENABLE_REBEL_HUNT]
+      ref 007906d1 DATA in FUN_0078f980 @ 0078f980
+00e16200  [UNIT_DISABLE_REBEL_HUNT]
+      ref 00790766 DATA in FUN_0078f980 @ 0078f980
+00e16218  [UNIT_REBEL_HUNT_WILL_HUNT]
+      ref 00790829 DATA in FUN_0078f980 @ 0078f980
+00e16234  [UNIT_REBEL_HUNT_IS_BUSY]
+      ref 007908a4 DATA in FUN_0078f980 @ 0078f980
+00e1624c  [UNIT_REBEL_HUNT_LOW_MORALE]
+      ref 00790925 DATA in FUN_0078f980 @ 0078f980
+00e16268  [UNIT_REBEL_HUNT_NO_VALID]
+      ref 007909ac DATA in FUN_0078f980 @ 0078f980
+00e1d260  [rebel_hunting_loc]
+      ref 00c5240e DATA in FUN_00c381c0 @ 00c381c0
+00e1f4a4  [last_rebel_acceptance]
+      ref 00c4cc0e DATA in FUN_00c381c0 @ 00c381c0
+00e1fa04  [execute_rebel_acceptance_command]
+      ref 00c4bcc2 DATA in FUN_00c381c0 @ 00c381c0
+00e201e0  [hunt_rebel]
+      ref 00c4a8d2 DATA in FUN_00c381c0 @ 00c381c0
+00e20338  [rebel_power_fraction]
+      ref 00c4a5e6 DATA in FUN_00c381c0 @ 00c381c0
+00e203a4  [controlled_by_rebels]
+      ref 00c4a50a DATA in FUN_00c381c0 @ 00c381c0
+00e205b4  [rebel_occupation]
+      ref 00c4a066 DATA in FUN_00c381c0 @ 00c381c0
+00e205c8  [rebel_type]
+      ref 00c4a03a DATA in FUN_00c381c0 @ 00c381c0
+00e23434  [rebel]
+      ref 00c418dc DATA in FUN_00c381c0 @ 00c381c0
+00e24588  [rebel_org_gain]
+      ref 00c3dfcc DATA in FUN_00c381c0 @ 00c381c0
+00e29c04  [CREATE_REBELS]
+      ref 0087e00f DATA in FUN_0087dfc0 @ 0087dfc0
+00e2a640  [Bad rebel type ]
+      ref 008a2826 DATA in FUN_008a25b0 @ 008a25b0
+00e2d22c  [REBEL_POWER_LESS_THAN]
+      ref 008bbd71 DATA in FUN_008bbcf0 @ 008bbcf0
+00e2d244  [REBEL_POWER_MORE_THAN]
+      ref 008bbe49 DATA in FUN_008bbcf0 @ 008bbcf0
+00e35e34  [Pop scripted with bad rebel type: ]
+      ref 00956f00 DATA in FUN_00956950 @ 00956950
+00e36090  [POP_CON_CHANGE_REBEL]
+      ref 0096016e DATA in FUN_00960110 @ 00960110
+00e360fc  [POP_MIL_CHANGE_REBEL]
+      ref 009617f1 DATA in FUN_00961790 @ 00961790
+00e370b8  [rebel_win]
+      ref 00982912 DATA in FUN_009828e0 @ 009828e0
+      ref 00980b9e DATA in FUN_009808e0 @ 009808e0
+00e370fc  [rebel_faction_icon]
+      ref 00982979 DATA in FUN_009828e0 @ 009828e0
+      ref 00980cf6 DATA in FUN_009808e0 @ 009808e0
+00e37124  [POPDETAIL_NO_REBEL]
+      ref 00980dd4 DATA in FUN_009808e0 @ 009808e0
+00f117e8  [.?AVCRebelFaction@@]
+      (no refs)
+00f11804  [.?AVCRebelType@@]
+      (no refs)
+00f1299c  [.?AVCExecuteRebelAcceptanceCommand@@]
+      (no refs)
+00f12edc  [.?AVCHuntRebelCommand@@]
+      (no refs)
+00f153b4  [.?AVCRebelFactionItem@@]
+      (no refs)
+00f1bf38  [.?AVCCreateRebelsEffect@@]
+      (no refs)
+00f1dd04  [.?AVCControlledByRebelsTrigger@@]
+      (no refs)
+00f1e734  [.?AVCRebelPowerFractionTrigger@@]
+      (no refs)

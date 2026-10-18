@@ -1,0 +1,4 @@
+00ab273f	UNCONDITIONAL_CALL	__fseek_nolock @ 00ab26cb
+00ab2b5b	UNCONDITIONAL_CALL	__ftell_nolock @ 00ab2b17
+00ab2c28	UNCONDITIONAL_CALL	__ftell_nolock @ 00ab2b17
+00ab2c5d	UNCONDITIONAL_CALL	__ftell_nolock @ 00ab2b17

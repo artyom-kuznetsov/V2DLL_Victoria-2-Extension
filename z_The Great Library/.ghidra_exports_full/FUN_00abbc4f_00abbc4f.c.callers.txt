@@ -1,0 +1,3 @@
+00ab9cca	UNCONDITIONAL_CALL	__flsbuf @ 00ab9c2b
+00aafab2	UNCONDITIONAL_CALL	__ungetc_nolock @ 00aafa12
+00aaf3e9	UNCONDITIONAL_CALL	__filbuf @ 00aaf397

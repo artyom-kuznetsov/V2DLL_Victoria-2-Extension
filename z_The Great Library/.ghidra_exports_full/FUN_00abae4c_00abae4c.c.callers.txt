@@ -1,0 +1,1 @@
+00abb10a	UNCONDITIONAL_CALL	__strtoi64 @ 00abb0e9

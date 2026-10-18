@@ -1,0 +1,9 @@
+00ac129a	UNCONDITIONAL_CALL	__crtGetStringTypeA_stat @ 00ac11ce
+00ab6c6c	UNCONDITIONAL_CALL	__crtLCMapStringA_stat @ 00ab6aa9
+00ab6c75	UNCONDITIONAL_CALL	__crtLCMapStringA_stat @ 00ab6aa9
+00acddb4	UNCONDITIONAL_CALL	__crtCompareStringA_stat @ 00acdb6a
+00acddbd	UNCONDITIONAL_CALL	__crtCompareStringA_stat @ 00acdb6a
+00ab3574	UNCONDITIONAL_CALL	_store_winword @ 00ab3432
+00ac9d93	UNCONDITIONAL_CALL	__crtGetLocaleInfoA_stat @ 00ac9cd3
+00b34c8e	UNCONDITIONAL_CALL	_strupr_s_l_stat @ 00b34b32
+00b34e9c	UNCONDITIONAL_CALL	_strlwr_s_l_stat @ 00b34d38

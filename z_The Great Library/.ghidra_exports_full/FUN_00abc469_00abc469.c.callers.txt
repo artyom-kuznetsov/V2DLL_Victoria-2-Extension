@@ -1,0 +1,2 @@
+00aaf713	UNCONDITIONAL_CALL	__fseeki64_nolock @ 00aaf6e5
+00abc7f2	UNCONDITIONAL_CALL	__ftelli64 @ 00abc7b3

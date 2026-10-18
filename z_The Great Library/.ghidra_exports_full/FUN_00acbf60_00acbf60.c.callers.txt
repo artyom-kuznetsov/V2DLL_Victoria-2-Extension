@@ -1,0 +1,4 @@
+00abdbf0	UNCONDITIONAL_CALL	__wincmdln @ 00abdbaf
+00abdd3f	UNCONDITIONAL_CALL	parse_cmdline @ 00abdcea
+00abde24	UNCONDITIONAL_CALL	parse_cmdline @ 00abdcea
+00abde47	UNCONDITIONAL_CALL	parse_cmdline @ 00abdcea

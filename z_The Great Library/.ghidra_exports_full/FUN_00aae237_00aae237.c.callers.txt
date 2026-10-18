@@ -1,0 +1,2 @@
+00aada17	UNCONDITIONAL_CALL	_Mutex @ 00aada08
+00aad98a	UNCONDITIONAL_CALL	_Init_locks @ 00aad96f

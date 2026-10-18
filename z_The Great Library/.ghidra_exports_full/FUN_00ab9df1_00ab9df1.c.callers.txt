@@ -1,0 +1,5 @@
+00aaff95	UNCONDITIONAL_CALL	__snprintf @ 00aaff16
+00aaee90	UNCONDITIONAL_CALL	_sprintf @ 00aaee35
+00abaa54	UNCONDITIONAL_CALL	__vsprintf_l @ 00aba9f9
+00ab1019	UNCONDITIONAL_CALL	__vsnprintf_l @ 00ab0f9b
+00ab2a35	UNCONDITIONAL_CALL	_fprintf @ 00ab295a

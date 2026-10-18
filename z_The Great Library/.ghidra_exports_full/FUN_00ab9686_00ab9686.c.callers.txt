@@ -1,0 +1,7 @@
+00aaec55	UNCONDITIONAL_CALL	_LocaleUpdate @ 00aaec1a
+00ab696c	UNCONDITIONAL_CALL	_setlocale @ 00ab6935
+00ab5c7f	UNCONDITIONAL_CALL	____lc_codepage_func @ 00ab5c62
+00ab5ca5	UNCONDITIONAL_CALL	____lc_handle_func @ 00ab5c88
+00ab6cf3	UNCONDITIONAL_CALL	___pctype_func @ 00ab6cd6
+00aaefe8	UNCONDITIONAL_CALL	_localeconv @ 00aaefcd
+00ab5c3a	UNCONDITIONAL_CALL	FUN_00ab5c46 @ 00ab5c46

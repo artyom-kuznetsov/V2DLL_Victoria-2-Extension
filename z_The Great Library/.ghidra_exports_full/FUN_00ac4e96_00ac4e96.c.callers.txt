@@ -1,0 +1,5 @@
+00ac90e3	UNCONDITIONAL_CALL	operator_char* @ 00ac8fda
+00ac6756	UNCONDITIONAL_CALL	getTemplateArgumentList @ 00ac6651
+00ac6307	UNCONDITIONAL_CALL	getTemplateConstant @ 00ac627a
+00ac6448	UNCONDITIONAL_CALL	getTemplateConstant @ 00ac627a
+00ac70bb	UNCONDITIONAL_CALL	getZName @ 00ac6f90

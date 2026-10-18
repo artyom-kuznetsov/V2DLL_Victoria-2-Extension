@@ -1,0 +1,2 @@
+00ab0961	UNCONDITIONAL_CALL	___RTtypeid @ 00ab0946
+00aae3be	UNCONDITIONAL_CALL	__non_rtti_object @ 00aae3b3

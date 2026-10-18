@@ -1,0 +1,2 @@
+00ac6ef3	UNCONDITIONAL_CALL	getTemplateName @ 00ac6e36
+00ac6922	UNCONDITIONAL_CALL	getOperatorName @ 00ac6860

@@ -1,0 +1,1 @@
+00ab03f4	UNCONDITIONAL_CALL	__fsopen @ 00ab03a8

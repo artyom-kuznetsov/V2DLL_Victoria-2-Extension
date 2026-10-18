@@ -1,0 +1,106 @@
+// FUN_006e2a30 @ 006e2a30 body=[[006e2a30, 006e2c8f]]
+
+
+void FUN_006e2a30(void)
+
+{
+  undefined4 *in_ECX;
+  void *local_10;
+  undefined1 *puStack_c;
+  undefined4 local_8;
+  
+  puStack_c = &LAB_00b7df8c;
+  local_10 = ExceptionList;
+  ExceptionList = &local_10;
+  *in_ECX = 0;
+  in_ECX[1] = 0;
+  in_ECX[0x17] = CButtonObserverGlue<CFactoryInfoItem>::vftable;
+  in_ECX[0x18] = in_ECX;
+  in_ECX[0x19] = FUN_006e41b0;
+  in_ECX[0x1a] = 0;
+  in_ECX[0x1b] = 0;
+  in_ECX[0x1c] = 0;
+  in_ECX[0x1d] = 0;
+  in_ECX[0x1e] = 0;
+  in_ECX[0x1f] = 0;
+  in_ECX[0x20] = 0;
+  in_ECX[0x21] = 0;
+  in_ECX[0x22] = CButtonObserverGlue<CFactoryInfoItem>::vftable;
+  in_ECX[0x23] = in_ECX;
+  in_ECX[0x24] = FUN_006e42b0;
+  in_ECX[0x25] = 0;
+  in_ECX[0x26] = 0;
+  in_ECX[0x27] = 0;
+  in_ECX[0x28] = 0;
+  in_ECX[0x29] = 0;
+  in_ECX[0x2a] = 0;
+  in_ECX[0x2b] = 0;
+  in_ECX[0x2c] = 0;
+  in_ECX[0x2d] = CButtonObserverGlue<CFactoryInfoItem>::vftable;
+  in_ECX[0x2e] = in_ECX;
+  in_ECX[0x2f] = &LAB_006e43b0;
+  in_ECX[0x30] = 0;
+  in_ECX[0x31] = 0;
+  in_ECX[0x32] = 0;
+  in_ECX[0x33] = 0;
+  in_ECX[0x34] = 0;
+  in_ECX[0x35] = 0;
+  in_ECX[0x36] = 0;
+  in_ECX[0x37] = 0;
+  in_ECX[0x38] = CButtonObserverGlue<CFactoryInfoItem>::vftable;
+  in_ECX[0x39] = in_ECX;
+  in_ECX[0x3a] = 0;
+  in_ECX[0x3b] = 0;
+  in_ECX[0x3c] = 0;
+  in_ECX[0x3d] = 0;
+  in_ECX[0x3e] = 0;
+  in_ECX[0x3f] = 0;
+  in_ECX[0x40] = FUN_006e43f0;
+  in_ECX[0x41] = FUN_006e44f0;
+  in_ECX[0x42] = 0;
+  in_ECX[0x43] = CButtonObserverGlue<CFactoryInfoItem>::vftable;
+  in_ECX[0x44] = in_ECX;
+  in_ECX[0x45] = 0;
+  in_ECX[0x46] = 0;
+  in_ECX[0x47] = 0;
+  in_ECX[0x48] = 0;
+  in_ECX[0x49] = 0;
+  in_ECX[0x4a] = 0;
+  in_ECX[0x4b] = FUN_006e45f0;
+  in_ECX[0x4c] = 0;
+  in_ECX[0x4d] = 0;
+  in_ECX[0x4e] = CButtonObserverGlue<CFactoryInfoItem>::vftable;
+  in_ECX[0x4f] = in_ECX;
+  in_ECX[0x50] = FUN_006e48d0;
+  in_ECX[0x51] = 0;
+  in_ECX[0x52] = 0;
+  in_ECX[0x53] = 0;
+  in_ECX[0x54] = 0;
+  in_ECX[0x55] = 0;
+  in_ECX[0x56] = 0;
+  in_ECX[0x57] = 0;
+  in_ECX[0x58] = 0;
+  in_ECX[0x5a] = 0x18d;
+  in_ECX[0x59] = CGoodsPool::vftable;
+  in_ECX[0x6b] = 0;
+  in_ECX[0x6c] = 0;
+  in_ECX[0x6d] = 0;
+  local_8 = 6;
+  _memset(in_ECX + 0x5b,0,0x40);
+  FUN_00423920();
+  in_ECX[0x6f] = 0;
+  in_ECX[0x74] = 0;
+  in_ECX[0x75] = 0xf;
+  *(undefined1 *)(in_ECX + 0x70) = 0;
+  in_ECX[0x7c] = 0xf;
+  in_ECX[0x7b] = 0;
+  *(undefined1 *)(in_ECX + 0x77) = 0;
+  in_ECX[0x83] = 0xf;
+  in_ECX[0x82] = 0;
+  *(undefined1 *)(in_ECX + 0x7e) = 0;
+  in_ECX[0x85] = 0;
+  *(undefined1 *)(in_ECX + 0x86) = 1;
+  ExceptionList = local_10;
+  return;
+}
+

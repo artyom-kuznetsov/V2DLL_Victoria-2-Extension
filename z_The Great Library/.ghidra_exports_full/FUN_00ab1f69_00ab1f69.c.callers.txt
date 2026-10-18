@@ -1,0 +1,4 @@
+00ab21a7	UNCONDITIONAL_CALL	doexit @ 00ab2081
+00abb4da	UNCONDITIONAL_CALL	__mtinitlocknum @ 00abb4ad
+00ab04c6	UNCONDITIONAL_CALL	_malloc @ 00ab049c
+00ab0e1b	UNCONDITIONAL_CALL	fast_error_exit @ 00ab0dfb

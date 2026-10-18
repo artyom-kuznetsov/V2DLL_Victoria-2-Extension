@@ -1,0 +1,8 @@
+00ab7c88	UNCONDITIONAL_CALL	__hextodec @ 00ab7c7e
+00ab7eb5	UNCONDITIONAL_CALL	__input_l @ 00ab7cde
+00ab81b0	UNCONDITIONAL_CALL	__input_l @ 00ab7cde
+00ab82b7	UNCONDITIONAL_CALL	__input_l @ 00ab7cde
+00ab8423	UNCONDITIONAL_CALL	__input_l @ 00ab7cde
+00ab895e	UNCONDITIONAL_CALL	__input_l @ 00ab7cde
+00ab8aa0	UNCONDITIONAL_CALL	__input_l @ 00ab7cde
+00abe0e7	UNCONDITIONAL_CALL	__forcdecpt_l @ 00abe0bd

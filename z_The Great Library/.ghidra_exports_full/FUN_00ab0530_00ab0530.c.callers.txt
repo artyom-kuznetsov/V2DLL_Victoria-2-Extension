@@ -1,0 +1,1 @@
+00ab05ad	UNCONDITIONAL_CALL	_isalpha @ 00ab0586

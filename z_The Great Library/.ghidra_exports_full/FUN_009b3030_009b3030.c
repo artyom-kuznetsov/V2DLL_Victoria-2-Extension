@@ -1,0 +1,17 @@
+// FUN_009b3030 @ 009b3030 body=[[009b3030, 009b3071]]
+
+
+void FUN_009b3030(undefined4 param_1,undefined4 param_2)
+
+{
+  int in_ECX;
+  
+  FUN_009b3cf0(&param_1,param_2);
+  if (in_ECX != 0) {
+    FUN_004136e0(in_ECX + 4);
+    return;
+  }
+  FUN_004136e0(0);
+  return;
+}
+

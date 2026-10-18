@@ -1,0 +1,2 @@
+00aabb37	DATA	FUN_00aabad0 @ 00aabad0
+00aabc89	DATA	FUN_00aabc30 @ 00aabc30

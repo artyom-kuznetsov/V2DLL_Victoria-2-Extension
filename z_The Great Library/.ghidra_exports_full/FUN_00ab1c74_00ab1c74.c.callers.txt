@@ -1,0 +1,4 @@
+00ab1d22	UNCONDITIONAL_CALL	__stricmp_l @ 00ab1cad
+00ab1d9e	UNCONDITIONAL_CALL	__stricmp @ 00ab1d6d
+00ab3665	UNCONDITIONAL_CALL	_store_winword @ 00ab3432
+00ab367b	UNCONDITIONAL_CALL	_store_winword @ 00ab3432

@@ -1,0 +1,4 @@
+00abdbbd	UNCONDITIONAL_CALL	__wincmdln @ 00abdbaf
+00abdc17	UNCONDITIONAL_CALL	FUN_00abdc0e @ 00abdc0e
+00abde99	UNCONDITIONAL_CALL	__setargv @ 00abde84
+00dbb018	DATA	?

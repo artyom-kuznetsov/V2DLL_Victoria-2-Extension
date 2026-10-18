@@ -1,0 +1,2 @@
+00ac2bd8	UNCONDITIONAL_CALL	___get_qualified_locale @ 00ac2b99
+00ac2c1c	UNCONDITIONAL_CALL	___get_qualified_locale @ 00ac2b99

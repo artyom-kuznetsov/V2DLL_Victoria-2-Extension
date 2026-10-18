@@ -1,0 +1,6 @@
+00aae069	UNCONDITIONAL_CALL	__Mbrtowc @ 00aadfef
+00aae096	UNCONDITIONAL_CALL	__Mbrtowc @ 00aadfef
+00aae0e1	UNCONDITIONAL_CALL	__Mbrtowc @ 00aadfef
+00aae0f9	UNCONDITIONAL_CALL	__Mbrtowc @ 00aadfef
+00aae111	UNCONDITIONAL_CALL	__Mbrtowc @ 00aadfef
+00aad5c8	UNCONDITIONAL_CALL	__Wcrtomb @ 00aad576

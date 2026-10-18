@@ -1,0 +1,1 @@
+00ac0e2e	UNCONDITIONAL_CALL	__sopen_s @ 00ac0e18

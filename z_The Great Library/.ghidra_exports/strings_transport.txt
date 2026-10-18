@@ -1,0 +1,76 @@
+00dbd17c  [ERROR_IPSEC_TRANSPORT_FILTER_PENDING_DELETION]
+      ref 00a9e45e DATA in ?
+00dbd2ec  [ERROR_IPSEC_TRANSPORT_FILTER_NOT_FOUND]
+      ref 00a9e3d6 DATA in FUN_00a93bfc @ 00a93bfc
+00dbd314  [ERROR_IPSEC_TRANSPORT_FILTER_EXISTS]
+      ref 00a9e3cc DATA in ?
+00dc273c  [ERROR_TRANSPORT_FULL]
+      ref 00a9c31b DATA in FUN_00a93bfc @ 00a93bfc
+00dc2754  [ERROR_UNABLE_TO_INVENTORY_TRANSPORT]
+      ref 00a9c311 DATA in ?
+00dce504  [WBEM_E_FATAL_TRANSPORT_ERROR]
+      ref 00a95adf DATA in ?
+00dcf014  [WBEM_E_TRANSPORT_FAILURE]
+      ref 00a956b0 DATA in ?
+00dcf7fc  [VFW_E_NO_TRANSPORT]
+      ref 00a952fb DATA in ?
+00dd7470  [Pins cannot connect due to not supporting the same transport.]
+      ref 00aa5522 DATA in FUN_00aa5068 @ 00aa5068
+00dd8048  [Current pin connection is not using the IMemInputPin transport.]
+      ref 00aa52f4 DATA in FUN_00aa5068 @ 00aa5068
+00dd8088  [Current pin connection is not using the IOverlay transport.]
+      ref 00aa52ea DATA in FUN_00aa5068 @ 00aa5068
+00df1980  [Select transportable unit first!]
+      ref 0041ff46 DATA in FUN_0041fe80 @ 0041fe80
+00df3028  [OURTRANSPORTSTART]
+      ref 005532d2 READ in FUN_005524c0 @ 005524c0
+      ref 005b2d82 READ in FUN_005b1f70 @ 005b1f70
+      ref 005532c8 DATA in FUN_005524c0 @ 005524c0
+      ref 005a579f DATA in FUN_005a0180 @ 005a0180
+      ref 005b2d78 DATA in FUN_005b1f70 @ 005b1f70
+00df3060  [OURTRANSPORTLOST]
+      ref 005534c8 READ in FUN_005524c0 @ 005524c0
+      ref 005b2f78 READ in FUN_005b1f70 @ 005b1f70
+      ref 005534c1 DATA in FUN_005524c0 @ 005524c0
+      ref 005a5a66 DATA in FUN_005a0180 @ 005a0180
+      ref 005b2f71 DATA in FUN_005b1f70 @ 005b1f70
+00df3094  [OURTRANSPORTEND]
+      ref 005536c2 READ in FUN_005524c0 @ 005524c0
+      ref 005b3172 READ in FUN_005b1f70 @ 005b1f70
+      ref 005536b7 DATA in FUN_005524c0 @ 005524c0
+      ref 005a5d84 DATA in FUN_005a0180 @ 005a0180
+      ref 005b3167 DATA in FUN_005b1f70 @ 005b1f70
+00df30cc  [ENEMYTRANSPORTSTART]
+      ref 00553fc9 DATA in FUN_005524c0 @ 005524c0
+      ref 005a707e DATA in FUN_005a0180 @ 005a0180
+      ref 005b3a79 DATA in FUN_005b1f70 @ 005b1f70
+00df3108  [ENEMYTRANSPORTLOST]
+      ref 0055413d DATA in FUN_005524c0 @ 005524c0
+      ref 005a74c5 DATA in FUN_005a0180 @ 005a0180
+      ref 005b3bed DATA in FUN_005b1f70 @ 005b1f70
+00df3140  [ENEMYTRANSPORTEND]
+      ref 005542b1 DATA in FUN_005524c0 @ 005524c0
+      ref 005a7cbd DATA in FUN_005a0180 @ 005a0180
+      ref 005b3d61 DATA in FUN_005b1f70 @ 005b1f70
+00df4654  [AI_TRANSPORT_PROPORTION]
+      ref 00430425 DATA in FUN_0042e410 @ 0042e410
+00e028ac  [TYPE_TRANSPORT]
+      ref 005bdfb1 DATA in FUN_005bdd50 @ 005bdd50
+00e1ec3c  [set_plan_transport_state_command]
+      ref 00c4e526 DATA in FUN_00c381c0 @ 00c381c0
+00e1ef4c  [air_transport]
+      ref 00c4dce6 DATA in FUN_00c381c0 @ 00c381c0
+00e212f8  [transport_supplies_mission]
+      ref 00c47e32 DATA in FUN_00c381c0 @ 00c381c0
+00e21350  [supply_transport_mission]
+      ref 00c47d56 DATA in FUN_00c381c0 @ 00c381c0
+00e21c44  [modify_transports]
+      ref 00c46608 DATA in FUN_00c381c0 @ 00c381c0
+00e22070  [transport_capability]
+      ref 00c4597c DATA in FUN_00c381c0 @ 00c381c0
+00e221bc  [transport_weight]
+      ref 00c45454 DATA in FUN_00c381c0 @ 00c381c0
+00e22ae0  [transport]
+      ref 00c437a0 DATA in FUN_00c381c0 @ 00c381c0
+00e2903c  [_CAI_PLAN_TRANSPORT_]
+      ref 00f09188 DATA in ?

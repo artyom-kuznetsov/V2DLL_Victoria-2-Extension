@@ -1,0 +1,5 @@
+00ac96aa	UNCONDITIONAL_CALL	getPrimaryDataType @ 00ac966f
+00ac977e	UNCONDITIONAL_CALL	getPrimaryDataType @ 00ac966f
+00ac65e0	UNCONDITIONAL_CALL	getPtrRefDataType @ 00ac656a
+00ac5fcc	UNCONDITIONAL_CALL	getArrayType @ 00ac5de3
+00ac93ba	UNCONDITIONAL_CALL	getBasicDataType @ 00ac92ac

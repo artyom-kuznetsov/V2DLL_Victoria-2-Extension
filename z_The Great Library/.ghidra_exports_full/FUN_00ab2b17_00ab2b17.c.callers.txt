@@ -1,0 +1,2 @@
+00ab26f8	UNCONDITIONAL_CALL	__fseek_nolock @ 00ab26cb
+00ab2ce8	UNCONDITIONAL_CALL	_ftell @ 00ab2cab

@@ -1,0 +1,1 @@
+00b34cc4	UNCONDITIONAL_CALL	__strupr_s_l @ 00b34ca6

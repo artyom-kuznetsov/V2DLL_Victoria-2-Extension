@@ -1,0 +1,2 @@
+00abe254	UNCONDITIONAL_CALL	__forcdecpt @ 00abe24a
+00ab10b9	DATA	__cfltcvt_init @ 00ab1064

@@ -1,0 +1,5 @@
+00aadc5f	UNCONDITIONAL_CALL	__Getctype @ 00aadc2a
+00aadc79	UNCONDITIONAL_CALL	__Getctype @ 00aadc2a
+00aadb9d	UNCONDITIONAL_CALL	__Tolower @ 00aadb1d
+00aadd0c	UNCONDITIONAL_CALL	__Toupper @ 00aadc8a
+00aae0bb	UNCONDITIONAL_CALL	__Mbrtowc @ 00aadfef

@@ -1,0 +1,2 @@
+00ab52ca	UNCONDITIONAL_CALL	FindHandlerForForeignException @ 00ab526c
+00ab13b7	UNCONDITIONAL_CALL	TranslatorGuardHandler @ 00ab1334

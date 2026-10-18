@@ -90,7 +90,6 @@ Fixes pop need modifiers, they now do exactly what you expect (some of them were
 Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common\defines_v2dll.txt` inside your mod folder. 
 `minting_inc` label in `country_budget.gui` will display the income.
   
-  
 ### UI 
 #### 1. ENABLE_BUTTONS 
 Adds support for a few new buttons:  
@@ -195,6 +194,11 @@ railroad = {
 #### 3. ENABLE_EVENT_SOUNDS
 Enables playing sounds on certain events. Like the super-events. 
 Read `/watch/music.txt` file for more information (made by maxioten).
+#### 3. POP_SALARY_ADDITIONAL_MULTIPLIER
+Scriptable increases of all pop income sources after taxes are withdrawn (pops get +income% from thin air).  
+Can be a constant increase or be a per-country modifier, configure in `<mod>/common\defines_v2dll.txt`.  
+Used to keep pops consuming goods and combat endgame economy crisis.  
+Comes with `pop_income_modifier` for technologies and inventions, change `RGO_INPUT_TECH` localization to give the modifier a name.  
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 

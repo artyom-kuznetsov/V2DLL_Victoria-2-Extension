@@ -1,0 +1,2 @@
+00abdedb	UNCONDITIONAL_CALL	__setargv @ 00abde84
+00abdf1c	UNCONDITIONAL_CALL	__setargv @ 00abde84

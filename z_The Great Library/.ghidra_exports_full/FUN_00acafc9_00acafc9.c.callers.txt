@@ -1,0 +1,3 @@
+00abcf46	UNCONDITIONAL_CALL	__openfile @ 00abcd68
+00abcf65	UNCONDITIONAL_CALL	__openfile @ 00abcd68
+00abcf84	UNCONDITIONAL_CALL	__openfile @ 00abcd68

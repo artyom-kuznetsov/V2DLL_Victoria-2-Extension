@@ -1,0 +1,3 @@
+00ab7887	UNCONDITIONAL_CALL	___getlocaleinfo @ 00ab783d
+00ab78ae	UNCONDITIONAL_CALL	___getlocaleinfo @ 00ab783d
+00ab78e9	UNCONDITIONAL_CALL	___getlocaleinfo @ 00ab783d

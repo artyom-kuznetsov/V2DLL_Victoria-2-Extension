@@ -1,0 +1,2 @@
+00aae81c	UNCONDITIONAL_CALL	__onexit_nolock @ 00aae7e1
+00ac4407	UNCONDITIONAL_CALL	__recalloc @ 00ac43cd

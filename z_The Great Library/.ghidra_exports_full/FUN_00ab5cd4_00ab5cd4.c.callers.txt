@@ -1,0 +1,2 @@
+00aadf7f	UNCONDITIONAL_CALL	__GetLocaleForCP @ 00aadf01
+00aadfba	UNCONDITIONAL_CALL	FUN_00aadf9c @ 00aadf9c

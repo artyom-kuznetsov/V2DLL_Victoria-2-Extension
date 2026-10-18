@@ -1,0 +1,2 @@
+00b33ec8	UNCONDITIONAL_CALL	__cintrindisp1 @ 00b33eae
+00b340a0	UNCONDITIONAL_CALL	__ctrandisp1 @ 00b3407a

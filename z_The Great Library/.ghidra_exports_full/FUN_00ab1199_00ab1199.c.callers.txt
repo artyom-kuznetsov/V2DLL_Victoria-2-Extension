@@ -1,0 +1,3 @@
+00ab4d34	UNCONDITIONAL_CALL	___DestructExceptionObject @ 00ab4d03
+00ab51c5	UNCONDITIONAL_CALL	___BuildCatchObject @ 00ab516c
+00ab51df	UNCONDITIONAL_CALL	___BuildCatchObject @ 00ab516c

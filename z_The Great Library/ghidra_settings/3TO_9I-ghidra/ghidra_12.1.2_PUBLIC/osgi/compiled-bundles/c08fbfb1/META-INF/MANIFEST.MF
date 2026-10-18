@@ -1,0 +1,15 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Created-By: 21.0.5 (Eclipse Adoptium)
+Tool: Bnd-7.0.0.202310060912
+Bnd-LastModified: 1792321635355
+Import-Package: ghidra.app.decompiler,ghidra.app.script,ghidra.program.m
+ odel.address,ghidra.program.model.listing,ghidra.program.model.symbol,g
+ hidra.util.task,java.io,java.lang,java.lang.invoke,java.util,ghidra.app
+ .plugin.core.osgi
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version>=21))"
+Bundle-SymbolicName: c08fbfb1
+Bundle-Version: 1.0
+Bundle-Name: c08fbfb1
+Bundle-Activator: GeneratedActivator
+

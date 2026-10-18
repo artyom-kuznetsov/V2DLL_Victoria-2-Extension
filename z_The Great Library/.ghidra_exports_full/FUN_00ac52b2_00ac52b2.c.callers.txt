@@ -1,0 +1,5 @@
+00ac58d8	UNCONDITIONAL_CALL	getDimension @ 00ac587f
+00ac58f0	UNCONDITIONAL_CALL	getDimension @ 00ac587f
+00ac5994	UNCONDITIONAL_CALL	getDimension @ 00ac587f
+00ac59ac	UNCONDITIONAL_CALL	getDimension @ 00ac587f
+00ac5cd0	UNCONDITIONAL_CALL	getExtendedDataIndirectType @ 00ac5c1b

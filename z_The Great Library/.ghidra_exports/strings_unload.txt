@@ -1,0 +1,20 @@
+00dc6494  [ERROR_UNABLE_TO_UNLOAD_MEDIA]
+      ref 00a9aa57 DATA in ?
+00e0337c  [onunload_]
+      ref 005e3699 DATA in FUN_005e3480 @ 005e3480
+00e160a8  [unload_button]
+      ref 0078eaed DATA in FUN_0078e820 @ 0078e820
+      ref 0078ebd7 DATA in FUN_0078e820 @ 0078e820
+      ref 0078f26f DATA in FUN_0078e820 @ 0078e820
+      ref 0078e0e6 DATA in FUN_0078dee0 @ 0078dee0
+      ref 007903aa DATA in FUN_0078f980 @ 0078f980
+00e16188  [UW_UNLOAD_NOT_VALID]
+      ref 007903dd DATA in FUN_0078f980 @ 0078f980
+00e1619c  [UW_UNLOAD_VALID]
+      ref 00790454 DATA in FUN_0078f980 @ 0078f980
+00e21398  [unload_from_plane]
+      ref 00c47ca6 DATA in FUN_00c381c0 @ 00c381c0
+00e218b4  [unload_unit]
+      ref 00c46f3e DATA in FUN_00c381c0 @ 00c381c0
+00f12f44  [.?AVCUnloadArmyCommand@@]
+      (no refs)

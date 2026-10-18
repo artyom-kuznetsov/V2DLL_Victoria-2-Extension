@@ -1,0 +1,2 @@
+00b34b61	UNCONDITIONAL_CALL	_strupr_s_l_stat @ 00b34b32
+00b34d6c	UNCONDITIONAL_CALL	_strlwr_s_l_stat @ 00b34d38

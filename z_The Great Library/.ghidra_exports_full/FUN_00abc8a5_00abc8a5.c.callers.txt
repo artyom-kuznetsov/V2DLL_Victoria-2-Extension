@@ -1,0 +1,7 @@
+00ab9d45	UNCONDITIONAL_CALL	__flsbuf @ 00ab9c2b
+00aaf75c	UNCONDITIONAL_CALL	__fseeki64_nolock @ 00aaf6e5
+00abc4a6	UNCONDITIONAL_CALL	__ftelli64_nolock @ 00abc469
+00abc575	UNCONDITIONAL_CALL	__ftelli64_nolock @ 00abc469
+00abc5d7	UNCONDITIONAL_CALL	__ftelli64_nolock @ 00abc469
+00abc6d9	UNCONDITIONAL_CALL	__ftelli64_nolock @ 00abc469
+00abc721	UNCONDITIONAL_CALL	__ftelli64_nolock @ 00abc469

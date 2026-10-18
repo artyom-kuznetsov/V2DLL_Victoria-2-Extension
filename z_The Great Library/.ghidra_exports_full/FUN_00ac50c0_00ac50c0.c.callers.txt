@@ -1,0 +1,3 @@
+00ac78fd	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac7964	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac8973	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c
