@@ -1,0 +1,46 @@
+// FUN_009843d0 @ 009843d0 body=[[009843d0, 00984476]]
+
+
+void * FUN_009843d0(uint *param_1)
+
+{
+  void *pvVar1;
+  void *pvVar2;
+  void *in_ECX;
+  uint uVar3;
+  void *local_10;
+  undefined1 *puStack_c;
+  undefined4 local_8;
+  
+  local_8 = 0xffffffff;
+  puStack_c = &LAB_00b4e412;
+  local_10 = ExceptionList;
+  pvVar1 = (void *)param_1[1];
+  pvVar2 = ExceptionList;
+  if ((in_ECX < pvVar1) && (pvVar2 = (void *)*param_1, pvVar2 <= in_ECX)) {
+    ExceptionList = &local_10;
+    if (pvVar1 == (void *)param_1[2]) {
+      ExceptionList = &local_10;
+      FUN_007c7f70();
+    }
+    pvVar2 = (void *)((((int)in_ECX - (int)pvVar2) / 0x44) * 0x11);
+    uVar3 = param_1[1];
+    local_8 = 0;
+  }
+  else {
+    ExceptionList = &local_10;
+    if (pvVar1 == (void *)param_1[2]) {
+      ExceptionList = &local_10;
+      pvVar2 = (void *)FUN_007c7f70();
+    }
+    uVar3 = param_1[1];
+    local_8 = 1;
+  }
+  if (uVar3 != 0) {
+    pvVar2 = (void *)FUN_007c91b0();
+  }
+  param_1[1] = param_1[1] + 0x44;
+  ExceptionList = local_10;
+  return pvVar2;
+}
+

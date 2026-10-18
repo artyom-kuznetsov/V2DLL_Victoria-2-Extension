@@ -1,0 +1,2 @@
+00ab1daa	UNCONDITIONAL_CALL	__stricmp @ 00ab1d6d
+00acc730	UNCONDITIONAL_CALL	__mbsicmp_l @ 00acc6b5

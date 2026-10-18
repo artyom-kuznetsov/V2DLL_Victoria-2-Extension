@@ -1,0 +1,4 @@
+00abec9d	UNCONDITIONAL_CALL	___report_gsfailure @ 00abebd5
+00abecc1	UNCONDITIONAL_CALL	___report_gsfailure @ 00abebd5
+00ab7abc	UNCONDITIONAL_CALL	__call_reportfault @ 00ab7a9c
+00ab7bb1	UNCONDITIONAL_CALL	__call_reportfault @ 00ab7a9c

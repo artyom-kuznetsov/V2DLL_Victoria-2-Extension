@@ -1,0 +1,3 @@
+00ef0b24	DATA	?
+00ef0b3c	DATA	?
+Entry Point	EXTERNAL	?

@@ -1,0 +1,8 @@
+00ac6499	UNCONDITIONAL_CALL	getTemplateConstant @ 00ac627a
+00ac7c12	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac5b2f	UNCONDITIONAL_CALL	getArgumentTypes @ 00ac5ab1
+00ac7209	UNCONDITIONAL_CALL	getScopedName @ 00ac71a6
+00ac726a	UNCONDITIONAL_CALL	getScopedName @ 00ac71a6
+00ac863f	UNCONDITIONAL_CALL	getScope @ 00ac83a5
+00ac8b54	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac8bc0	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b

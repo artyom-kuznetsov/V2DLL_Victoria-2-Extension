@@ -1,0 +1,2 @@
+00ac27cf	UNCONDITIONAL_CALL	_CountryEnumProc@4 @ 00ac2763
+00ac2956	UNCONDITIONAL_CALL	_LangCountryEnumProc@4 @ 00ac2865

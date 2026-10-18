@@ -11,6 +11,8 @@
 | 02_production_view.md | Кнопки и фильтры Production, постройка фабрик, колонии, unciv |
 | 03_topbar_music_player.md | Topbar, музыкальные кнопки, пауза, громкость, fair random |
 | 04_gui_button_inventory.md | Автоматический индекс 1205 guiButtonType из 53 .gui файлов |
+| 05_ledger_linegraphs.md | Ledger: выбор list/linegraph, 0x58-byte page record, легенда, чарты |
+| 06_province_view.md | Province View: named-control dispatcher, владелец, строительство, военные цели |
 
 ## Правила использования
 

@@ -1,0 +1,2 @@
+00aaf834	UNCONDITIONAL_CALL	__fclose_nolock @ 00aaf800
+00aaf996	UNCONDITIONAL_CALL	_setvbuf @ 00aaf91c

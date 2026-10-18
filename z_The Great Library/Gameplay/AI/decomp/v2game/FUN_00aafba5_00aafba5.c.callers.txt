@@ -1,0 +1,3 @@
+00aafb6b	UNCONDITIONAL_CALL	__fflush_nolock @ 00aafb5d
+00aafc93	UNCONDITIONAL_CALL	_fflush @ 00aafc7f
+00aafcd4	UNCONDITIONAL_CALL	__flushall @ 00aafcd2

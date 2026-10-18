@@ -1,0 +1,8 @@
+00ac9015	UNCONDITIONAL_CALL	operator_char* @ 00ac8fda
+00ac9064	UNCONDITIONAL_CALL	operator_char* @ 00ac8fda
+00ac6398	UNCONDITIONAL_CALL	getTemplateConstant @ 00ac627a
+00ac64c5	UNCONDITIONAL_CALL	getTemplateConstant @ 00ac627a
+00ac6553	UNCONDITIONAL_CALL	getTemplateConstant @ 00ac627a
+00ac6d92	UNCONDITIONAL_CALL	getOperatorName @ 00ac6860
+00ac81a2	UNCONDITIONAL_CALL	getDecoratedName @ 00ac8137
+00ac8535	UNCONDITIONAL_CALL	getScope @ 00ac83a5

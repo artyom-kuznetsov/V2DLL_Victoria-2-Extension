@@ -1,0 +1,2 @@
+00ac8a76	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac8c04	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b

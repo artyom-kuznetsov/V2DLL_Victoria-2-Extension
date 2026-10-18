@@ -1,0 +1,3 @@
+00ace0eb	UNCONDITIONAL_CALL	___crtsetenv @ 00acdfb6
+00ace127	UNCONDITIONAL_CALL	___crtsetenv @ 00acdfb6
+00ab7c69	UNCONDITIONAL_CALL	___check_float_string @ 00ab7c27

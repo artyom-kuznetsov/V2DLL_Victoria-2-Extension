@@ -1,0 +1,136 @@
+// FUN_007ebc90 @ 007ebc90 body=[[007ebc90, 007ebf45]]
+
+
+void FUN_007ebc90(void)
+
+{
+  undefined4 *puVar1;
+  undefined4 *puVar2;
+  undefined4 *in_ECX;
+  undefined **local_24 [4];
+  char *local_14;
+  void *local_10;
+  undefined1 *puStack_c;
+  undefined4 local_8;
+  
+  puStack_c = &LAB_00b3ecce;
+  local_10 = ExceptionList;
+  ExceptionList = &local_10;
+  *in_ECX = 0;
+  in_ECX[1] = 0;
+  in_ECX[2] = 0;
+  in_ECX[4] = 0;
+  in_ECX[5] = 0;
+  in_ECX[6] = 0;
+  in_ECX[8] = 0;
+  in_ECX[9] = 0;
+  in_ECX[10] = 0;
+  local_8 = 2;
+  puVar1 = in_ECX + 0x48;
+  *puVar1 = 0;
+  puVar2 = (undefined4 *)FUN_00aae9af(8);
+  if (puVar2 != (undefined4 *)0x0) {
+    *puVar1 = puVar2;
+    *puVar2 = 0;
+    puVar2[1] = 0;
+    *(undefined4 **)*puVar1 = puVar1;
+    in_ECX[0x49] = 0;
+    in_ECX[0x4a] = 0;
+    in_ECX[0x4b] = 0;
+    in_ECX[0x4c] = 0;
+    in_ECX[0x8f] = 0;
+    in_ECX[0x90] = 0;
+    in_ECX[0x91] = 0;
+    in_ECX[0x93] = 0;
+    in_ECX[0x94] = 0;
+    in_ECX[0x95] = 0;
+    in_ECX[0x96] = 0;
+    in_ECX[0x97] = 0;
+    *(undefined1 *)(in_ECX + 0x98) = 0;
+    in_ECX[0x99] = 0;
+    in_ECX[0x9a] = 0;
+    in_ECX[0x9b] = 0;
+    in_ECX[0x9c] = 0;
+    in_ECX[0x9d] = 0;
+    in_ECX[0x9e] = 0;
+    in_ECX[0x9f] = 0;
+    in_ECX[0xa0] = 0;
+    *(undefined1 *)(in_ECX + 0xa1) = 0;
+    in_ECX[0xa2] = 0;
+    in_ECX[0xa3] = 0;
+    in_ECX[0xa4] = 0;
+    in_ECX[0xa5] = 0;
+    in_ECX[0xa6] = 0;
+    in_ECX[0xa7] = 0;
+    in_ECX[0xa8] = 0;
+    in_ECX[0xa9] = 0;
+    *(undefined1 *)(in_ECX + 0xaa) = 0;
+    in_ECX[0xab] = 0;
+    in_ECX[0xac] = 0;
+    in_ECX[0xad] = 0;
+    in_ECX[0xae] = 0;
+    in_ECX[0xaf] = 0;
+    in_ECX[0xb0] = 0;
+    in_ECX[0xb1] = 0;
+    in_ECX[0xb2] = 0;
+    *(undefined1 *)(in_ECX + 0xb3) = 0;
+    in_ECX[0xb4] = 0;
+    in_ECX[0xb5] = 0;
+    in_ECX[0xb6] = 0;
+    in_ECX[0xb7] = 0;
+    in_ECX[0xb8] = 0;
+    in_ECX[0xb9] = 0;
+    in_ECX[0xba] = 0;
+    in_ECX[0xbb] = 0;
+    *(undefined1 *)(in_ECX + 0xbc) = 0;
+    in_ECX[0xbd] = 0;
+    in_ECX[0xbe] = 0;
+    in_ECX[0xbf] = 0;
+    in_ECX[0xc0] = 0;
+    in_ECX[0xc1] = 0;
+    in_ECX[0xc2] = 0;
+    in_ECX[0xc3] = 0;
+    in_ECX[0xc4] = 0;
+    *(undefined1 *)(in_ECX + 0xc5) = 0;
+    in_ECX[0xc6] = 0;
+    in_ECX[199] = 0;
+    in_ECX[200] = 0;
+    in_ECX[0xc9] = 0;
+    in_ECX[0xca] = 0;
+    in_ECX[0xcb] = 0;
+    in_ECX[0xcc] = 0;
+    in_ECX[0xcd] = 0;
+    *(undefined1 *)(in_ECX + 0xce) = 0;
+    in_ECX[0xcf] = 0;
+    in_ECX[0xd0] = 0;
+    in_ECX[0xd1] = 0;
+    in_ECX[0xd2] = 0;
+    in_ECX[0xd3] = 0;
+    in_ECX[0xd4] = 0;
+    in_ECX[0xd6] = 0;
+    in_ECX[0xd7] = 0;
+    in_ECX[0xd8] = 0;
+    in_ECX[0xda] = 0;
+    in_ECX[0xdb] = 0;
+    in_ECX[0xdc] = 0;
+    in_ECX[0xde] = 0;
+    in_ECX[0xdf] = 0;
+    in_ECX[0xe0] = 0;
+    in_ECX[0xe3] = 0;
+    in_ECX[0xe4] = 0;
+    in_ECX[0xe5] = 0;
+    in_ECX[0xe8] = 0;
+    in_ECX[0xe9] = 0;
+    in_ECX[0xea] = 0;
+    in_ECX[0xeb] = 0;
+    in_ECX[0xe7] = 0;
+    ExceptionList = local_10;
+    return;
+  }
+  local_14 = (char *)0x0;
+  std::exception::exception((exception *)local_24,&local_14);
+  local_24[0] = std::bad_alloc::vftable;
+                    /* WARNING: Subroutine does not return */
+  __CxxThrowException_8(local_24,&DAT_00e6fb20);
+}
+

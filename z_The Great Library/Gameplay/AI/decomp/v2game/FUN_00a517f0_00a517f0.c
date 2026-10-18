@@ -1,0 +1,310 @@
+// FUN_00a517f0 @ 00a517f0 body=[[00a517f0, 00a51e95]]
+
+
+void FUN_00a517f0(int param_1,int *param_2)
+
+{
+  undefined8 uVar1;
+  float fVar2;
+  undefined4 *puVar3;
+  int in_ECX;
+  int iVar4;
+  int iVar5;
+  char *pcVar6;
+  undefined4 unaff_EDI;
+  undefined4 *puVar7;
+  ushort in_FPUControlWord;
+  undefined4 in_stack_00000018;
+  int *piVar8;
+  char *pcVar9;
+  int **ppiVar10;
+  char *pcStack_324;
+  int *piStack_320;
+  int *piStack_31c;
+  char *pcStack_318;
+  undefined8 uStack_314;
+  undefined4 *puStack_30c;
+  int *piStack_308;
+  int *piStack_304;
+  undefined8 uStack_300;
+  char *pcStack_2f8;
+  int *piStack_2f4;
+  int *piStack_2f0;
+  char *pcStack_2ec;
+  undefined1 *puStack_2e8;
+  int *piStack_2e4;
+  undefined8 *puStack_2e0;
+  undefined1 *puStack_2dc;
+  int *piStack_2d8;
+  int *piStack_2d4;
+  undefined4 *puStack_2d0;
+  undefined1 *puStack_2cc;
+  undefined1 *puStack_2c8;
+  int *piStack_2c4;
+  ulonglong *puStack_2c0;
+  ulonglong *puStack_2bc;
+  int *piStack_2b8;
+  int *piStack_2b4;
+  undefined4 *puStack_2b0;
+  undefined4 *puStack_2ac;
+  int *piStack_2a8;
+  int *piStack_2a4;
+  int *piStack_2a0;
+  undefined4 uStack_29c;
+  undefined4 uStack_298;
+  int *piStack_294;
+  int *piStack_290;
+  int *piStack_28c;
+  undefined4 uStack_288;
+  ulonglong uStack_284;
+  undefined8 uStack_27c;
+  undefined4 uStack_274;
+  undefined1 auStack_220 [24];
+  undefined1 auStack_208 [16];
+  undefined1 auStack_1f8 [8];
+  undefined4 auStack_1f0 [4];
+  undefined8 auStack_1e0 [4];
+  ulonglong uStack_1c0;
+  undefined8 uStack_1b8;
+  undefined4 auStack_1b0 [36];
+  int aiStack_120 [3];
+  undefined1 auStack_114 [12];
+  undefined4 uStack_108;
+  undefined1 auStack_104 [12];
+  undefined1 auStack_f8 [88];
+  undefined1 auStack_a0 [156];
+  
+  iVar5 = *(int *)(in_ECX + 0x1cc) << 5;
+  fVar2 = (float)iVar5;
+  _uStack_274 = CONCAT44(unaff_EDI,0x20);
+  if (iVar5 < 0) {
+    fVar2 = fVar2 + 4.2949673e+09;
+  }
+  uStack_27c = CONCAT44((int)(longlong)ROUND(fVar2 * *(float *)(in_ECX + 0x1d4)),
+                        *(undefined4 *)(in_ECX + 0x1c0));
+  uStack_284 = ZEXT48(param_2);
+  uStack_288 = 0xa5185e;
+  (**(code **)(*param_2 + 400))();
+  uStack_288 = 0x112;
+  piStack_28c = param_2;
+  piStack_290 = (int *)0xa5186e;
+  (**(code **)(*param_2 + 0x164))();
+  piStack_290 = *(int **)(in_ECX + 0x1c4);
+  piStack_294 = param_2;
+  uStack_298 = 0xa51880;
+  (**(code **)(*param_2 + 0x1a0))();
+  if (*(int *)(in_ECX + 0x1dc) != 0) {
+    piStack_2a0 = *(int **)(in_ECX + 0xfc);
+    uStack_298 = 0;
+    uStack_29c = 0x1b;
+    piStack_2a4 = (int *)0xa51a59;
+    (**(code **)(*piStack_2a0 + 0xe4))();
+    piStack_2a8 = *(int **)(in_ECX + 0x1dc);
+    piStack_2a4 = (int *)&DAT_00e417c4;
+    puStack_2ac = (undefined4 *)0xa51a6f;
+    (**(code **)(*piStack_2a8 + 0xe8))();
+    puVar3 = (undefined4 *)(in_ECX + 0x1e4);
+    puVar7 = auStack_1b0;
+    for (iVar5 = 0x10; iVar5 != 0; iVar5 = iVar5 + -1) {
+      *puVar7 = *puVar3;
+      puVar3 = puVar3 + 1;
+      puVar7 = puVar7 + 1;
+    }
+    piStack_290 = (int *)(*(int *)(param_1 + 0x6bc88) + 0x1c);
+    puStack_2ac = (undefined4 *)0xa51a9e;
+    puVar3 = (undefined4 *)(**(code **)(*(int *)(*(int *)(param_1 + 0x6bc88) + 0x1c) + 0x16c))();
+    puVar7 = auStack_1f0;
+    for (iVar5 = 0x10; iVar5 != 0; iVar5 = iVar5 + -1) {
+      *puVar7 = *puVar3;
+      puVar3 = puVar3 + 1;
+      puVar7 = puVar7 + 1;
+    }
+    puStack_2ac = (undefined4 *)0xa51abc;
+    puVar3 = (undefined4 *)(**(code **)(*piStack_290 + 0x174))();
+    puVar7 = &uStack_108;
+    for (iVar5 = 0x10; iVar5 != 0; iVar5 = iVar5 + -1) {
+      *puVar7 = *puVar3;
+      puVar3 = puVar3 + 1;
+      puVar7 = puVar7 + 1;
+    }
+    puStack_2ac = auStack_1f0;
+    puStack_2b0 = auStack_1b0;
+    piStack_2b4 = (int *)((int)&uStack_27c + 4);
+    _uStack_274 = 0;
+    uStack_27c._4_4_ = DAT_00f092fc;
+    piStack_2b8 = (int *)0xa51b54;
+    D3DXMatrixMultiply();
+    piStack_2b8 = (int *)auStack_114;
+    puStack_2c0 = &uStack_284;
+    piStack_2c4 = (int *)0xa51b66;
+    puStack_2bc = puStack_2c0;
+    D3DXMatrixMultiply();
+    piStack_2c4 = aiStack_120;
+    puStack_2c8 = auStack_208;
+    puStack_2cc = auStack_a0;
+    puStack_2d0 = (undefined4 *)0xa51b80;
+    D3DXMatrixMultiply();
+    piStack_2d8 = *(int **)(in_ECX + 0x1dc);
+    puStack_2d0 = &uStack_29c;
+    piStack_2d4 = (int *)0xe0bcec;
+    puStack_2dc = (undefined1 *)0xa51b9b;
+    (**(code **)(*piStack_2d8 + 0x98))();
+    puStack_2dc = auStack_220;
+    puStack_2e0 = auStack_1e0;
+    piStack_2e4 = (int *)auStack_f8;
+    puStack_2e8 = (undefined1 *)0xa51bb5;
+    D3DXMatrixMultiply();
+    piStack_2f0 = *(int **)(in_ECX + 0x1dc);
+    puStack_2e8 = auStack_104;
+    pcStack_2ec = "WorldViewMatrix";
+    piStack_2f4 = (int *)0xa51bd3;
+    (**(code **)(*piStack_2f0 + 0x98))();
+    uStack_300._4_4_ = *(int **)(in_ECX + 0x1dc);
+    piStack_2f4 = (int *)auStack_1f8;
+    pcStack_2f8 = "WorldMatrix";
+    uStack_300._0_4_ = (char *)0xa51bf1;
+    (**(code **)(*uStack_300._4_4_ + 0x98))();
+    piStack_308 = *(int **)(in_ECX + 0x1dc);
+    uStack_300 = CONCAT44(uStack_300._4_4_,in_stack_00000018);
+    piStack_304 = (int *)&DAT_00e0bce4;
+    puStack_30c = (undefined4 *)0xa51c0b;
+    (**(code **)(*piStack_308 + 0xd0))();
+    iVar5 = *(int *)(in_ECX + 0x228);
+    puStack_2e8 = *(undefined1 **)(iVar5 + 0x138);
+    piStack_2e4 = *(int **)(iVar5 + 0x13c);
+    puStack_30c = &uStack_288;
+    puStack_2e0 = *(undefined8 **)(iVar5 + 0x140);
+    uStack_284 = *(ulonglong *)(iVar5 + 0x13c);
+    uStack_27c = CONCAT44(uStack_27c._4_4_,puStack_2dc);
+    uStack_314._0_4_ = (int *)0xa51c5b;
+    uStack_288 = puStack_2e8;
+    uStack_314._4_4_ = puStack_30c;
+    D3DXVec3Normalize();
+    piStack_31c = *(int **)(in_ECX + 0x1dc);
+    uStack_314 = CONCAT44(uStack_314._4_4_,&piStack_290);
+    pcStack_318 = "LightDirection";
+    piStack_320 = (int *)0xa51c79;
+    (**(code **)(*piStack_31c + 0x88))();
+    iVar5 = *(int *)(in_ECX + 0x228);
+    puVar3 = (undefined4 *)(iVar5 + 0xf8);
+    puVar7 = auStack_1f0 + 3;
+    for (iVar4 = 0x1a; iVar4 != 0; iVar4 = iVar4 + -1) {
+      *puVar7 = *puVar3;
+      puVar3 = puVar3 + 1;
+      puVar7 = puVar7 + 1;
+    }
+    _uStack_274 = auStack_1e0[0];
+    piVar8 = *(int **)(in_ECX + 0x1dc);
+    puVar3 = (undefined4 *)(iVar5 + 0xf8);
+    puVar7 = auStack_1f0 + 3;
+    for (iVar4 = 0x1a; iVar4 != 0; iVar4 = iVar4 + -1) {
+      *puVar7 = *puVar3;
+      puVar3 = puVar3 + 1;
+      puVar7 = puVar7 + 1;
+    }
+    piStack_320 = &uStack_274;
+    uStack_284 = uStack_1c0;
+    uStack_27c = uStack_1b8;
+    pcStack_324 = "LightColor";
+    (**(code **)(*piVar8 + 0x88))(piVar8);
+    piVar8 = *(int **)(in_ECX + 0x1dc);
+    ppiVar10 = &piStack_290;
+    pcVar9 = "LightAmbient";
+    (**(code **)(*piVar8 + 0x88))();
+    uVar1 = *(undefined8 *)(*(int *)(param_1 + 0x6bc88) + 0x114);
+    puStack_30c = *(undefined4 **)(*(int *)(param_1 + 0x6bc88) + 0x11c);
+    uStack_314._0_4_ = (int *)uVar1;
+    piStack_2c4 = (int *)uStack_314;
+    uStack_314._4_4_ = (undefined4 *)((ulonglong)uVar1 >> 0x20);
+    puStack_2c0 = (ulonglong *)uStack_314._4_4_;
+    piStack_2b8 = piStack_308;
+    uStack_314 = uVar1;
+    puStack_2bc = (ulonglong *)puStack_30c;
+    (**(code **)(**(int **)(in_ECX + 0x1dc) + 0x88))
+              (*(int **)(in_ECX + 0x1dc),"CameraPosition",&piStack_2c4,piVar8,pcVar9,ppiVar10);
+    (**(code **)(**(int **)(in_ECX + 0x1dc) + 0xfc))(*(int **)(in_ECX + 0x1dc),&pcStack_324,0);
+    pcVar6 = (char *)0x0;
+    if (pcVar9 != (char *)0x0) {
+      do {
+        (**(code **)(**(int **)(in_ECX + 0x1dc) + 0x100))(*(int **)(in_ECX + 0x1dc),pcVar6);
+        (**(code **)(**(int **)(in_ECX + 0x1dc) + 0x104))(*(int **)(in_ECX + 0x1dc));
+        (**(code **)(*param_2 + 0x148))
+                  (param_2,4,0,0,(int)(longlong)ROUND(*(float *)(in_ECX + 0x1d4)),0,
+                   (int)(longlong)ROUND(*(float *)(in_ECX + 0x1d0)));
+        (**(code **)(**(int **)(in_ECX + 0x1dc) + 0x108))(*(int **)(in_ECX + 0x1dc));
+        pcVar6 = pcVar6 + 1;
+      } while (pcVar6 < pcVar9);
+    }
+    (**(code **)(**(int **)(in_ECX + 0x1dc) + 0x10c))(*(int **)(in_ECX + 0x1dc));
+    (**(code **)(**(int **)(in_ECX + 0xfc) + 0xe4))(*(int **)(in_ECX + 0xfc),0x1b,1);
+    return;
+  }
+  piStack_2a4 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  uStack_298 = 4;
+  uStack_29c = 1;
+  piStack_2a0 = (int *)0x0;
+  piStack_2a8 = (int *)0xa518a7;
+  (**(code **)(*piStack_2a4 + 0x10c))();
+  piStack_2b4 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  piStack_2a8 = (int *)0x2;
+  puStack_2ac = (undefined4 *)0x2;
+  puStack_2b0 = (undefined4 *)0x0;
+  piStack_2b8 = (int *)0xa518c1;
+  (**(code **)(*piStack_2b4 + 0x10c))();
+  piStack_2c4 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  piStack_2b8 = (int *)0x1;
+  puStack_2bc = (ulonglong *)0x3;
+  puStack_2c0 = (ulonglong *)0x0;
+  puStack_2c8 = (undefined1 *)0xa518db;
+  (**(code **)(*piStack_2c4 + 0x10c))();
+  piStack_2d4 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  puStack_2c8 = (undefined1 *)0x1;
+  puStack_2cc = (undefined1 *)0x1;
+  puStack_2d0 = (undefined4 *)0x1;
+  piStack_2d8 = (int *)0xa518f5;
+  (**(code **)(*piStack_2d4 + 0x10c))();
+  piStack_2e4 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  piStack_2d8 = (int *)0x3;
+  puStack_2dc = (undefined1 *)0x4;
+  puStack_2e0 = (undefined8 *)0x0;
+  puStack_2e8 = (undefined1 *)0xa5190f;
+  (**(code **)(*piStack_2e4 + 0x10c))();
+  piStack_2f4 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  puStack_2e8 = (undefined1 *)0x2;
+  pcStack_2ec = (char *)0x5;
+  piStack_2f0 = (int *)0x0;
+  pcStack_2f8 = (char *)0xa51929;
+  (**(code **)(*piStack_2f4 + 0x10c))();
+  piStack_304 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  pcStack_2f8 = (char *)0x1;
+  uStack_300 = 0x600000000;
+  piStack_308 = (int *)0xa51943;
+  (**(code **)(*piStack_304 + 0x10c))();
+  piVar8 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  piStack_308 = (int *)0x1;
+  puStack_30c = (undefined4 *)0x4;
+  uStack_314 = CONCAT44(1,piVar8);
+  pcStack_318 = (char *)0xa5195d;
+  (**(code **)(*piVar8 + 0x10c))();
+  pcStack_318 = (char *)in_stack_00000018;
+  piStack_31c = (int *)0x0;
+  piStack_320 = param_2;
+  pcStack_324 = (char *)0xa5196e;
+  (**(code **)(*param_2 + 0x104))();
+  uStack_300._0_4_ = (char *)(longlong)ROUND(*(float *)(in_ECX + 0x1d0));
+  pcStack_324 = (char *)uStack_300;
+  piStack_308 = (int *)CONCAT22(piStack_308._2_2_,in_FPUControlWord);
+  piStack_304 = (int *)(in_FPUControlWord | 0xc00);
+  uStack_300 = (longlong)ROUND(*(float *)(in_ECX + 0x1d4));
+  (**(code **)(*param_2 + 0x148))(param_2,4,0,0,(char *)uStack_300,0);
+  piVar8 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  (**(code **)(*piVar8 + 0x10c))(piVar8,0,4,4);
+  piVar8 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  (**(code **)(*piVar8 + 0x10c))(piVar8,0,5,2);
+  piVar8 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  (**(code **)(*piVar8 + 0x10c))(piVar8,0,6,1);
+  piVar8 = *(int **)(*(int *)(in_ECX + 0xe4) + 100);
+  (**(code **)(*piVar8 + 0x10c))(piVar8,1,4,1);
+  return;
+}
+

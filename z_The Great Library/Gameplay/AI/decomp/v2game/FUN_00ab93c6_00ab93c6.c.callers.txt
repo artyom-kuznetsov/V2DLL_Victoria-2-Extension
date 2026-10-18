@@ -1,0 +1,3 @@
+00ab9806	UNCONDITIONAL_CALL	__initptd @ 00ab9782
+00ab9657	UNCONDITIONAL_CALL	__updatetlocinfoEx_nolock @ 00ab9639
+00ab5ccb	UNCONDITIONAL_CALL	__copytlocinfo_nolock @ 00ab5cae

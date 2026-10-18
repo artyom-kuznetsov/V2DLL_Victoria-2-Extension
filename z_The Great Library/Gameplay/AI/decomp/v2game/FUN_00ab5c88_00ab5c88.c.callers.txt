@@ -1,0 +1,6 @@
+00aadc30	UNCONDITIONAL_CALL	__Getctype @ 00aadc2a
+00aad600	UNCONDITIONAL_CALL	__Getcvt @ 00aad5fd
+00aadb2d	UNCONDITIONAL_CALL	__Tolower @ 00aadb1d
+00aadc9a	UNCONDITIONAL_CALL	__Toupper @ 00aadc8a
+00aae023	UNCONDITIONAL_CALL	__Mbrtowc @ 00aadfef
+00aad584	UNCONDITIONAL_CALL	__Wcrtomb @ 00aad576

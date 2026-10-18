@@ -1,0 +1,2 @@
+00ac604e	UNCONDITIONAL_CALL	getVfTableType @ 00ac6016
+00ac992b	UNCONDITIONAL_CALL	getExternalDataType @ 00ac98ef

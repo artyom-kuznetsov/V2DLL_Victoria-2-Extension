@@ -1,0 +1,2 @@
+00ab926c	UNCONDITIONAL_CALL	__setmbcp @ 00ab920e
+00ab68f6	UNCONDITIONAL_CALL	__create_locale @ 00ab6840

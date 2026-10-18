@@ -1,0 +1,5 @@
+00ab1d37	UNCONDITIONAL_CALL	__stricmp_l @ 00ab1cad
+00ab1d46	UNCONDITIONAL_CALL	__stricmp_l @ 00ab1cad
+00aaedd9	UNCONDITIONAL_CALL	_tolower @ 00aaedb6
+00aafe00	UNCONDITIONAL_CALL	__strnicmp_l @ 00aafd50
+00aafe0f	UNCONDITIONAL_CALL	__strnicmp_l @ 00aafd50

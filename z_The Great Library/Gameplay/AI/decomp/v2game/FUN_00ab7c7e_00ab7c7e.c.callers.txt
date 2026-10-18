@@ -1,0 +1,2 @@
+00ab89d0	UNCONDITIONAL_CALL	__input_l @ 00ab7cde
+00ab8ad4	UNCONDITIONAL_CALL	__input_l @ 00ab7cde

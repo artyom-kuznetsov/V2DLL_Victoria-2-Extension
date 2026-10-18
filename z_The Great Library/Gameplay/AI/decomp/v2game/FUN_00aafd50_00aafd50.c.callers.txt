@@ -1,0 +1,2 @@
+00aafe7b	UNCONDITIONAL_CALL	__strnicmp @ 00aafe32
+00acdeab	UNCONDITIONAL_CALL	__strnicoll_l @ 00acde1a

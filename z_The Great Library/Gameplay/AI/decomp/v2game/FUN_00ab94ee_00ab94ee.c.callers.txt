@@ -1,0 +1,6 @@
+00ab9676	UNCONDITIONAL_CALL	__updatetlocinfoEx_nolock @ 00ab9639
+00ab6a85	UNCONDITIONAL_CALL	_setlocale @ 00ab6935
+00ab5d55	UNCONDITIONAL_CALL	__free_locale @ 00ab5cd4
+00ab68de	UNCONDITIONAL_CALL	__create_locale @ 00ab6840
+00ab6912	UNCONDITIONAL_CALL	__create_locale @ 00ab6840
+00ab99bf	UNCONDITIONAL_CALL	?

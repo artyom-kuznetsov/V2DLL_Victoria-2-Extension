@@ -1,0 +1,165 @@
+// FUN_0097f630 @ 0097f630 body=[[0097f630, 0097f6cc] [0097f6d0, 0097f73f] [0097f743, 0097f995]]
+
+
+undefined4 * FUN_0097f630(undefined4 *param_1,int *param_2,undefined4 param_3)
+
+{
+  int *piVar1;
+  int iVar2;
+  undefined4 uVar3;
+  uint local_4c [4];
+  undefined4 local_3c;
+  uint local_38;
+  uint local_30 [4];
+  undefined4 local_20;
+  uint local_1c;
+  undefined4 *local_14;
+  void *local_10;
+  undefined1 *puStack_c;
+  undefined4 local_8;
+  
+  local_8 = 0xffffffff;
+  puStack_c = &LAB_00baa2de;
+  local_10 = ExceptionList;
+  local_1c = 0xf;
+  local_20 = 0;
+  local_30[0] = local_30[0] & 0xffffff00;
+  ExceptionList = &local_10;
+  FUN_00409350("pop_details_win",0xf);
+  local_8 = 0;
+  piVar1 = (int *)(**(code **)(*param_2 + 0x34))();
+  iVar2 = (**(code **)(*piVar1 + 0x48))(local_30);
+  *param_1 = &PTR___purecall_00e38700;
+  param_1[6] = 0xf;
+  param_1[5] = 0;
+  *(undefined1 *)(param_1 + 1) = 0;
+  FUN_00408ed0(iVar2 + 0x24,0,0xffffffff);
+  local_8._0_1_ = 1;
+  FUN_009a4bd0(param_1 + 1,param_1);
+  local_8._0_1_ = 3;
+  if (0xf < local_1c) {
+                    /* WARNING: Subroutine does not return */
+    FUN_00aae91b(local_30[0]);
+  }
+  local_1c = 0xf;
+  local_20 = 0;
+  local_30[0] = local_30[0] & 0xffffff00;
+  *param_1 = CPopDetailsView::vftable;
+  local_38 = 0xf;
+  local_3c = 0;
+  local_4c[0] = local_4c[0] & 0xffffff00;
+  FUN_00409350("pop_details_win",0xf);
+  local_8._0_1_ = 4;
+  piVar1 = (int *)(**(code **)(*param_2 + 0x34))();
+  local_14 = (undefined4 *)(*piVar1 + 0x2c);
+  uVar3 = (**(code **)(*param_2 + 0x3c))();
+  uVar3 = (*(code *)*local_14)(local_4c,uVar3);
+  param_1[8] = uVar3;
+  if (0xf < local_38) {
+                    /* WARNING: Subroutine does not return */
+    FUN_00aae91b(local_4c[0]);
+  }
+  param_1[9] = param_2;
+  param_1[10] = param_3;
+  param_1[0xb] = 0;
+  param_1[0xc] = 0;
+  param_1[0xd] = 0;
+  param_1[0xe] = 0;
+  param_1[0xf] = 0;
+  param_1[0x11] = 0;
+  param_1[0x12] = 0;
+  param_1[0x13] = 0;
+  param_1[0x15] = 0;
+  param_1[0x16] = 0;
+  param_1[0x17] = 0;
+  param_1[0x19] = 0;
+  param_1[0x1a] = 0;
+  param_1[0x1b] = 0;
+  *(undefined1 *)(param_1 + 0x1c) = 0;
+  param_1[0x1d] = CButtonObserverGlue<CPopDetailsView>::vftable;
+  param_1[0x1e] = param_1;
+  param_1[0x1f] = &LAB_009828d0;
+  param_1[0x20] = 0;
+  param_1[0x21] = 0;
+  param_1[0x22] = 0;
+  param_1[0x23] = 0;
+  param_1[0x24] = 0;
+  param_1[0x25] = 0;
+  param_1[0x26] = 0;
+  param_1[0x27] = 0;
+  param_1[0x28] = CButtonObserverGlue<CPopDetailsView>::vftable;
+  param_1[0x29] = param_1;
+  param_1[0x2a] = &LAB_009842d0;
+  param_1[0x2b] = 0;
+  param_1[0x2c] = 0;
+  param_1[0x2d] = 0;
+  param_1[0x2e] = 0;
+  param_1[0x2f] = 0;
+  param_1[0x30] = 0;
+  param_1[0x31] = 0;
+  param_1[0x32] = 0;
+  param_1[0x33] = CButtonObserverGlue<CPopDetailsView>::vftable;
+  param_1[0x34] = param_1;
+  param_1[0x35] = &LAB_009842f0;
+  param_1[0x36] = 0;
+  param_1[0x37] = 0;
+  param_1[0x38] = 0;
+  param_1[0x39] = 0;
+  param_1[0x3a] = 0;
+  param_1[0x3b] = 0;
+  param_1[0x3c] = 0;
+  param_1[0x3d] = 0;
+  param_1[0x3e] = CButtonObserverGlue<CPopDetailsView>::vftable;
+  param_1[0x3f] = param_1;
+  param_1[0x40] = &LAB_00984310;
+  param_1[0x41] = 0;
+  param_1[0x42] = 0;
+  param_1[0x43] = 0;
+  param_1[0x44] = 0;
+  param_1[0x45] = 0;
+  param_1[0x46] = 0;
+  param_1[0x47] = 0;
+  param_1[0x48] = 0;
+  param_1[0x49] = CButtonObserverGlue<CPopDetailsView>::vftable;
+  param_1[0x4a] = param_1;
+  param_1[0x4b] = &LAB_00984330;
+  param_1[0x4c] = 0;
+  param_1[0x4d] = 0;
+  param_1[0x4e] = 0;
+  param_1[0x4f] = 0;
+  param_1[0x50] = 0;
+  param_1[0x51] = 0;
+  param_1[0x52] = 0;
+  param_1[0x53] = 0;
+  param_1[0x54] = CButtonObserverGlue<CPopDetailsView>::vftable;
+  param_1[0x55] = param_1;
+  param_1[0x56] = &LAB_00984350;
+  param_1[0x57] = 0;
+  param_1[0x58] = 0;
+  param_1[0x59] = 0;
+  param_1[0x5a] = 0;
+  param_1[0x5b] = 0;
+  param_1[0x5c] = 0;
+  param_1[0x5d] = 0;
+  param_1[0x5e] = 0;
+  param_1[0x5f] = CButtonObserverGlue<CPopDetailsView>::vftable;
+  param_1[0x60] = param_1;
+  param_1[0x61] = &LAB_00984370;
+  param_1[0x62] = 0;
+  param_1[99] = 0;
+  param_1[100] = 0;
+  param_1[0x65] = 0;
+  param_1[0x66] = 0;
+  param_1[0x67] = 0;
+  param_1[0x68] = 0;
+  param_1[0x69] = 0;
+  local_8 = CONCAT31(local_8._1_3_,0xf);
+  param_1[0x6a] = 0;
+  param_1[0x6b] = 0;
+  param_1[0x6c] = 0;
+  FUN_0097fb00();
+  FUN_009808e0(param_1,param_3);
+  ExceptionList = local_10;
+  return param_1;
+}
+

@@ -1,0 +1,2 @@
+00ab9885	UNCONDITIONAL_CALL	__getptd_noexit @ 00ab9836
+00ab9b51	UNCONDITIONAL_CALL	__mtinit @ 00ab99f8

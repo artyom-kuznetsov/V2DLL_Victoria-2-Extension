@@ -1,0 +1,1 @@
+00abf11b	UNCONDITIONAL_CALL	__IsNonwritableInCurrentImage @ 00abf0c0

@@ -1,0 +1,3 @@
+00abbd6f	UNCONDITIONAL_CALL	__write_nolock @ 00abbc98
+00ab9cbf	UNCONDITIONAL_CALL	__flsbuf @ 00ab9c2b
+00abf792	UNCONDITIONAL_CALL	__stbuf @ 00abf782

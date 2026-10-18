@@ -1,0 +1,2 @@
+00ab3bdb	UNCONDITIONAL_CALL	__stat64i32 @ 00ab3b44
+00acc584	UNCONDITIONAL_CALL	__getdcwd_nolock @ 00acc548

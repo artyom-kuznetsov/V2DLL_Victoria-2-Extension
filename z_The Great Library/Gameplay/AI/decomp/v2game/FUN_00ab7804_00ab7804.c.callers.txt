@@ -1,0 +1,4 @@
+00ab2210	UNCONDITIONAL_CALL	__amsg_exit @ 00ab220b
+00abb4c9	UNCONDITIONAL_CALL	__mtinitlocknum @ 00abb4ad
+00ab04b5	UNCONDITIONAL_CALL	_malloc @ 00ab049c
+00ab0e09	UNCONDITIONAL_CALL	fast_error_exit @ 00ab0dfb

@@ -1,0 +1,2 @@
+00abcfc8	UNCONDITIONAL_CALL	__openfile @ 00abcd68
+00ab3d12	UNCONDITIONAL_CALL	__stat64i32 @ 00ab3b44

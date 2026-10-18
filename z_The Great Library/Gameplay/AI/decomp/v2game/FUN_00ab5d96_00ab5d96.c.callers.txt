@@ -1,0 +1,3 @@
+00b347cd	UNCONDITIONAL_CALL	__umatherr @ 00b3476c
+00b34203	UNCONDITIONAL_CALL	__87except @ 00b340e9
+00b32c02	DATA	___libm_error_support @ 00b32bdc

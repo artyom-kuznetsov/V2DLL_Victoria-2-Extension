@@ -1,0 +1,8 @@
+00ab461f	UNCONDITIONAL_CALL	__close_nolock @ 00ab4614
+00ab464a	UNCONDITIONAL_CALL	__close_nolock @ 00ab4614
+00ab4653	UNCONDITIONAL_CALL	__close_nolock @ 00ab4614
+00ab465f	UNCONDITIONAL_CALL	__close_nolock @ 00ab4614
+00abc839	UNCONDITIONAL_CALL	__lseeki64_nolock @ 00abc820
+00abf5c1	UNCONDITIONAL_CALL	__lseek_nolock @ 00abf5b7
+00accacb	UNCONDITIONAL_CALL	__chsize_nolock @ 00acc984
+00abca3a	UNCONDITIONAL_CALL	__commit @ 00abc9c0

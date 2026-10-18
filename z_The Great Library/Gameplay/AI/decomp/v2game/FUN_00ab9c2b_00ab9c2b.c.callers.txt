@@ -1,0 +1,9 @@
+00aaf5c4	UNCONDITIONAL_CALL	__fwrite_nolock @ 00aaf4b9
+00aaffb4	UNCONDITIONAL_CALL	__snprintf @ 00aaff16
+00aaeeab	UNCONDITIONAL_CALL	_sprintf @ 00aaee35
+00abaa71	UNCONDITIONAL_CALL	__vsprintf_l @ 00aba9f9
+00aca13d	UNCONDITIONAL_CALL	write_char @ 00aca11c
+00abab3c	UNCONDITIONAL_CALL	__vsnprintf_helper @ 00abaa97
+00aaf1b8	UNCONDITIONAL_CALL	FID_conflict:_fputc @ 00aaf0e6
+00ab103a	UNCONDITIONAL_CALL	__vsnprintf_l @ 00ab0f9b
+00ab41a1	UNCONDITIONAL_CALL	_puts @ 00ab4097

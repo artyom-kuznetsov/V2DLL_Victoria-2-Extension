@@ -1,0 +1,10 @@
+00ac75e8	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac784b	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac789d	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac7b34	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac8db6	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac8e3b	UNCONDITIONAL_CALL	getDataIndirectType @ 00ac8a3b
+00ac887b	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c
+00ac88bf	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c
+00ac8905	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c
+00ac8a05	UNCONDITIONAL_CALL	getFunctionIndirectType @ 00ac865c

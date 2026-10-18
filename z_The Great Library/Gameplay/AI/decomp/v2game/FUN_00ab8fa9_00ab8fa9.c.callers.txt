@@ -1,0 +1,2 @@
+00ab9233	UNCONDITIONAL_CALL	__setmbcp @ 00ab920e
+00ab9040	UNCONDITIONAL_CALL	__setmbcp_nolock @ 00ab9025

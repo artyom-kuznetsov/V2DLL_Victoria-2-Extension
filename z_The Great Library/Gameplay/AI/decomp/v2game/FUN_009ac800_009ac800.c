@@ -1,0 +1,30 @@
+// FUN_009ac800 @ 009ac800 body=[[009ac800, 009ac88b]]
+
+
+undefined4 * FUN_009ac800(undefined4 *param_1)
+
+{
+  int in_ECX;
+  void *local_10;
+  undefined1 *puStack_c;
+  undefined4 local_8;
+  
+  puStack_c = &LAB_00b3bd93;
+  local_10 = ExceptionList;
+  local_8 = 0;
+  ExceptionList = &local_10;
+  *param_1 = &PTR_FUN_00e38e9c;
+  param_1[1] = *(undefined4 *)(in_ECX + 4);
+  param_1[7] = 0xf;
+  param_1[6] = 0;
+  *(undefined1 *)(param_1 + 2) = 0;
+  FUN_00408ed0(in_ECX + 8,0,0xffffffff);
+  local_8 = CONCAT31(local_8._1_3_,1);
+  param_1[0xe] = 0xf;
+  param_1[0xd] = 0;
+  *(undefined1 *)(param_1 + 9) = 0;
+  FUN_00408ed0(in_ECX + 0x24,0,0xffffffff);
+  ExceptionList = local_10;
+  return param_1;
+}
+

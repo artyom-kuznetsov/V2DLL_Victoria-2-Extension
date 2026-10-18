@@ -1,0 +1,4 @@
+00abb585	UNCONDITIONAL_CALL	__lock @ 00abb56f
+00abd056	UNCONDITIONAL_CALL	__getstream @ 00abcfff
+00abf435	UNCONDITIONAL_CALL	__alloc_osfhnd @ 00abf41e
+00ac922d	UNCONDITIONAL_CALL	___unDName @ 00ac9212

@@ -1,0 +1,2 @@
+00ab3999	UNCONDITIONAL_CALL	__Strftime_l @ 00ab388c
+00ab3871	UNCONDITIONAL_CALL	_store_winword @ 00ab3432

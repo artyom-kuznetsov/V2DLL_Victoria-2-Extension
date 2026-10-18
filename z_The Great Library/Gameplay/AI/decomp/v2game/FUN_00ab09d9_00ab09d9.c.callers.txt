@@ -1,0 +1,4 @@
+00ab0d8f	UNCONDITIONAL_CALL	FUN_00ab0cbb @ 00ab0cbb
+00ab0aed	UNCONDITIONAL_CALL	FindMITargetTypeInstance @ 00ab0a5d
+00ab0c0b	UNCONDITIONAL_CALL	FindVITargetTypeInstance @ 00ab0b65
+00ab0c6c	UNCONDITIONAL_CALL	FindVITargetTypeInstance @ 00ab0b65

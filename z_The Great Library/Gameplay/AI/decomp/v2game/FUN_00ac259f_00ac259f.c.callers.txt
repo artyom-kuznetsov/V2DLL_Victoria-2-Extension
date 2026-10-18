@@ -1,0 +1,2 @@
+00ab5fc5	UNCONDITIONAL_CALL	__setlocale_get_all @ 00ab5f64
+00ab5db8	UNCONDITIONAL_CALL	FUN_00ab5d99 @ 00ab5d99

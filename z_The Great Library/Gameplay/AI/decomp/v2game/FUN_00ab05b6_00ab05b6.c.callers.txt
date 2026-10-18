@@ -1,0 +1,1 @@
+00ab062c	UNCONDITIONAL_CALL	_isupper @ 00ab0607

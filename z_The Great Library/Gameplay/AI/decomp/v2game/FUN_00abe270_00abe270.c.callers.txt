@@ -1,0 +1,2 @@
+00abe481	UNCONDITIONAL_CALL	__cftoe_l @ 00abe3d1
+00abeac8	UNCONDITIONAL_CALL	__cftog_l @ 00abe9f2

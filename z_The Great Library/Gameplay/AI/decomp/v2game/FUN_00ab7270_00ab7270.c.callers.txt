@@ -1,0 +1,4 @@
+00e67af8	DATA	?
+00abf0cc	DATA	__IsNonwritableInCurrentImage @ 00abf0c0
+00ab7210	DATA	__SEH_prolog4 @ 00ab7210
+00ac10b0	DATA	__SEH_prolog4_GS @ 00ac10b0

@@ -1,0 +1,1 @@
+00abb558	UNCONDITIONAL_CALL	__mtinitlocknum @ 00abb4ad

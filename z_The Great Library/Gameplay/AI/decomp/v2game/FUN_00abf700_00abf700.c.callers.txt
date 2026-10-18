@@ -1,0 +1,2 @@
+00ab6d55	UNCONDITIONAL_CALL	__calloc_crt @ 00ab6d44
+00ab27e6	UNCONDITIONAL_CALL	_calloc @ 00ab27d1

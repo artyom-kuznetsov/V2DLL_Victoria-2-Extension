@@ -1,0 +1,1 @@
+00ac2b80	DATA	_GetLcidFromLanguage @ 00ac2b5d

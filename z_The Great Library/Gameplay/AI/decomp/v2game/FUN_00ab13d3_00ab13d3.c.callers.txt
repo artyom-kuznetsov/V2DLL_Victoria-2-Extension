@@ -1,0 +1,2 @@
+00ab553b	UNCONDITIONAL_CALL	FindHandler @ 00ab5373
+00ab52f8	UNCONDITIONAL_CALL	FindHandlerForForeignException @ 00ab526c

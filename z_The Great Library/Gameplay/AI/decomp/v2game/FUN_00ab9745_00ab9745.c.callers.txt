@@ -1,0 +1,2 @@
+00ab9a0c	UNCONDITIONAL_CALL	__mtinit @ 00ab99f8
+00ab9b69	UNCONDITIONAL_CALL	__mtinit @ 00ab99f8

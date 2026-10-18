@@ -1,0 +1,2 @@
+00ac9f15	UNCONDITIONAL_CALL	_mbtowc @ 00ac9f05
+00ab85ec	UNCONDITIONAL_CALL	__input_l @ 00ab7cde

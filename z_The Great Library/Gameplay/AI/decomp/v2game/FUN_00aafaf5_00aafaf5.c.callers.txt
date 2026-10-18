@@ -1,0 +1,7 @@
+00aaf82c	UNCONDITIONAL_CALL	__fclose_nolock @ 00aaf800
+00aaf572	UNCONDITIONAL_CALL	__fwrite_nolock @ 00aaf4b9
+00ab2706	UNCONDITIONAL_CALL	__fseek_nolock @ 00ab26cb
+00aaf722	UNCONDITIONAL_CALL	__fseeki64_nolock @ 00aaf6e5
+00aaf990	UNCONDITIONAL_CALL	_setvbuf @ 00aaf91c
+00aafb74	UNCONDITIONAL_CALL	__fflush_nolock @ 00aafb5d
+00abf837	UNCONDITIONAL_CALL	__ftbuf @ 00abf81e

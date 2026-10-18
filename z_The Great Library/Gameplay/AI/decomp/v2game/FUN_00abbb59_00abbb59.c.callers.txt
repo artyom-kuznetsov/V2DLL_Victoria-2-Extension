@@ -1,0 +1,2 @@
+00aaf404	UNCONDITIONAL_CALL	__filbuf @ 00aaf397
+00ab2593	UNCONDITIONAL_CALL	__fread_nolock_s @ 00ab2464

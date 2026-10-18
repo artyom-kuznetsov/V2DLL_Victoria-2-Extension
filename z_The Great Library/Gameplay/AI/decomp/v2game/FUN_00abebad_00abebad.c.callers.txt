@@ -1,0 +1,1 @@
+00ab10d4	UNCONDITIONAL_CALL	__fpmath @ 00ab10c4

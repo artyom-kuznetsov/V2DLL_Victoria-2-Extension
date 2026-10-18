@@ -1,0 +1,2 @@
+00ab0ea3	UNCONDITIONAL_CALL	___tmainCRTStartup @ 00ab0e24
+00ab0eb4	UNCONDITIONAL_CALL	___tmainCRTStartup @ 00ab0e24

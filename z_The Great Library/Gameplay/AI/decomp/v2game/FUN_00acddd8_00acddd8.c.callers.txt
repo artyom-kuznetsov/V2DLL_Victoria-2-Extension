@@ -1,0 +1,2 @@
+00acd957	UNCONDITIONAL_CALL	__mbsnbicoll_l @ 00acd8a8
+00acdeca	UNCONDITIONAL_CALL	__strnicoll_l @ 00acde1a

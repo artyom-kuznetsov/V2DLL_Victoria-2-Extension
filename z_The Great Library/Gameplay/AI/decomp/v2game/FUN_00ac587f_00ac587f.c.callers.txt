@@ -1,0 +1,14 @@
+00ac6256	UNCONDITIONAL_CALL	getSignedDimension @ 00ac6228
+00ac626e	UNCONDITIONAL_CALL	getSignedDimension @ 00ac6228
+00ac6c5b	UNCONDITIONAL_CALL	getOperatorName @ 00ac6860
+00ac61b6	UNCONDITIONAL_CALL	getStringEncoding @ 00ac6175
+00ac61c1	UNCONDITIONAL_CALL	getStringEncoding @ 00ac6175
+00ac761b	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac7787	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac779e	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac77b5	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac77d7	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac77f0	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac7bd2	UNCONDITIONAL_CALL	composeDeclaration @ 00ac747d
+00ac5fe7	UNCONDITIONAL_CALL	getLexicalFrame @ 00ac5fd9
+00ac5e60	UNCONDITIONAL_CALL	getArrayType @ 00ac5de3
