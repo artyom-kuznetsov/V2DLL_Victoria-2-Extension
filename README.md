@@ -159,6 +159,29 @@ any_pop = {
 	assimilate = { culture = north_german amount = 0.5 }
 }
 ```
+also works for religion
+```
+any_pop = {
+    limit = {
+        culture = french
+        religion = catholic
+    }
+    assimilate = {
+        religion = protestant
+        amount = 0.3
+    }
+}
+```
+and both together
+```
+425 = {
+    assimilate = {
+        culture = north_german
+        religion = protestant
+        amount = 0.5
+    }
+}
+```
 (made by GODOG) 
 #### 2. BUILDING_GOODS_CONSUMPTION
 Teaches the game the key `goods_consumption` in a building of `common\buildings.txt` (without the patch the vanilla parser mis-reads the block and the game crashes).
@@ -199,6 +222,7 @@ Scriptable increases of all pop income sources after taxes are withdrawn (pops g
 Can be a constant increase or be a per-country modifier, configure in `<mod>/common\defines_v2dll.txt`.  
 Used to keep pops consuming goods and combat endgame economy crisis.  
 Comes with `pop_income_modifier` for technologies and inventions, change `RGO_INPUT_TECH` localization to give the modifier a name.  
+Can't be negative (you can't cut pop's salary, only raise it).
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 

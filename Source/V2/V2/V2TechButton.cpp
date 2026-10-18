@@ -40,7 +40,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.90"
+#define MOD_VERSION "5.91"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -21778,6 +21778,40 @@ __declspec(naked) static void PopSalaryBonusThunk()
 }
 
 // Вызывать после InstallMinting: формула кладётся в общий пул узлов minting.
+// Окно технологии (FUN_0056F850, VA 0x575377) выводит эффекты производства из таблицы 0xF12038
+// (RGO/FACTORY/ARTISAN x INPUT/OUTPUT/THROUGHPUT) через FUN_009C7DE0(.., значение, 1, p5): при p5 = 0
+// отрицательное значение зелёное, положительное красное (так оформлены все *_input: меньше - лучше).
+// p5 = (вид эффекта != input). Наш pop_income_modifier - переименованный rgo_input (группа 0, вид 0),
+// и положительный бонус был красным. Для группы RGO ставим p5 = 1: плюс зелёный, минус красный.
+static const DWORD RVA_TECH_COLOR_SITE   = 0x17539A;
+static const DWORD RVA_TECH_COLOR_RESUME = 0x1753A7;
+static DWORD g_techColorResume = 0;
+
+__declspec(naked) static void TechInputColorThunk()
+{
+    __asm {
+        cmp dword ptr [ebp - 0x20], ebx
+        mov ecx, dword ptr [ebp - 0x18]
+        setne dl
+        movzx eax, dl
+        cmp dword ptr [ebp - 0x10], 0
+        jne keep
+        mov eax, 1
+    keep:
+        push eax
+        jmp dword ptr [g_techColorResume]
+    }
+}
+
+static void InstallTechInputColor()
+{
+    static const unsigned char SIG[13] = { 0x39, 0x5D, 0xE0, 0x8B, 0x4D, 0xE8, 0x0F, 0x95, 0xC2, 0x0F, 0xB6, 0xC2, 0x50 };
+    static const unsigned char RESUME[4] = { 0xC6, 0x45, 0xFC, 0x9D };
+    g_techColorResume = g_base + RVA_TECH_COLOR_RESUME;
+    WriteJmpSite(RVA_TECH_COLOR_SITE, SIG, sizeof(SIG), 13, RVA_TECH_COLOR_RESUME, RESUME, sizeof(RESUME),
+        (void*)&TechInputColorThunk, "PopSalaryBonus(цвет в окне технологии)");
+}
+
 static void InstallPopIncomeKeyword()
 {
     unsigned char* imm = (unsigned char*)(g_base + RVA_KW_NAME_IMM);
@@ -21795,6 +21829,8 @@ static void InstallPopIncomeKeyword()
         Log("PopSalaryBonus: сигнатура ключевого слова не совпала rva %06X - модификатор pop_income_modifier недоступен",
             RVA_KW_NAME_IMM);
     }
+
+    InstallTechInputColor();
 
     // Если таблица ключевых слов уже заполнена, переименовываем готовый объект.
     unsigned char* obj = (unsigned char*)(g_base + RVA_KW_OBJECT);
