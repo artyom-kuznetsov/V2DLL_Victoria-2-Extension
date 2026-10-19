@@ -40,7 +40,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.92"
+#define MOD_VERSION "5.94"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -4241,6 +4241,27 @@ static BytePatch EXE_PATCHES[] =
     // трогает; ветка и так зависела от клиента - у каждого свой игрок).
     { "combat_losses_visible_to_everyone", 0, 0x19CC5D, 2, { 0x74, 0x4A }, { 0x90, 0x90 }, true },
 
+    // ARMY_FIX_SATELLITE_COMMAND: кнопка "Командовать армией" (CGiveUnitCommandAction,
+    // vtable 0xE34810) у сателлита доступна всегда, а не только пока сюзерен и
+    // сателлит воюют вместе. В движке "воюем вместе" = байт +0x70 у CRelation
+    // (сателлит -> сюзерен), его ставит FUN_009365D0 при участии в войне и
+    // сбрасывает FUN_00936560 при мире. Команда ("передано": CRelation+0x1C =
+    // индекс сюзерена) работает только пока +0x70 != 0 (FUN_005CC2E0 и др.).
+    // Три правки здесь + хук InstallSatelliteCommandKeep (сброс +0x70 при мире
+    // пропускается, если команда передана):
+    //  1) VA 0x9283F4, предикат "можно выполнить" (vtable slot 5, FUN_00928370):
+    //     je на отказ при +0x70 == 0 -> nop;
+    //  2) VA 0x9284BC, подсказка кнопки (slot 6, FUN_00928430): jne на ветку
+    //     "уже контролируется / можно" -> jmp, чтобы подсказка совпадала с п.1;
+    //  3) VA 0x928363, исполнение (slot 1, FUN_00928330): перед эпилогом
+    //     ставит +0x70 = 1 (mov byte [eax+0x70],1) - без этого команда в мирное
+    //     время передавалась бы, но армии оставались бы неуправляемыми.
+    { "satellite_command_validate", 0, 0x5283F4, 2, { 0x74, 0x2C }, { 0x90, 0x90 }, true },
+    { "satellite_command_tooltip",  0, 0x5284BC, 2, { 0x75, 0x07 }, { 0xEB, 0x07 }, true },
+    { "satellite_command_exec_flag", 0, 0x528363, 10,
+        { 0x8B, 0xE5, 0x5D, 0xC2, 0x04, 0x00, 0xCC, 0xCC, 0xCC, 0xCC },
+        { 0xC6, 0x40, 0x70, 0x01, 0x8B, 0xE5, 0x5D, 0xC2, 0x04, 0x00 }, true },
+
     // Окно бюджета: строка "Общие доходы" (textbox total_inc, поле окна
     // +0x160) считалась как FUN_0052b610(...) минус пошлины, т.е. без
     // доходов от пошлин (они лежат в записи окна (DAT_00f096c8+0xd)*0x10,
@@ -4603,6 +4624,13 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "ARMY_FIX_BAD_REINFORCEMENT") == 0)       { SetExePatchEnabled("army_fix_bad_reinforcement", v); return; }
     if (_stricmp(key, "NAVY_FIX_BAD_REINFORCEMENT") == 0)       { SetExePatchEnabled("navy_fix_bad_reinforcement", v); return; }
     if (_stricmp(key, "COMBAT_LOSSES_VISIBLE_TO_EVERYONE") == 0) { SetExePatchEnabled("combat_losses_visible_to_everyone", v); return; }
+    if (_stricmp(key, "ARMY_FIX_SATELLITE_COMMAND") == 0)
+    {
+        SetExePatchEnabled("satellite_command_validate", v);
+        SetExePatchEnabled("satellite_command_tooltip", v);
+        SetExePatchEnabled("satellite_command_exec_flag", v);
+        return;
+    }
     if (_stricmp(key, "FACTORY_COLONIAL_ALLOW_LOCAL_SUPPLY") == 0) { SetExePatchEnabled("factory_colonial_allow_local_supply", v); return; }
     if (_stricmp(key, "FACTORY_COLONIAL_EXTRA_WHITELIST") == 0) { ParseExtraWhitelist(value); return; }
 
@@ -4670,6 +4698,7 @@ static void WriteDefaultSettings(const char* path)
         "COMBAT_LOSSES_VISIBLE_TO_EVERYONE=%d\n"
         "COMBAT_SECOND_LINE_SUPPORT_UNIT_PRIORITY=%d\n"
         "COMBAT_SECOND_LINE_DAMAGE_REDIRECT=%d\n"
+        "ARMY_FIX_SATELLITE_COMMAND=%d\n"
         "\n",
         (int)FindExePatchEnabled("always_add_wargoals"),
         (int)FindExePatchEnabled("army_fix_bad_reinforcement"),
@@ -4681,7 +4710,8 @@ static void WriteDefaultSettings(const char* path)
         g_settings.combatRollMax,
         (int)FindExePatchEnabled("combat_losses_visible_to_everyone"),
         (int)g_settings.combatSecondLineSupportUnitPriority,
-        (int)g_settings.combatSecondLineDamageRedirect);
+        (int)g_settings.combatSecondLineDamageRedirect,
+        (int)FindExePatchEnabled("satellite_command_validate"));
 
     char extraWhitelistJoined[MAX_EXTRA_WHITELIST * EXTRA_WHITELIST_NAME_MAX] = "";
     for (int w = 0; w < g_extraWhitelistCount; ++w)
@@ -21275,6 +21305,81 @@ static bool InstallAiExpandStaffing()
 }
 
 // ---------------------------------------------------------------
+// ARMY_FIX_SATELLITE_COMMAND, часть 2: при мире команда над армиями
+// сателлита не пропадает.
+//
+// Управление армией сателлита (FUN_005CC2E0 и др.) требует CRelation+0x1C ==
+// индекс сюзерена (команда передана) И CRelation+0x70 != 0 ("воюем вместе").
+// При окончании войны FUN_00936560(список участников, ?, страна c) обнуляет
+// +0x70 в обе стороны для каждой пары (участник p, c): rel(p->c) и rel(c->p),
+// после чего армии сателлита перестают слушаться. Хук пропускает обнуление, если
+// у этого отношения команда передана, т.е. rel(p->c)+0x1C == c либо
+// rel(c->p)+0x1C == p (индекс 0 - "никто" - не считается). Остальные пары
+// (обычные союзники и т.п.) сбрасываются как раньше. Сама передача команды и
+// кнопка - правки таблицы EXE_PATCHES (satellite_command_*).
+//
+//  site 1: VA 0x9365A2  88 58 70 / 8B 46 04   mov [eax+70h],bl ; mov eax,[esi+4]
+//          eax = rel(p->c), edi = c, bl = 0; продолжение VA 0x9365A8.
+//  site 2: VA 0x9365BD  88 5A 70 / EB B4      mov [edx+70h],bl ; jmp 0x936576
+//          edx = rel(c->p), ecx уже сдвинут на следующий элемент списка
+//          (индекс p в [ecx-4]), eax перед продолжением надо вернуть =
+//          [ebp+8] (продолжение VA 0x936576: cmp ecx,[eax]).
+// Регистры по ходу не пересохраняются: после обоих мест флаги не читаются,
+// eax переписывается сразу.
+// ---------------------------------------------------------------
+
+static DWORD g_satCmdResume1 = 0;
+static DWORD g_satCmdResume2 = 0;
+
+__declspec(naked) static void SatCmdClearThunk1()
+{
+    __asm {
+        cmp dword ptr [eax + 0x1c], edi
+        jne do_clear
+        test edi, edi
+        jnz skip
+    do_clear:
+        mov byte ptr [eax + 0x70], bl
+    skip:
+        mov eax, dword ptr [esi + 4]
+        jmp dword ptr [g_satCmdResume1]
+    }
+}
+
+__declspec(naked) static void SatCmdClearThunk2()
+{
+    __asm {
+        mov eax, dword ptr [ecx - 4]
+        cmp dword ptr [edx + 0x1c], eax
+        jne do_clear
+        test eax, eax
+        jnz skip
+    do_clear:
+        mov byte ptr [edx + 0x70], bl
+    skip:
+        mov eax, dword ptr [ebp + 8]
+        jmp dword ptr [g_satCmdResume2]
+    }
+}
+
+static bool InstallSatelliteCommandKeep()
+{
+    static const unsigned char SIG1[6]    = { 0x88, 0x58, 0x70, 0x8B, 0x46, 0x04 };
+    static const unsigned char RESUME1[3] = { 0x8B, 0x7D, 0x10 };
+    static const unsigned char SIG2[5]    = { 0x88, 0x5A, 0x70, 0xEB, 0xB4 };
+    static const unsigned char RESUME2[2] = { 0x3B, 0x08 };
+    g_satCmdResume1 = g_base + 0x5365A8;
+    g_satCmdResume2 = g_base + 0x536576;
+    bool ok1 = WriteJmpSite(0x5365A2, SIG1, sizeof(SIG1), 6, 0x5365A8, RESUME1, sizeof(RESUME1),
+        (void*)&SatCmdClearThunk1, "SatelliteCommand(мир, rel p->c)");
+    bool ok2 = WriteJmpSite(0x5365BD, SIG2, sizeof(SIG2), 5, 0x536576, RESUME2, sizeof(RESUME2),
+        (void*)&SatCmdClearThunk2, "SatelliteCommand(мир, rel c->p)");
+    Log("SatelliteCommand: сохранение команды при мире %s",
+        (ok1 && ok2) ? "установлено" : "НЕ установлено полностью");
+    return ok1 && ok2;
+}
+
+// ---------------------------------------------------------------
 // PATCH_AI_NAVAL_BASE_LIMIT: ИИ-страна закладывает морские базы не более
 // чем в ai_naval_base_max_provinces_per_state провинциях региона (по
 // умолчанию в одной). Улучшение уже построенной базы не ограничено.
@@ -25676,6 +25781,9 @@ static bool Install()
     // (правится ключами PATCH_<ИМЯ> в ini), поэтому вызов сам по себе
     // безусловный.
     InstallExePatches();
+
+    if (FindExePatchEnabled("satellite_command_validate"))
+        InstallSatelliteCommandKeep();
 
     if (g_settings.armyBetterReinforceOnAlliedOwnedLand)
         InstallOccupiedReinforceSplit();
