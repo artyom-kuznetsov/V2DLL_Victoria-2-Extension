@@ -1,0 +1,93 @@
+ATCU 0.0.1 - Army Template and Conform Universal
+Files-only installation for Windows Victoria II 3.04
+
+BEFORE COPYING
+
+Exit Victoria II normally. Locate the game folder containing v2game.exe,
+victoria2.exe, lua51.dll and mod. Extract this ZIP somewhere temporary first.
+Keep a backup of files you replace. Do not copy the README files into mod.
+The game, original Lua DLL and base mods are not included.
+
+1. COPY THE MOD
+
+Copy the ZIP's mod folder into your game folder. The result must include:
+
+  <game>/mod/tgcx_army_universal.mod
+  <game>/mod/tgcx_army_universal/tgcx.dll
+  <game>/mod/tgcx_army_universal/v2dll_mod.dll
+
+Keep the internal folder name. Do not create mod/mod or put the files
+under Documents. The package needs one of the loaders described below.
+
+2A. CLEAN GAME WITHOUT V2DLL OR ANOTHER LUA PROXY
+
+In the game folder, rename the ORIGINAL lua51.dll to lua51_real.dll.
+Then copy this ZIP's lua51.dll into the game folder beside v2game.exe.
+Windows must show the real file extensions when you rename the original.
+
+Do not overwrite lua51_real.dll if it already exists. If you already use
+our earlier Army loader, keep it and copy only mod from this ZIP.
+If lua51.dll belongs to another mod loader, use that loader's supported
+integration route instead of renaming its proxy as the original library.
+
+2B. EXISTING V2DLL INSTALLATION
+
+Keep V2DLL's lua51.dll and its original Lua backup. Do NOT copy the root
+lua51.dll from this ZIP. Only copy mod as described in step 1.
+
+In the game root's v2dll_settings.ini, use:
+
+  LOAD_DLL_FROM_MOD_FOLDER=1
+
+The tested V2DLL 5.82 configuration also uses LOCAL_MOD_CONFIG=0, so the
+root settings apply. Preserve your other settings. This release does not
+include V2DLL itself or overwrite its configuration.
+
+V2DLL's mod-DLL slot uses the first active -mod entry. ATCU must be first.
+The normal launcher sorts the display names; ATCU sorts before the tested
+DoD, HPM and TGC base names. If another selected mod sorts ahead of ATCU,
+the plugin route may not load. Select only one Army package and no other
+plugin competing for V2DLL's single mod-DLL slot. See KNOWN_ISSUES.md.
+
+3. LAUNCH NORMALLY
+
+Open victoria2.exe. Select:
+
+  ATCU - Army Template and Conform Universal
+  Your installed base mod, if any
+
+For vanilla, select ATCU alone. Untick every older Army Templates and
+Conform entry. Do not select ATCU twice through different descriptors.
+Start the game and check Military > Build Army > Templates, then an army's
+Conform button. You do not need to run any script or installer.
+
+4. UPDATING AN EARLIER UNIVERSAL INSTALLATION
+
+Exit normally. Back up mod/tgcx_army_universal and its .mod descriptor.
+Replace that folder and descriptor with this ZIP's versions. The new
+launcher label is ATCU; the internal paths stay the same. Keep your loader
+and original Lua backup. Do not delete your tgcx_templates.txt file.
+
+To move from a base-specific Army package, install ATCU alongside it but
+untick the old package. Keep the old files as a rollback until tested.
+
+5. REMOVAL OR ROLLBACK
+
+Exit normally. Untick ATCU. Remove only mod/tgcx_army_universal and
+mod/tgcx_army_universal.mod, or restore your backed-up earlier versions.
+Your base mod and template preference file can remain.
+
+If using the included ATCU root loader, it can remain as a Lua forwarder
+with ATCU unticked. To remove it fully, first verify lua51.dll is our loader,
+move it aside, and rename your retained original lua51_real.dll back to
+lua51.dll. Do not change V2DLL's loader or Lua backup when removing ATCU.
+
+6. IF THE CONTROLS ARE MISSING
+
+Check the folder layout, launcher selections and loader route above.
+Inspect <game>/Logs/tgcx.log. The candidate intentionally still logs:
+
+  TGCX MOD-6 0.10.4 tgcx.dll
+
+It should identify either the ATCU/TGCX loader or V2DLL plugin API v1.
+For V2DLL also preserve <game>/Logs/v2dll.log. Follow BUG_REPORT.md.

@@ -1,0 +1,8 @@
+CODE;ENGLISH;FRENCH;GERMAN;POLISH;SPANISH;ITALIAN;SWEDISH;CZECH;HUNGARIAN;DUTCH;PORTUGUESE;RUSSIAN;FINNISH;x
+tgcx_loadtest_decision_title;TGCX: load test;;;;;;;;;;;;;x
+tgcx_loadtest_decision_desc;Fires an event that says which TGC version is loaded. Can be used once per game.;;;;;;;;;;;;;x
+tgcx_loadtest.1.t;TGCX loaded on top of TGC v2.5.2;;;;;;;;;;;;;x
+tgcx_loadtest.1.d;The TGCX submod loaded. The United Kingdom has the great_gamer flag, which only TGC v2.5.2 (or later) sets.;;;;;;;;;;;;;x
+tgcx_loadtest.2.t;TGCX loaded on top of TGC v2.3.4;;;;;;;;;;;;;x
+tgcx_loadtest.2.d;The TGCX submod loaded. The United Kingdom does not have the great_gamer flag: this TGC is older than v2.5.2.;;;;;;;;;;;;;x
+tgcx_loadtest.1.a;Understood;;;;;;;;;;;;;x

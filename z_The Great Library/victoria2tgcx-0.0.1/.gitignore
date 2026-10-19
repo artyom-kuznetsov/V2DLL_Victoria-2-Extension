@@ -1,0 +1,30 @@
+# R8: no third-party material or anything derived from the executable
+*.exe
+*.dll
+*.pdb
+*.gpr
+*.rep/
+*.lock
+*.lock~
+
+# Outputs that are regenerated
+work/
+__pycache__/
+*.pyc
+
+# DLL build (Visual Studio)
+dll/**/Debug/
+dll/**/Release/
+dll/**/.vs/
+*.user
+
+# Exported mockups: they carry Vic2 and TGC art (R8)
+/mockups/
+
+# Generated from TGC's own files at install time (R3, R8): never in git
+submod/TGCX/common/event_modifiers.txt
+submod/TGCX/interface/country_politics.gui
+submod/TGCX/interface/buildunit.gui
+
+# Third-party research material from the modding Discord (R8)
+/v2moddingsv/

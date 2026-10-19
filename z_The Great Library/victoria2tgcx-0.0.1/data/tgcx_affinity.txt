@@ -1,0 +1,19 @@
+# Ideological affinity: each ideology's ideal option per law group, and how
+# strongly it holds it (docs/law-design.md §3). Read by tools/gen_laws.py,
+# not by the game. Options are named, never numbered, so a reordered group
+# keeps its meaning. status_quo = the group's current option.
+#
+# LAW-0: only press_rights, and only the three ideologies in the 1836
+# British upper house. LAW-1 fills the rest (reviewed with the user).
+
+liberal = {
+	press_rights = { ideal = free_press intensity = 2 }
+}
+
+conservative = {
+	press_rights = { ideal = status_quo intensity = 1 }
+}
+
+reactionary = {
+	press_rights = { ideal = state_press intensity = 2 }
+}

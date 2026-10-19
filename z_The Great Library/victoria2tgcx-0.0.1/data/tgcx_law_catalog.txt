@@ -1,0 +1,305 @@
+# LAW-1 negotiation preferences; user approval is recorded per group. Not installed.
+# Ideals are option names from installed TGC v2.5.2. 1 = weak, 2 = strong.
+# Conservative status quo and the original three press rows retain LAW-0.
+# Pending choices require user review (R9). Approval does not imply native voting parity.
+# 2026-10-12: user approved all base rows; TGC starting votes are imported separately.
+# See docs/report-law-1-native-1012.md. Affinity sets prices and promises, not starting votes.
+
+slavery = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = yes_slavery intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = no_slavery intensity = 2 }
+	anarcho_liberal = { ideal = no_slavery intensity = 2 }
+	liberal = { ideal = no_slavery intensity = 2 }
+	anarchist = { ideal = no_slavery intensity = 1 }
+	communist = { ideal = no_slavery intensity = 1 }
+	socialist = { ideal = no_slavery intensity = 2 }
+}
+
+vote_franschise = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = none_voting intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = none_voting intensity = 2 }
+	anarcho_liberal = { ideal = universal_voting intensity = 2 }
+	liberal = { ideal = universal_voting intensity = 2 }
+	anarchist = { ideal = universal_voting intensity = 1 }
+	communist = { ideal = universal_voting intensity = 1 }
+	socialist = { ideal = universal_voting intensity = 2 }
+}
+
+upper_house_composition = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = party_appointed intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = party_appointed intensity = 2 }
+	anarcho_liberal = { ideal = population_equal_weight intensity = 2 }
+	liberal = { ideal = population_equal_weight intensity = 2 }
+	anarchist = { ideal = population_equal_weight intensity = 1 }
+	communist = { ideal = party_appointed intensity = 2 }
+	socialist = { ideal = population_equal_weight intensity = 2 }
+}
+
+voting_system = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = first_past_the_post intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = first_past_the_post intensity = 2 }
+	anarcho_liberal = { ideal = proportional_representation intensity = 2 }
+	liberal = { ideal = proportional_representation intensity = 2 }
+	anarchist = { ideal = proportional_representation intensity = 1 }
+	communist = { ideal = proportional_representation intensity = 1 }
+	socialist = { ideal = proportional_representation intensity = 2 }
+}
+
+public_meetings = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_meeting intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = no_meeting intensity = 2 }
+	anarcho_liberal = { ideal = yes_meeting intensity = 2 }
+	liberal = { ideal = yes_meeting intensity = 2 }
+	anarchist = { ideal = yes_meeting intensity = 1 }
+	communist = { ideal = yes_meeting intensity = 1 }
+	socialist = { ideal = yes_meeting intensity = 2 }
+}
+
+press_rights = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = state_press intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = state_press intensity = 2 }
+	anarcho_liberal = { ideal = free_press intensity = 2 }
+	liberal = { ideal = free_press intensity = 2 }
+	anarchist = { ideal = free_press intensity = 1 }
+	communist = { ideal = state_press intensity = 2 }
+	socialist = { ideal = free_press intensity = 2 }
+}
+
+trade_unions = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_trade_unions intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = state_controlled intensity = 2 }
+	anarcho_liberal = { ideal = no_trade_unions intensity = 2 }
+	liberal = { ideal = non_socialist intensity = 1 }
+	anarchist = { ideal = all_trade_unions intensity = 1 }
+	communist = { ideal = state_controlled intensity = 2 }
+	socialist = { ideal = all_trade_unions intensity = 2 }
+}
+
+political_parties = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = underground_parties intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = harassment intensity = 2 }
+	anarcho_liberal = { ideal = secret_ballots intensity = 2 }
+	liberal = { ideal = secret_ballots intensity = 2 }
+	anarchist = { ideal = secret_ballots intensity = 1 }
+	communist = { ideal = harassment intensity = 2 }
+	socialist = { ideal = secret_ballots intensity = 2 }
+}
+
+conscription = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = mandatory_service intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = mandatory_service intensity = 2 }
+	anarcho_liberal = { ideal = no_draft intensity = 2 }
+	liberal = { ideal = one_year_draft intensity = 1 }
+	anarchist = { ideal = no_draft intensity = 2 }
+	communist = { ideal = mandatory_service intensity = 2 }
+	socialist = { ideal = no_draft intensity = 1 }
+}
+
+citizens_rights = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = primary_culture_only intensity = 2 }
+	tribalist = { ideal = culture_voting_only intensity = 1 }
+	fascist = { ideal = primary_culture_only intensity = 2 }
+	anarcho_liberal = { ideal = all_voting_pops intensity = 2 }
+	liberal = { ideal = all_voting_pops intensity = 2 }
+	anarchist = { ideal = all_voting_pops intensity = 1 }
+	communist = { ideal = all_voting_pops intensity = 1 }
+	socialist = { ideal = all_voting_pops intensity = 2 }
+}
+
+debt_law = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = serfdom intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = debtors_prisons intensity = 1 }
+	anarcho_liberal = { ideal = bankruptcy intensity = 2 }
+	liberal = { ideal = bankruptcy intensity = 2 }
+	anarchist = { ideal = bankruptcy intensity = 1 }
+	communist = { ideal = bankruptcy intensity = 1 }
+	socialist = { ideal = bankruptcy intensity = 2 }
+}
+
+border_policy = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = closed_borders intensity = 2 }
+	tribalist = { ideal = closed_borders intensity = 1 }
+	fascist = { ideal = closed_borders intensity = 2 }
+	anarcho_liberal = { ideal = open_borders intensity = 2 }
+	liberal = { ideal = open_borders intensity = 2 }
+	anarchist = { ideal = open_borders intensity = 1 }
+	communist = { ideal = closed_borders intensity = 2 }
+	socialist = { ideal = open_borders intensity = 1 }
+}
+
+colonial_policy = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = settlement intensity = 1 }
+	tribalist = { ideal = no_colonies intensity = 2 }
+	fascist = { ideal = settlement intensity = 2 }
+	anarcho_liberal = { ideal = no_colonies intensity = 1 }
+	liberal = { ideal = exploitation intensity = 1 }
+	anarchist = { ideal = no_colonies intensity = 2 }
+	communist = { ideal = no_colonies intensity = 2 }
+	socialist = { ideal = no_colonies intensity = 2 }
+}
+
+centralization = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = regionalism intensity = 2 }
+	tribalist = { ideal = confederalism intensity = 1 }
+	fascist = { ideal = totalitarianism intensity = 2 }
+	anarcho_liberal = { ideal = confederalism intensity = 2 }
+	liberal = { ideal = federalism intensity = 2 }
+	anarchist = { ideal = confederalism intensity = 2 }
+	communist = { ideal = totalitarianism intensity = 2 }
+	socialist = { ideal = federalism intensity = 1 }
+}
+
+wage_reform = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_minimum_wage intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = good_minimum_wage intensity = 1 }
+	anarcho_liberal = { ideal = no_minimum_wage intensity = 2 }
+	liberal = { ideal = no_minimum_wage intensity = 1 }
+	anarchist = { ideal = good_minimum_wage intensity = 2 }
+	communist = { ideal = good_minimum_wage intensity = 2 }
+	socialist = { ideal = good_minimum_wage intensity = 2 }
+}
+
+work_hours = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_work_hour_limit intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = eight_hours intensity = 1 }
+	anarcho_liberal = { ideal = no_work_hour_limit intensity = 2 }
+	liberal = { ideal = no_work_hour_limit intensity = 1 }
+	anarchist = { ideal = eight_hours intensity = 2 }
+	communist = { ideal = eight_hours intensity = 2 }
+	socialist = { ideal = eight_hours intensity = 2 }
+}
+
+safety_regulations = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_safety intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = good_safety intensity = 1 }
+	anarcho_liberal = { ideal = no_safety intensity = 2 }
+	liberal = { ideal = no_safety intensity = 1 }
+	anarchist = { ideal = good_safety intensity = 2 }
+	communist = { ideal = good_safety intensity = 2 }
+	socialist = { ideal = good_safety intensity = 2 }
+}
+
+unemployment_subsidies = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_subsidies intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = good_subsidies intensity = 1 }
+	anarcho_liberal = { ideal = no_subsidies intensity = 2 }
+	liberal = { ideal = no_subsidies intensity = 1 }
+	anarchist = { ideal = good_subsidies intensity = 2 }
+	communist = { ideal = good_subsidies intensity = 2 }
+	socialist = { ideal = good_subsidies intensity = 2 }
+}
+
+pensions = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_pensions intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = good_pensions intensity = 1 }
+	anarcho_liberal = { ideal = no_pensions intensity = 2 }
+	liberal = { ideal = no_pensions intensity = 1 }
+	anarchist = { ideal = good_pensions intensity = 2 }
+	communist = { ideal = good_pensions intensity = 2 }
+	socialist = { ideal = good_pensions intensity = 2 }
+}
+
+health_care = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = no_health_care intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = good_health_care intensity = 1 }
+	anarcho_liberal = { ideal = no_health_care intensity = 2 }
+	liberal = { ideal = no_health_care intensity = 1 }
+	anarchist = { ideal = good_health_care intensity = 2 }
+	communist = { ideal = good_health_care intensity = 2 }
+	socialist = { ideal = good_health_care intensity = 2 }
+}
+
+school_reforms = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = low_schools intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = good_schools intensity = 1 }
+	anarcho_liberal = { ideal = no_schools intensity = 2 }
+	liberal = { ideal = good_schools intensity = 1 }
+	anarchist = { ideal = good_schools intensity = 2 }
+	communist = { ideal = good_schools intensity = 2 }
+	socialist = { ideal = good_schools intensity = 2 }
+}
+
+penal_system = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = capital_punishment intensity = 2 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = capital_punishment intensity = 2 }
+	anarcho_liberal = { ideal = incarceration intensity = 1 }
+	liberal = { ideal = capital_punishment intensity = 1 }
+	anarchist = { ideal = rehabilitation intensity = 2 }
+	communist = { ideal = incarceration intensity = 2 }
+	socialist = { ideal = rehabilitation intensity = 2 }
+}
+
+child_labor = {
+	review = approved
+	conservative = { ideal = status_quo intensity = 1 }
+	reactionary = { ideal = child_labor_legal intensity = 1 }
+	tribalist = { ideal = status_quo intensity = 1 }
+	fascist = { ideal = child_labor_illegal intensity = 1 }
+	anarcho_liberal = { ideal = child_labor_legal intensity = 2 }
+	liberal = { ideal = child_labor_legal intensity = 1 }
+	anarchist = { ideal = child_labor_illegal intensity = 2 }
+	communist = { ideal = child_labor_illegal intensity = 2 }
+	socialist = { ideal = child_labor_illegal intensity = 2 }
+}

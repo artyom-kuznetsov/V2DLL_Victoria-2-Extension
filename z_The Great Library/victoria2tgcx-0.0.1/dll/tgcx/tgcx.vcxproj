@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|Win32"><Configuration>Release</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals"><ProjectGuid>{26E0A621-559C-4E47-8806-BCE6864F5A11}</ProjectGuid><Keyword>Win32Proj</Keyword><RootNamespace>tgcx</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration"><ConfigurationType>DynamicLibrary</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup><OutDir>$(MSBuildThisFileDirectory)Release\</OutDir><IntDir>$(MSBuildThisFileDirectory)Release\obj\</IntDir><TargetName>tgcx</TargetName></PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><WarningLevel>Level4</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><Optimization>MaxSpeed</Optimization><RuntimeLibrary>MultiThreaded</RuntimeLibrary><LanguageStandard>stdcpp17</LanguageStandard><PrecompiledHeader>NotUsing</PrecompiledHeader><ExceptionHandling>Sync</ExceptionHandling><DebugInformationFormat>ProgramDatabase</DebugInformationFormat></ClCompile>
+    <Link><SubSystem>Windows</SubSystem><TargetMachine>MachineX86</TargetMachine><GenerateDebugInformation>true</GenerateDebugInformation><DataExecutionPrevention>true</DataExecutionPrevention><RandomizedBaseAddress>true</RandomizedBaseAddress><AdditionalDependencies>user32.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="tgcx_dllmain.cpp" /></ItemGroup>
+  <ItemGroup><ClInclude Include="tgcx_signatures.h" /><ClInclude Include="tgcx_sha256.h" /><ClInclude Include="tgcx_renderer.h" /></ItemGroup>
+  <Target Name="tgcx_CheckGeneratedSignatures" BeforeTargets="ClCompile"><Exec WorkingDirectory="$(MSBuildThisFileDirectory)..\.." Command="python tools/gen_signatures.py --check" /></Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

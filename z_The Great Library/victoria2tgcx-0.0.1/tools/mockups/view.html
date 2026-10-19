@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mockup preview</title>
+<style>html,body{margin:0;background:#111}</style>
+</head><body><div id="app"></div>
+<script>
+(async function () {
+  var board = new URLSearchParams(location.search).get('b') || 'Main.dc.html';
+  var src = await (await fetch('/' + board)).text();
+  var doc = new DOMParser().parseFromString(src, 'text/html');
+  // head: the board's stylesheets and scripts (not support.js, the artifact runtime's)
+  for (var el of doc.head.querySelectorAll('link[rel=stylesheet]')) {
+    var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = el.getAttribute('href'); document.head.appendChild(l);
+  }
+  for (var el of doc.head.querySelectorAll('script[src]')) {
+    if (el.getAttribute('src').indexOf('support.js') >= 0) continue;
+    await new Promise(function (ok) { var s = document.createElement('script'); s.src = el.getAttribute('src'); s.onload = ok; s.onerror = ok; document.head.appendChild(s); });
+  }
+  var xdc = doc.querySelector('x-dc');
+  var helmet = xdc.querySelector('helmet');
+  if (helmet) for (var n of Array.from(helmet.children)) document.head.appendChild(document.importNode(n, true));
+  var tpl = Array.from(xdc.children).find(function (c) { return c.tagName.toLowerCase() !== 'helmet'; });
+  window.DCLogic = class { constructor(p) { this.props = p || {}; this.state = {}; }
+    setState(p) { Object.assign(this.state, typeof p === 'function' ? p(this.state) : p); render(); }
+    forceUpdate() { render(); } };
+  var code = doc.querySelector('script[data-dc-script]').textContent;
+  var Component = new Function(code + '\nreturn Component;')();
+  var comp = new Component({});
+  function get(path, sc) {
+    var parts = path.trim().split('.'), v = sc[parts[0]];
+    for (var i = 1; i < parts.length && v != null; i++) v = v[parts[i]];
+    return v;
+  }
+  function interp(str, sc) { return str.replace(/\{\{([^}]+)\}\}/g, function (_, p) { var v = get(p, sc); return v == null ? '' : String(v); }); }
+  function proc(node, sc, out) {
+    if (node.nodeType === 3) { out.appendChild(document.createTextNode(interp(node.textContent, sc))); return; }
+    if (node.nodeType !== 1) return;
+    if (node.tagName.toLowerCase() === 'sc-for') {
+      var m = node.getAttribute('list').match(/\{\{([^}]+)\}\}/), list = get(m[1], sc) || [], as = node.getAttribute('as');
+      list.forEach(function (it) { var s2 = Object.assign({}, sc); s2[as] = it; for (var c of node.childNodes) proc(c, s2, out); });
+      return;
+    }
+    if (node.tagName.toLowerCase() === 'sc-if') {
+      var mv = node.getAttribute('value').match(/\{\{([^}]+)\}\}/);
+      if (mv && get(mv[1], sc)) for (var c of node.childNodes) proc(c, sc, out);
+      return;
+    }
+    var el = node.namespaceURI === 'http://www.w3.org/2000/svg' ? document.createElementNS(node.namespaceURI, node.tagName) : document.createElement(node.tagName);
+    for (var a of Array.from(node.attributes)) {
+      var whole = a.value.match(/^\{\{([^}]+)\}\}$/);
+      if (whole) {
+        var v = get(whole[1], sc);
+        if (typeof v === 'function') { if (a.name.indexOf('on') === 0) el.addEventListener(a.name.slice(2).toLowerCase(), v); continue; }
+        if (v === false || v == null) continue;
+        el.setAttribute(a.name, String(v)); continue;
+      }
+      el.setAttribute(a.name, interp(a.value, sc));
+    }
+    for (var c of node.childNodes) proc(c, sc, el);
+    out.appendChild(el);
+  }
+  function render() {
+    var vals = comp.renderVals ? comp.renderVals() : {};
+    var app = document.getElementById('app'); app.innerHTML = '';
+    proc(tpl, vals, app);
+  }
+  render();
+  if (comp.componentDidMount) comp.componentDidMount();
+  setTimeout(function () {
+    render();
+    var acts = (new URLSearchParams(location.search).get('do') || '').split('|').filter(Boolean);
+    acts.forEach(function (lab) {
+      var m = lab.match(/^(.*)\*(\d+)$/), n = m ? +m[2] : 1; lab = m ? m[1] : lab;
+      for (var i = 0; i < n; i++) { var b = Array.from(document.querySelectorAll('#app button, #app a')).find(function (e) { return e.getAttribute('aria-label') === lab; }); if (b) b.click(); }
+    });
+  }, 300);
+})();
+</script></body></html>

@@ -7,8 +7,10 @@
 // Собирать: Visual Studio, Dynamic-Link Library, платформа x86 (Win32),
 // конфигурация Release, рантайм /MT.
 //
-// Загружается как прокси lua51.dll: оригинал переименовывается в
-// lua51_real.dll, экспорты пересылаются туда через lua51_exports.h.
+// Загружается как V2DLL\v2dll_core.dll: крошечный прокси dinput8.dll в папке
+// игры (V2DLL_Dinput8Proxy.cpp) подгружает его при старте, ванильный lua51.dll
+// не трогаем. Все файлы V2DLL (ini, Logs\, eventmusic.dll, dll_Submods\)
+// лежат в папке V2DLL\ рядом с этой DLL.
 
 #ifdef _WIN64
 #error This DLL must be built for Win32 (x86)
@@ -29,7 +31,6 @@
 #include <pmmintrin.h>
 #include <vector>
 
-#include "lua51_exports.h"
 #include "V2DLL_Shared.h"
 
 // ---------------------------------------------------------------
@@ -40,9 +41,9 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.94"
+#define MOD_VERSION "5.96"
 
-// Настройки ниже читаются из v2dll_settings.ini рядом с exe при
+// Настройки ниже читаются из V2DLL\v2dll_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
 // значениями по умолчанию (перечисленными здесь). Правка файла не
 // требует пересборки DLL - изменения применяются при следующем
@@ -316,6 +317,59 @@ static CRITICAL_SECTION g_logCs;
 static bool g_logCsInit = false;
 
 static HMODULE g_selfModule = 0;
+
+// Папка V2DLL\ (в ней лежит эта DLL), без '\' на конце. Здесь же v2dll_settings.ini,
+// Logs\, eventmusic.dll и dll_Submods\. Папка игры (там v2game.exe) - GetGameDirectory.
+static wchar_t g_v2dllDirW[MAX_PATH];
+static char    g_v2dllDirA[MAX_PATH];
+static bool    g_v2dllDirReady = false;
+
+static void InitOwnDir()
+{
+    if (g_v2dllDirReady)
+        return;
+
+    wchar_t path[MAX_PATH];
+    path[0] = 0;
+    HMODULE m = 0;
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            (LPCWSTR)&InitOwnDir, &m))
+    {
+        DWORD n = GetModuleFileNameW(m, path, MAX_PATH);
+        if (!n || n >= MAX_PATH)
+            path[0] = 0;
+    }
+    wchar_t* slash = path[0] ? wcsrchr(path, L'\\') : 0;
+    if (slash)
+    {
+        *slash = 0;
+        wcscpy_s(g_v2dllDirW, path);
+    }
+    else
+    {
+        // запасной вариант: <папка exe>\V2DLL
+        DWORD n = GetModuleFileNameW(NULL, path, MAX_PATH);
+        slash = (n && n < MAX_PATH) ? wcsrchr(path, L'\\') : 0;
+        if (slash)
+        {
+            *slash = 0;
+            swprintf_s(g_v2dllDirW, L"%s\\V2DLL", path);
+        }
+        else
+            wcscpy_s(g_v2dllDirW, L"V2DLL");
+    }
+    WideCharToMultiByte(CP_ACP, 0, g_v2dllDirW, -1, g_v2dllDirA, MAX_PATH, 0, 0);
+    g_v2dllDirA[MAX_PATH - 1] = 0;
+    g_v2dllDirReady = true;
+}
+
+// Для V2DLL_ModLoader.cpp (dll_Submods\).
+const char* V2_OwnDir()
+{
+    InitOwnDir();
+    return g_v2dllDirA;
+}
+
 static wchar_t g_logsDir[MAX_PATH];
 static wchar_t g_logFile[MAX_PATH];
 static wchar_t g_oosLogFile[MAX_PATH];
@@ -332,19 +386,8 @@ static void InitLogDir()
     if (g_logDirReady)
         return;
 
-    wchar_t exe[MAX_PATH];
-    exe[0] = 0;
-    DWORD n = GetModuleFileNameW(NULL, exe, MAX_PATH);
-    wchar_t* slash = (n && n < MAX_PATH) ? wcsrchr(exe, L'\\') : 0;
-    if (slash)
-    {
-        *slash = 0;
-        swprintf_s(g_logsDir, L"%s\\Logs", exe);
-    }
-    else
-    {
-        wcscpy_s(g_logsDir, L"Logs");
-    }
+    InitOwnDir();
+    swprintf_s(g_logsDir, L"%s\\Logs", g_v2dllDirW);
 
     if (!CreateDirectoryW(g_logsDir, NULL))
     {
@@ -2911,18 +2954,15 @@ static const char* ResolveProdTypeNamePtr(void* typePtr)
     return *(char**)strObj;
 }
 
-static void GetOwnDllDirectory(char* outDir, size_t outSize)
+// Папка игры (где v2game.exe). Раньше это была папка DLL (lua51.dll лежал рядом с
+// exe), теперь DLL в V2DLL\ - поэтому берём путь exe.
+static void GetGameDirectory(char* outDir, size_t outSize)
 {
     outDir[0] = 0;
 
-    HMODULE hMod = 0;
-    if (!GetModuleHandleExA(
-            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            (LPCSTR)&GetOwnDllDirectory, &hMod))
-        return;
-
     char path[MAX_PATH];
-    if (!GetModuleFileNameA(hMod, path, sizeof(path)))
+    DWORD n = GetModuleFileNameA(NULL, path, sizeof(path));
+    if (!n || n >= sizeof(path))
         return;
 
     char* lastSlash = strrchr(path, '\\');
@@ -3188,7 +3228,7 @@ static void LoadProductionTypeLimits()
         g_limitByLocalSupply[i] = 1;  // безопасный откат: неизвестный индекс - разрешаем
 
     char dir[MAX_PATH];
-    GetOwnDllDirectory(dir, sizeof(dir));
+    GetGameDirectory(dir, sizeof(dir));
     if (!dir[0])
     {
         Log("LoadProductionTypeLimits: не удалось определить каталог DLL");
@@ -3329,8 +3369,8 @@ static void ScanProvinceGoodsInDir(const char* dirPath)
     FindClose(h);
 }
 
-// Ванильные файлы лежат прямо под каталогом DLL (та же папка, что и
-// v2game.exe - иначе lua51.dll не подхватился бы игрой), файлы мода -
+// Ванильные файлы лежат прямо под каталогом игры (та же папка, что и
+// v2game.exe), файлы мода -
 // в mod\2\history\provinces и ПЕРЕКРЫВАЮТ ванильные для тех же id
 // (обычная семантика мода Paradox: мод переопределяет только часть
 // провинций, остальные наследуются) - поэтому сканируем сначала
@@ -3342,7 +3382,7 @@ static void LoadProvinceGoods()
     g_provinceGoodsLoaded = true;
 
     char dir[MAX_PATH];
-    GetOwnDllDirectory(dir, sizeof(dir));
+    GetGameDirectory(dir, sizeof(dir));
     if (!dir[0])
     {
         Log("LoadProvinceGoods: не удалось определить каталог DLL");
@@ -4770,6 +4810,8 @@ static void WriteDefaultSettings(const char* path)
         "GOODS_ICONS_AS_SEPARATE_FILES=%d\n"
         "FIX_BUDGET_TOTAL_INCOME_LABEL=%d\n"
         "ENABLE_RESTART_GAME_BUTTON=%d\n"
+        "ENABLE_VASSAL_COLORS=%d\n"
+        "VASSAL_COLOR_PERCENT=%d\n"
         "\n",
         (int)g_settings.buttons,
         (int)g_settings.decisionFilter,
@@ -4781,7 +4823,9 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.enableMusicPlayer,
         (int)g_settings.goodsIconsAsSeparateFiles,
         (int)FindExePatchEnabled("budget_total_income_tariffs_1"),
-        (int)g_settings.enableRestartGameButton);
+        (int)g_settings.enableRestartGameButton,
+        (int)g_settings.vassalColors,
+        g_settings.vassalColorPercent);
 
     fprintf(f,
         "; Miscellaneous\n"
@@ -4879,9 +4923,7 @@ static void WriteDefaultSettings(const char* path)
         "SP_WINDOW_FROM=%s\n"
         "SP_WINDOW_TO=%s\n"
         "MONEY_WATCH_TAGS=%s\n"
-        "MP_HOST_HUMAN_SYNC=%d\n"
-        "ENABLE_VASSAL_COLORS=%d\n"
-        "VASSAL_COLOR_PERCENT=%d\n",
+        "MP_HOST_HUMAN_SYNC=%d\n",
         (int)g_settings.log,
         (int)g_settings.debugLog,
         (int)g_settings.enableOosLog,
@@ -4894,9 +4936,7 @@ static void WriteDefaultSettings(const char* path)
         g_settings.spWindowFrom,
         g_settings.spWindowTo,
         g_settings.mwTags,
-        (int)g_settings.mpHostHumanSync,
-        (int)g_settings.vassalColors,
-        g_settings.vassalColorPercent);
+        (int)g_settings.mpHostHumanSync);
 
     fclose(f);
 }
@@ -5020,11 +5060,28 @@ static bool ResolveModFolder(char* outFolder, size_t outSize)
     return ResolveModFolderAt(modArg + 5, outFolder, outSize);
 }
 
-// Сначала общий v2dll_settings.ini рядом с exe (LOCAL_MOD_CONFIG).
+// Сначала общий V2DLL\v2dll_settings.ini (LOCAL_MOD_CONFIG).
 // Если включён - перечитываем из папки запущенного мода.
 static void LoadSettings()
 {
-    static const char* ROOT_PATH = "v2dll_settings.ini";
+    static char ROOT_PATH[MAX_PATH];
+    _snprintf_s(ROOT_PATH, sizeof(ROOT_PATH), _TRUNCATE, "%s\\v2dll_settings.ini", V2_OwnDir());
+
+    // Переезд со старой раскладки: ini лежал в папке игры. Если в V2DLL\ его ещё нет,
+    // а в папке игры есть - копируем один раз (старый файл не трогаем).
+    if (GetFileAttributesA(ROOT_PATH) == INVALID_FILE_ATTRIBUTES)
+    {
+        char gameDir[MAX_PATH];
+        GetGameDirectory(gameDir, sizeof(gameDir));
+        char oldIni[MAX_PATH];
+        _snprintf_s(oldIni, sizeof(oldIni), _TRUNCATE, "%s\\v2dll_settings.ini", gameDir);
+        if (gameDir[0] && GetFileAttributesA(oldIni) != INVALID_FILE_ATTRIBUTES)
+        {
+            CreateDirectoryA(V2_OwnDir(), NULL);
+            if (CopyFileA(oldIni, ROOT_PATH, TRUE))
+                Log("LoadSettings: v2dll_settings.ini перенесён из папки игры (%s) в V2DLL\\", oldIni);
+        }
+    }
 
     LoadSettingsFrom(ROOT_PATH);
 
@@ -14384,7 +14441,9 @@ static bool SleepHookModuleUnsafe(HMODULE m)
            !_wcsicmp(base, L"gdi32.dll") ||
            !_wcsicmp(base, L"winmm.dll") ||
            !_wcsicmp(base, L"lua51.dll") ||
-           !_wcsicmp(base, L"lua51_real.dll");
+           !_wcsicmp(base, L"lua51_real.dll") ||
+           !_wcsicmp(base, L"v2dll_core.dll") ||
+           !_wcsicmp(base, L"dinput8.dll");
 }
 
 static void HookSleepOnModule(HMODULE m)
@@ -16658,6 +16717,11 @@ static bool FpWantFile(const wchar_t* name, bool atRoot)
 static void FpWalk(const wchar_t* rootDir, size_t rootLen, const wchar_t* dir, FpBuf* out, int depth,
     unsigned char* chunk)
 {
+    // V2DLL\ (ядро, ini, eventmusic, dll_Submods\): там хэшируем и dll, а Logs пропускаем.
+    size_t dirLen = wcslen(dir);
+    bool v2dllTree = dirLen > rootLen + 5 && _wcsnicmp(dir + rootLen + 1, L"V2DLL", 5) == 0 &&
+                     (dirLen == rootLen + 6 || dir[rootLen + 6] == L'\\');
+    bool v2dllRoot = depth == 1 && v2dllTree && dirLen == rootLen + 6;
     wchar_t pat[1100];
     swprintf_s(pat, L"%s\\*", dir);
     WIN32_FIND_DATAW fd;
@@ -16678,11 +16742,13 @@ static void FpWalk(const wchar_t* rootDir, size_t rootLen, const wchar_t* dir, F
                                _wcsicmp(fd.cFileName, L"Screenshots") == 0 ||
                                _wcsicmp(fd.cFileName, L"save games") == 0))
                 continue;
+            if (v2dllRoot && _wcsicmp(fd.cFileName, L"Logs") == 0)
+                continue;
             if (depth < 12)
                 FpWalk(rootDir, rootLen, full, out, depth + 1, chunk);
             continue;
         }
-        if (!FpWantFile(fd.cFileName, depth == 0))
+        if (!FpWantFile(fd.cFileName, depth == 0 || v2dllTree))
             continue;
 
         // относительный путь в UTF-8
@@ -16721,7 +16787,8 @@ static void FpWalk(const wchar_t* rootDir, size_t rootLen, const wchar_t* dir, F
         _strlwr_s(low);
         unsigned long long ph = FpFnv((const unsigned char*)low, strlen(low), 14695981039346656037ULL);
         bool volatileFile = (depth == 0 && (_wcsicmp(fd.cFileName, L"settings.txt") == 0 ||
-                                            _wcsicmp(fd.cFileName, L"v2dll_settings.ini") == 0));
+                                            _wcsicmp(fd.cFileName, L"v2dll_settings.ini") == 0)) ||
+                            (v2dllRoot && _wcsicmp(fd.cFileName, L"v2dll_settings.ini") == 0);
         if (!volatileFile)
         {
             FpDir* d = FpDirFor(key);
@@ -20688,7 +20755,7 @@ static HMODULE EventMusicTryLoad(const wchar_t* dir, char* usedPath, size_t cap)
 
 static void LoadEventMusicDll()
 {
-    // Primero junto al .exe; si no esta, junto a esta DLL (carpeta del mod / LOAD_DLL_FROM_MOD_FOLDER).
+    // Primero junto a esta DLL (carpeta V2DLL\); si no esta, junto al .exe (instalacion antigua).
     wchar_t exeDir[MAX_PATH] = {}, selfDir[MAX_PATH] = {};
     bool haveExe = EventMusicDirOf(NULL, exeDir, MAX_PATH);
     bool haveSelf = g_selfModule && EventMusicDirOf(g_selfModule, selfDir, MAX_PATH);
@@ -20696,14 +20763,14 @@ static void LoadEventMusicDll()
 
     char usedPath[MAX_PATH] = {};
     DWORD firstErr = 0;
-    if (haveExe)
-    {
-        g_eventMusicModule = EventMusicTryLoad(exeDir, usedPath, sizeof(usedPath));
-        if (!g_eventMusicModule) firstErr = GetLastError();
-    }
-    if (!g_eventMusicModule && haveSelf && (!haveExe || _wcsicmp(exeDir, selfDir) != 0))
+    if (haveSelf)
     {
         g_eventMusicModule = EventMusicTryLoad(selfDir, usedPath, sizeof(usedPath));
+        if (!g_eventMusicModule) firstErr = GetLastError();
+    }
+    if (!g_eventMusicModule && haveExe && (!haveSelf || _wcsicmp(exeDir, selfDir) != 0))
+    {
+        g_eventMusicModule = EventMusicTryLoad(exeDir, usedPath, sizeof(usedPath));
         if (!g_eventMusicModule && !firstErr) firstErr = GetLastError();
     }
     if (!g_eventMusicModule)
@@ -25658,7 +25725,7 @@ static void LogConfigFingerprint()
 
     // 3) production_types.txt (ровно тот файл, что читает LoadProductionTypeLimits).
     char dir[MAX_PATH];
-    GetOwnDllDirectory(dir, sizeof(dir));
+    GetGameDirectory(dir, sizeof(dir));
     static char pbuf[1 << 20];
     size_t plen = 0;
     char ppath[MAX_PATH];
@@ -26032,6 +26099,8 @@ static bool Install()
         }
         Log("ModLoader: %d mod(s) activo(s) en la linea de comandos", modsSeen);
     }
+    // V2DLL\dll_Submods\*.dll: any other patch DLLs, loaded automatically, whatever mod runs.
+    LoadV2Submods();
     LogConfigFingerprint();
 
     Log("Install: done");
@@ -27041,12 +27110,19 @@ static void InstallCrashWatch()
         g_settings.enableCrashDump ? " + v2dll_crash_*.dmp" : " (memory dump выключен: ENABLE_CRASH_DUMP=0)");
 }
 
+// Export for tools: lets one check the loaded core without parsing the log.
+extern "C" __declspec(dllexport) const char* __cdecl V2DLL_CoreVersion()
+{
+    return MOD_VERSION;
+}
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
 {
     if (reason == DLL_PROCESS_ATTACH)
     {
         DisableThreadLibraryCalls(hModule);
         g_selfModule = hModule;
+        InitOwnDir();
         InitLogDir();
         InitializeCriticalSection(&g_logCs);
         g_logCsInit = true;

@@ -32,7 +32,12 @@ static void EventMusicLog(const char* fmt, ...)
 {
     if (!g_eventMusicLogging) return;
     wchar_t exe[MAX_PATH] = {};
-    DWORD n = GetModuleFileNameW(NULL, exe, MAX_PATH);
+    // The log sits next to this DLL (V2DLL\Logs, shared with the core); if the DLL is
+    // not found by address, fall back to the game folder.
+    HMODULE self = NULL;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        (LPCWSTR)&EventMusicLog, &self);
+    DWORD n = GetModuleFileNameW(self, exe, MAX_PATH);
     if (!n || n >= MAX_PATH) return;
     wchar_t* slash = wcsrchr(exe, L'\\');
     if (!slash) return;
@@ -149,6 +154,17 @@ static void SfxBuildRoots()
         LocalFree(argv);
     }
     for (int i=count-1;i>=0;--i) SfxAddRoot(mods[i]);
+    // Lowest priority: the V2DLL folder itself (V2DLL\watch\music.txt + V2DLL\sound\*.wav), for sounds
+    // that belong to no particular mod.
+    {
+        HMODULE self = NULL;
+        char selfDir[MAX_PATH] = {};
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                (LPCSTR)&SfxBuildRoots, &self) && GetModuleFileNameA(self, selfDir, MAX_PATH) && selfDir[0]) {
+            char* sl = strrchr(selfDir, '\\');
+            if (sl) { *sl = 0; SfxAddRoot(selfDir); }
+        }
+    }
     #if !SFX_ONLY_MODS
     SfxAddRoot(exeDir);
     #endif

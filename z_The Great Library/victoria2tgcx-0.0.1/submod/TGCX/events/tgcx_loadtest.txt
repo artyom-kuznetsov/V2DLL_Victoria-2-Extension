@@ -1,0 +1,38 @@
+# SUB-0: tells which TGC is loaded. TGC v2.5.2 gives the United Kingdom
+# great_gamer in its history (history/countries/ENG - United Kingdom.txt);
+# v2.3.4 never uses it. The engine does not evaluate the trigger of an
+# is_triggered_only event when an effect fires it (U-2, 2026-10-12: both
+# fired), so the decision chooses which one to fire; the triggers stay as a
+# second check for events fired some other way.
+
+country_event = {
+	id = 420000001
+	title = "tgcx_loadtest.1.t"
+	desc = "tgcx_loadtest.1.d"
+	picture = "news"
+	is_triggered_only = yes
+
+	trigger = {
+		ENG = { has_country_flag = great_gamer }
+	}
+
+	option = {
+		name = "tgcx_loadtest.1.a"
+	}
+}
+
+country_event = {
+	id = 420000002
+	title = "tgcx_loadtest.2.t"
+	desc = "tgcx_loadtest.2.d"
+	picture = "news"
+	is_triggered_only = yes
+
+	trigger = {
+		ENG = { NOT = { has_country_flag = great_gamer } }
+	}
+
+	option = {
+		name = "tgcx_loadtest.1.a"
+	}
+}

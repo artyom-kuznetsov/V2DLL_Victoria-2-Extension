@@ -1,0 +1,365 @@
+CODE;ENGLISH;FRENCH;GERMAN;POLISH;SPANISH;ITALIAN;SWEDISH;CZECH;HUNGARIAN;DUTCH;PORTUGUESE;RUSSIAN;FINNISH;x
+tgcx_law_press_rights_free_press_title;Bill: Free Press;;;;;;;;;;;;;x
+tgcx_law_press_rights_free_press_desc;Present a bill to move Press Rights from Censored Press to Free Press. The upper house debates it for 90 days. Each bloc votes by its ideological closeness to the law: Liberals strongly for, Conservatives against, Reactionaries strongly against. Abstentions and votes can be bought with political favours, and the strongly opposed can be promised a law.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_title;Liberals: abstention, 5 seats (5 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_desc;The Liberals are strongly against on the bill. For 5 political favours, 5 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_x2_title;Liberals: abstention, 5 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_x2_desc;The Liberals are strongly against on the bill. For 10 political favours, 5 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_25_title;Liberals: abstention, 25 seats (25 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_25_desc;The Liberals are strongly against on the bill. For 25 political favours, 25 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_25_x2_title;Liberals: abstention, 25 seats (50 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m2_25_x2_desc;The Liberals are strongly against on the bill. For 50 political favours, 25 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_title;Liberals: abstention, 5 seats (2 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_desc;The Liberals are against on the bill. For 2 political favours, 5 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_x2_title;Liberals: abstention, 5 seats (4 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_x2_desc;The Liberals are against on the bill. For 4 political favours, 5 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_25_title;Liberals: abstention, 25 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_25_desc;The Liberals are against on the bill. For 10 political favours, 25 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_25_x2_title;Liberals: abstention, 25 seats (20 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_liberal_m1_25_x2_desc;The Liberals are against on the bill. For 20 political favours, 25 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_title;Liberals: vote Aye, 5 seats (5 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_desc;The Liberals are against on the bill. For 5 political favours, 5 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_x2_title;Liberals: vote Aye, 5 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_x2_desc;The Liberals are against on the bill. For 10 political favours, 5 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_25_title;Liberals: vote Aye, 25 seats (25 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_25_desc;The Liberals are against on the bill. For 25 political favours, 25 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_25_x2_title;Liberals: vote Aye, 25 seats (50 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_m1_25_x2_desc;The Liberals are against on the bill. For 50 political favours, 25 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_title;Liberals: vote Aye, 5 seats (2 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_desc;The Liberals are undecided on the bill. For 2 political favours, 5 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_x2_title;Liberals: vote Aye, 5 seats (4 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_x2_desc;The Liberals are undecided on the bill. For 4 political favours, 5 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_25_title;Liberals: vote Aye, 25 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_25_desc;The Liberals are undecided on the bill. For 10 political favours, 25 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_25_x2_title;Liberals: vote Aye, 25 seats (20 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_liberal_z_25_x2_desc;The Liberals are undecided on the bill. For 20 political favours, 25 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_promise_liberal_title;Liberals: promise a law;;;;;;;;;;;;;x
+tgcx_promise_liberal_desc;Promise the Liberals a law they want, within 5 years. In exchange they vote Aye in full. If the promise is broken: +2 militancy among their supporters, and their votes cost double for 10 years.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_title;Conservatives: abstention, 5 seats (5 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_desc;The Conservatives are strongly against on the bill. For 5 political favours, 5 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_x2_title;Conservatives: abstention, 5 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_x2_desc;The Conservatives are strongly against on the bill. For 10 political favours, 5 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_25_title;Conservatives: abstention, 25 seats (25 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_25_desc;The Conservatives are strongly against on the bill. For 25 political favours, 25 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_25_x2_title;Conservatives: abstention, 25 seats (50 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m2_25_x2_desc;The Conservatives are strongly against on the bill. For 50 political favours, 25 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_title;Conservatives: abstention, 5 seats (2 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_desc;The Conservatives are against on the bill. For 2 political favours, 5 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_x2_title;Conservatives: abstention, 5 seats (4 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_x2_desc;The Conservatives are against on the bill. For 4 political favours, 5 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_25_title;Conservatives: abstention, 25 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_25_desc;The Conservatives are against on the bill. For 10 political favours, 25 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_25_x2_title;Conservatives: abstention, 25 seats (20 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_conservative_m1_25_x2_desc;The Conservatives are against on the bill. For 20 political favours, 25 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_title;Conservatives: vote Aye, 5 seats (5 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_desc;The Conservatives are against on the bill. For 5 political favours, 5 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_x2_title;Conservatives: vote Aye, 5 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_x2_desc;The Conservatives are against on the bill. For 10 political favours, 5 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_25_title;Conservatives: vote Aye, 25 seats (25 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_25_desc;The Conservatives are against on the bill. For 25 political favours, 25 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_25_x2_title;Conservatives: vote Aye, 25 seats (50 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_m1_25_x2_desc;The Conservatives are against on the bill. For 50 political favours, 25 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_title;Conservatives: vote Aye, 5 seats (2 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_desc;The Conservatives are undecided on the bill. For 2 political favours, 5 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_x2_title;Conservatives: vote Aye, 5 seats (4 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_x2_desc;The Conservatives are undecided on the bill. For 4 political favours, 5 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_25_title;Conservatives: vote Aye, 25 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_25_desc;The Conservatives are undecided on the bill. For 10 political favours, 25 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_25_x2_title;Conservatives: vote Aye, 25 seats (20 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_conservative_z_25_x2_desc;The Conservatives are undecided on the bill. For 20 political favours, 25 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_promise_conservative_title;Conservatives: promise a law;;;;;;;;;;;;;x
+tgcx_promise_conservative_desc;Promise the Conservatives a law they want, within 5 years. In exchange they vote Aye in full. If the promise is broken: +2 militancy among their supporters, and their votes cost double for 10 years.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_title;Reactionaries: abstention, 5 seats (5 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_desc;The Reactionaries are strongly against on the bill. For 5 political favours, 5 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_x2_title;Reactionaries: abstention, 5 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_x2_desc;The Reactionaries are strongly against on the bill. For 10 political favours, 5 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_25_title;Reactionaries: abstention, 25 seats (25 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_25_desc;The Reactionaries are strongly against on the bill. For 25 political favours, 25 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_25_x2_title;Reactionaries: abstention, 25 seats (50 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m2_25_x2_desc;The Reactionaries are strongly against on the bill. For 50 political favours, 25 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_title;Reactionaries: abstention, 5 seats (2 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_desc;The Reactionaries are against on the bill. For 2 political favours, 5 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_x2_title;Reactionaries: abstention, 5 seats (4 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_x2_desc;The Reactionaries are against on the bill. For 4 political favours, 5 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_25_title;Reactionaries: abstention, 25 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_25_desc;The Reactionaries are against on the bill. For 10 political favours, 25 of their seats abstain instead of voting Nay. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_25_x2_title;Reactionaries: abstention, 25 seats (20 favours);;;;;;;;;;;;;x
+tgcx_buy_abstain_reactionary_m1_25_x2_desc;The Reactionaries are against on the bill. For 20 political favours, 25 of their seats abstain instead of voting Nay. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_title;Reactionaries: vote Aye, 5 seats (5 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_desc;The Reactionaries are against on the bill. For 5 political favours, 5 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_x2_title;Reactionaries: vote Aye, 5 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_x2_desc;The Reactionaries are against on the bill. For 10 political favours, 5 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_25_title;Reactionaries: vote Aye, 25 seats (25 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_25_desc;The Reactionaries are against on the bill. For 25 political favours, 25 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_25_x2_title;Reactionaries: vote Aye, 25 seats (50 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_m1_25_x2_desc;The Reactionaries are against on the bill. For 50 political favours, 25 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_title;Reactionaries: vote Aye, 5 seats (2 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_desc;The Reactionaries are undecided on the bill. For 2 political favours, 5 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_x2_title;Reactionaries: vote Aye, 5 seats (4 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_x2_desc;The Reactionaries are undecided on the bill. For 4 political favours, 5 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_25_title;Reactionaries: vote Aye, 25 seats (10 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_25_desc;The Reactionaries are undecided on the bill. For 10 political favours, 25 of their seats vote Aye. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_25_x2_title;Reactionaries: vote Aye, 25 seats (20 favours);;;;;;;;;;;;;x
+tgcx_buy_vote_reactionary_z_25_x2_desc;The Reactionaries are undecided on the bill. For 20 political favours, 25 of their seats vote Aye. Prices are doubled: a promise to them was broken. Spent favours are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_promise_reactionary_title;Reactionaries: promise a law;;;;;;;;;;;;;x
+tgcx_promise_reactionary_desc;Promise the Reactionaries a law they want, within 5 years. In exchange they vote Aye in full. If the promise is broken: +2 militancy among their supporters, and their votes cost double for 10 years.;;;;;;;;;;;;;x
+tgcx_audience_title;Audience with the Crown (10 favours);;;;;;;;;;;;;x
+tgcx_audience_desc;Ask the Crown for an audience. If granted, it will sign this bill even if it dislikes it.;;;;;;;;;;;;;x
+tgcx_count_votes_title;Count the votes;;;;;;;;;;;;;x
+tgcx_count_votes_desc;The whips count the upper house as it stands today. Use it after an election.;;;;;;;;;;;;;x
+tgcx_call_vote_title;Call the vote;;;;;;;;;;;;;x
+tgcx_call_vote_desc;The upper house votes. It passes if more seats vote Aye than Nay and at least 50 of 100 vote. Then the Crown signs or vetoes. Favours spent are lost if the bill fails.;;;;;;;;;;;;;x
+tgcx_withdraw_title;Withdraw the bill;;;;;;;;;;;;;x
+tgcx_withdraw_desc;Withdraw the bill. Favours spent are lost, promises stand, and no bill can be presented for 365 days.;;;;;;;;;;;;;x
+tgcx_collect_favours_title;Collect political favours;;;;;;;;;;;;;x
+tgcx_collect_favours_desc;This month's political favours. Base 2, plus prestige, a working majority in the upper house, a narrow franchise and a skilled political leader. Minus instability, war exhaustion, militancy, consciousness, a hostile upper house and a broad franchise. Between 0 and 8 a month, up to 100.;;;;;;;;;;;;;x
+tgcx_debug_show_favours_title;[TGCX test] How many favours?;;;;;;;;;;;;;x
+tgcx_debug_show_favours_desc;Test aid for LAW-0: reports the political favours, rounded down to 5.;;;;;;;;;;;;;x
+tgcx_debug_favours_0_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_0_desc;Test aid: we have 0 political favours or a few more (under 5).;;;;;;;;;;;;;x
+tgcx_debug_favours_0_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_5_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_5_desc;Test aid: we have 5 political favours or a few more (under 10).;;;;;;;;;;;;;x
+tgcx_debug_favours_5_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_10_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_10_desc;Test aid: we have 10 political favours or a few more (under 15).;;;;;;;;;;;;;x
+tgcx_debug_favours_10_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_15_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_15_desc;Test aid: we have 15 political favours or a few more (under 20).;;;;;;;;;;;;;x
+tgcx_debug_favours_15_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_20_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_20_desc;Test aid: we have 20 political favours or a few more (under 25).;;;;;;;;;;;;;x
+tgcx_debug_favours_20_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_25_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_25_desc;Test aid: we have 25 political favours or a few more (under 30).;;;;;;;;;;;;;x
+tgcx_debug_favours_25_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_30_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_30_desc;Test aid: we have 30 political favours or a few more (under 35).;;;;;;;;;;;;;x
+tgcx_debug_favours_30_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_35_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_35_desc;Test aid: we have 35 political favours or a few more (under 40).;;;;;;;;;;;;;x
+tgcx_debug_favours_35_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_40_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_40_desc;Test aid: we have 40 political favours or a few more (under 45).;;;;;;;;;;;;;x
+tgcx_debug_favours_40_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_45_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_45_desc;Test aid: we have 45 political favours or a few more (under 50).;;;;;;;;;;;;;x
+tgcx_debug_favours_45_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_50_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_50_desc;Test aid: we have 50 political favours or a few more (under 55).;;;;;;;;;;;;;x
+tgcx_debug_favours_50_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_55_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_55_desc;Test aid: we have 55 political favours or a few more (under 60).;;;;;;;;;;;;;x
+tgcx_debug_favours_55_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_60_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_60_desc;Test aid: we have 60 political favours or a few more (under 65).;;;;;;;;;;;;;x
+tgcx_debug_favours_60_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_65_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_65_desc;Test aid: we have 65 political favours or a few more (under 70).;;;;;;;;;;;;;x
+tgcx_debug_favours_65_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_70_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_70_desc;Test aid: we have 70 political favours or a few more (under 75).;;;;;;;;;;;;;x
+tgcx_debug_favours_70_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_75_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_75_desc;Test aid: we have 75 political favours or a few more (under 80).;;;;;;;;;;;;;x
+tgcx_debug_favours_75_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_80_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_80_desc;Test aid: we have 80 political favours or a few more (under 85).;;;;;;;;;;;;;x
+tgcx_debug_favours_80_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_85_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_85_desc;Test aid: we have 85 political favours or a few more (under 90).;;;;;;;;;;;;;x
+tgcx_debug_favours_85_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_90_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_90_desc;Test aid: we have 90 political favours or a few more (under 95).;;;;;;;;;;;;;x
+tgcx_debug_favours_90_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_95_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_95_desc;Test aid: we have 95 political favours or a few more (under 100).;;;;;;;;;;;;;x
+tgcx_debug_favours_95_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_favours_100_title;Political Favours;;;;;;;;;;;;;x
+tgcx_debug_favours_100_desc;Test aid: we have 100 political favours, the cap.;;;;;;;;;;;;;x
+tgcx_debug_favours_100_ok;Noted.;;;;;;;;;;;;;x
+tgcx_debug_add_favours_title;[TGCX test] +50 favours;;;;;;;;;;;;;x
+tgcx_debug_add_favours_desc;Test aid for LAW-0: adds 50 favours (up to the cap).;;;;;;;;;;;;;x
+tgcx_law_passed_title;The Bill Passes;;;;;;;;;;;;;x
+tgcx_law_passed_desc;The upper house has passed the bill and the Crown has signed it into law.;;;;;;;;;;;;;x
+tgcx_law_passed_ok;Splendid.;;;;;;;;;;;;;x
+tgcx_law_vetoed_title;The Crown Vetoes the Bill;;;;;;;;;;;;;x
+tgcx_law_vetoed_desc;The upper house passed the bill, but the Crown refused to sign it. The favours spent are lost.;;;;;;;;;;;;;x
+tgcx_law_vetoed_ok;So be it.;;;;;;;;;;;;;x
+tgcx_law_changed_title;The Count Has Changed;;;;;;;;;;;;;x
+tgcx_law_changed_desc;Since the last count the upper house has changed, and the bill no longer has the votes to pass. The bill stays on the table: buy more support, or wait.;;;;;;;;;;;;;x
+tgcx_law_changed_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_pass_5_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_5_desc;If the vote were held today, the bill would pass by 5 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_5_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_10_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_10_desc;If the vote were held today, the bill would pass by 10 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_10_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_15_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_15_desc;If the vote were held today, the bill would pass by 15 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_15_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_20_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_20_desc;If the vote were held today, the bill would pass by 20 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_20_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_25_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_25_desc;If the vote were held today, the bill would pass by 25 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_25_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_30_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_30_desc;If the vote were held today, the bill would pass by 30 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_30_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_35_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_35_desc;If the vote were held today, the bill would pass by 35 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_35_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_40_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_40_desc;If the vote were held today, the bill would pass by 40 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_40_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_45_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_45_desc;If the vote were held today, the bill would pass by 45 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_45_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_50_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_50_desc;If the vote were held today, the bill would pass by 50 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_50_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_55_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_55_desc;If the vote were held today, the bill would pass by 55 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_55_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_60_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_60_desc;If the vote were held today, the bill would pass by 60 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_60_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_65_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_65_desc;If the vote were held today, the bill would pass by 65 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_65_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_70_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_70_desc;If the vote were held today, the bill would pass by 70 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_70_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_75_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_75_desc;If the vote were held today, the bill would pass by 75 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_75_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_80_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_80_desc;If the vote were held today, the bill would pass by 80 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_80_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_85_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_85_desc;If the vote were held today, the bill would pass by 85 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_85_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_90_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_90_desc;If the vote were held today, the bill would pass by 90 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_90_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_95_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_95_desc;If the vote were held today, the bill would pass by 95 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_95_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_pass_100_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_pass_100_desc;If the vote were held today, the bill would pass by 100 seats.;;;;;;;;;;;;;x
+tgcx_whip_pass_100_ok;Good.;;;;;;;;;;;;;x
+tgcx_whip_fail_0_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_0_desc;If the vote were held today, the bill would fail: Aye and Nay are tied.;;;;;;;;;;;;;x
+tgcx_whip_fail_0_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_5_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_5_desc;If the vote were held today, the bill would fail: Nay leads by 5 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_5_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_10_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_10_desc;If the vote were held today, the bill would fail: Nay leads by 10 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_10_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_15_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_15_desc;If the vote were held today, the bill would fail: Nay leads by 15 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_15_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_20_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_20_desc;If the vote were held today, the bill would fail: Nay leads by 20 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_20_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_25_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_25_desc;If the vote were held today, the bill would fail: Nay leads by 25 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_25_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_30_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_30_desc;If the vote were held today, the bill would fail: Nay leads by 30 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_30_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_35_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_35_desc;If the vote were held today, the bill would fail: Nay leads by 35 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_35_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_40_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_40_desc;If the vote were held today, the bill would fail: Nay leads by 40 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_40_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_45_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_45_desc;If the vote were held today, the bill would fail: Nay leads by 45 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_45_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_50_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_50_desc;If the vote were held today, the bill would fail: Nay leads by 50 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_50_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_55_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_55_desc;If the vote were held today, the bill would fail: Nay leads by 55 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_55_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_60_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_60_desc;If the vote were held today, the bill would fail: Nay leads by 60 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_60_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_65_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_65_desc;If the vote were held today, the bill would fail: Nay leads by 65 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_65_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_70_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_70_desc;If the vote were held today, the bill would fail: Nay leads by 70 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_70_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_75_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_75_desc;If the vote were held today, the bill would fail: Nay leads by 75 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_75_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_80_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_80_desc;If the vote were held today, the bill would fail: Nay leads by 80 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_80_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_85_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_85_desc;If the vote were held today, the bill would fail: Nay leads by 85 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_85_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_90_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_90_desc;If the vote were held today, the bill would fail: Nay leads by 90 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_90_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_95_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_95_desc;If the vote were held today, the bill would fail: Nay leads by 95 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_95_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_fail_100_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_fail_100_desc;If the vote were held today, the bill would fail: Nay leads by 100 seats.;;;;;;;;;;;;;x
+tgcx_whip_fail_100_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_0_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_0_desc;If the vote were held today, only 0 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_0_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_5_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_5_desc;If the vote were held today, only 5 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_5_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_10_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_10_desc;If the vote were held today, only 10 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_10_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_15_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_15_desc;If the vote were held today, only 15 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_15_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_20_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_20_desc;If the vote were held today, only 20 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_20_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_25_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_25_desc;If the vote were held today, only 25 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_25_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_30_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_30_desc;If the vote were held today, only 30 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_30_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_35_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_35_desc;If the vote were held today, only 35 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_35_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_40_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_40_desc;If the vote were held today, only 40 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_40_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_whip_quorum_45_title;The Whips Report;;;;;;;;;;;;;x
+tgcx_whip_quorum_45_desc;If the vote were held today, only 45 seats would vote, short of the quorum of 50.;;;;;;;;;;;;;x
+tgcx_whip_quorum_45_ok;We need more votes.;;;;;;;;;;;;;x
+tgcx_promise_broken_reactionary_title;A Promise to the Reactionaries Broken;;;;;;;;;;;;;x
+tgcx_promise_broken_reactionary_desc;The law we promised the Reactionaries was never passed. Their supporters are furious, and their votes will cost us double for 10 years.;;;;;;;;;;;;;x
+tgcx_promise_broken_reactionary_ok;We will pay for this.;;;;;;;;;;;;;x
+tgcx_debate;Bill in debate;;;;;;;;;;;;;x
+tgcx_debate_desc;The upper house is debating a bill. The vote can be called when this ends.;;;;;;;;;;;;;x
+tgcx_bill_cooldown;Bill recently failed;;;;;;;;;;;;;x
+tgcx_bill_cooldown_desc;A bill failed or was withdrawn: no new bill until this ends.;;;;;;;;;;;;;x
+tgcx_favours_tick;Political favours: this month's collected;;;;;;;;;;;;;x
+tgcx_favours_tick_desc;Favours are collected again when this ends.;;;;;;;;;;;;;x
+tgcx_debt_deadline_liberal;Promise to the Liberals: law owed;;;;;;;;;;;;;x
+tgcx_debt_deadline_liberal_desc;Pass a law the Liberals want before this ends, or the promise is broken.;;;;;;;;;;;;;x
+tgcx_debt_broken_liberal;Broken promise to the Liberals;;;;;;;;;;;;;x
+tgcx_debt_broken_liberal_desc;Buying the Liberals' votes costs double while this lasts.;;;;;;;;;;;;;x
+tgcx_debt_deadline_conservative;Promise to the Conservatives: law owed;;;;;;;;;;;;;x
+tgcx_debt_deadline_conservative_desc;Pass a law the Conservatives want before this ends, or the promise is broken.;;;;;;;;;;;;;x
+tgcx_debt_broken_conservative;Broken promise to the Conservatives;;;;;;;;;;;;;x
+tgcx_debt_broken_conservative_desc;Buying the Conservatives' votes costs double while this lasts.;;;;;;;;;;;;;x
+tgcx_debt_deadline_reactionary;Promise to the Reactionaries: law owed;;;;;;;;;;;;;x
+tgcx_debt_deadline_reactionary_desc;Pass a law the Reactionaries want before this ends, or the promise is broken.;;;;;;;;;;;;;x
+tgcx_debt_broken_reactionary;Broken promise to the Reactionaries;;;;;;;;;;;;;x
+tgcx_debt_broken_reactionary_desc;Buying the Reactionaries' votes costs double while this lasts.;;;;;;;;;;;;;x

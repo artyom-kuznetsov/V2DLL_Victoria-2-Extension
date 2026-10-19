@@ -1,0 +1,50 @@
+--- "/i/Vic2_DLL/V2DLL - Victoria 2 Extension/z_The Great Library/victoria2tgcx-0.0.1/dll/tgcx/tgcx_dllmain.cpp"	2026-10-19 09:38:54.000000000 +0300
++++ /c/Users/3TO_9I/AppData/Local/Temp/claude/I--Vic2-Dev-V2BDSM-mod-2/10b0a33c-4ccf-4e4f-82c4-2256fc42f3ff/scratchpad/tgcx_build/tgcx_dllmain.cpp	2026-10-19 19:54:56.191227600 +0300
+@@ -333,9 +333,29 @@
+     wchar_t* slash=wcsrchr(directory, L'\\');
+     if (!slash) return false;
+     *slash=0;
+-    if (swprintf_s(log_path, L"%s\\Logs", directory) < 0) return false;
++    // V2DLL integration: loaded from <V2DLL>\dll_Submods\ the log goes to <V2DLL>\Logs, not <game>\Logs.
++    wchar_t logs_base[MAX_PATH];
++    wcscpy_s(logs_base, directory);
++    {
++        HMODULE self=nullptr;
++        wchar_t own[MAX_PATH];
++        if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
++                reinterpret_cast<LPCWSTR>(&tgcx_Initialize), &self)) {
++            DWORD own_count=GetModuleFileNameW(self, own, _countof(own));
++            wchar_t* dll_slash=(own_count && own_count < _countof(own)) ? wcsrchr(own, L'\\') : nullptr;
++            if (dll_slash) {
++                *dll_slash=0;
++                wchar_t* folder_slash=wcsrchr(own, L'\\');
++                if (folder_slash && _wcsicmp(folder_slash+1, L"dll_Submods") == 0) {
++                    *folder_slash=0;
++                    wcscpy_s(logs_base, own);
++                }
++            }
++        }
++    }
++    if (swprintf_s(log_path, L"%s\\Logs", logs_base) < 0) return false;
+     CreateDirectoryW(log_path, nullptr);
+-    if (swprintf_s(log_path, L"%s\\Logs\\tgcx.log", directory) < 0) return false;
++    if (swprintf_s(log_path, L"%s\\Logs\\tgcx.log", logs_base) < 0) return false;
+     tgcx_log=CreateFileW(log_path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, 0, nullptr);
+     if (tgcx_log == INVALID_HANDLE_VALUE) return false;
+     tgcx_base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+@@ -343,10 +363,14 @@
+     char digest[65]={};
+     bool hash_ok=tgcx_HashFile(exe, digest) && strcmp(digest,tgcx_exe_sha256)==0;
+     tgcx_Log("%s sha256 %s", hash_ok ? "OK" : "BAD", digest[0] ? digest : "unavailable");
+-    if (!hash_ok) {
++    // V2DLL integration: a locally patched v2game.exe (not the stock 3.04 hash) is accepted. Every hook and
++    // every module is still gated by the byte signatures of its own addresses (checked below and per module),
++    // so a different build still ends with the modules off. Only an unreadable executable is refused here.
++    if (!hash_ok && !digest[0]) {
+         tgcx_Log("Unsupported executable: no game addresses read, no hooks installed; Lua forwarding remains active");
+         return false;
+     }
++    if (!hash_ok) tgcx_Log("Executable differs from the stock 3.04 build (modified v2game.exe): continuing, each module is gated by its own byte signatures");
+     if (!tgcx_CheckSignatures()) tgcx_Log("Signature mismatch: each module checks its own signatures below");
+     if (!IsProcessorFeaturePresent(PF_XMMI_INSTRUCTIONS_AVAILABLE)) {
+         tgcx_Log("FXSAVE unavailable: no hooks installed");

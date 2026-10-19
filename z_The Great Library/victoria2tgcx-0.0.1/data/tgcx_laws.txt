@@ -1,0 +1,51 @@
+# Numbers of the law mechanic (docs/law-design.md §5-§7, D7, D11). Read by
+# tools/gen_laws.py, not by the game: change a value, regenerate, reinstall.
+# Initial values, to be tuned after U-3.
+
+# Bills generated in LAW-0: group = { from = <option> to = <option> }
+bills = {
+	press_rights = { from = censored_press to = free_press }
+}
+
+# Governments where the upper house votes (TGC v2.5.2 common/governments.txt).
+# limited: the Crown may veto. full: the Crown always signs.
+legislature = {
+	limited = { prussian_constitutionalism prussian_constitutionalism2 hms_government hms_government2 dominion dominion2 dominion3 }
+	full = { democracy democracy2 trade_unions_congress }
+}
+
+# Until GOV (D4): the Crown is against the bills of a ruling party of these
+# ideologies ("distrusts the Whigs", generalised).
+crown_distrusts = { liberal anarcho_liberal socialist communist anarchist }
+
+# Price per 5 seats, by the bloc's stance (-2 strongly against ... 0 undecided).
+price = {
+	abstain = { m2 = 5 m1 = 2 }
+	vote = { m1 = 5 z = 2 }
+}
+broken_debt_price_factor = 2
+# Purchase lots, in seats: one decision per lot, at lot/5 times the price above
+# (25 added after U-3: a bill took 13 clicks at 5 seats each).
+lots = { 5 25 }
+audience = 10
+
+favours_cap = 100
+debate_days = 90
+cooldown_days = 365
+tick_days = 30
+debt_days = 1825
+broken_debt_days = 3650
+broken_debt_militancy = 2
+
+# The favours rate per month (D11): base + factors, clamped to 0 ... rate_max.
+rate_base = 2
+rate_max = 8
+rate = {
+	prestige = { 50 = 1 150 = 1 300 = 1 }
+	majority = { working = 0.5 working_value = 1 hostile = 0.2 hostile_value = -1 }
+	modifiers = { national_instability = -1 power_vacuum = -1 backroom_boy = 2 great_statesman = 1 administrative_genius = 1 gauche_buffoon = -1 raving_loon = -1 }
+	war_exhaustion = { 20 = -1 }
+	average_militancy = { 3 = -1 6 = -1 }
+	average_consciousness = { 5 = -1 8 = -1 }
+	vote_franschise = { none_voting = 1 landed_voting = 1 universal_weighted_voting = -1 universal_voting = -1 }
+}

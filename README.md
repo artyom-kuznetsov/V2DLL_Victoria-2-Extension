@@ -11,14 +11,14 @@ Honestly, even if you play vanilla - there is no downside in using V2DLL (don't 
 Almost all of this was tested in MP - no stability effects noticed.
 
 ## How to install V2DLL
-1. Put all the files from V2DLL folder into the same folder where you have v2game.exe and lua51.dll
-2. Tweak v2dll_settings.ini for your liking - every patch is optional (some of them have to be ran in tandem though).
-3. Launch the game as usual, with any mod you like.
+1. Put all the files from `V2DLL_LATEST_INSTALL` folder into your game folder.
+2. Go to `V2DLL` folder and tweak `v2dll_settings.ini` for your liking - every patch is optional (some of them have to be ran in tandem though).
 
-## How does it work?
-Vanilla file lua51.dll is replaced by a brand new file, where the patches are coded.  
-The old file must still remain in the folder under name "lua51_real.dll" - 
-it's being called by the new file, so no vanilla code is lost and the game can still run.
+### dll_Submods
+Every `*.dll` in `V2DLL\dll_Submods\` is loaded at startup (alphabetical order, after all built-in patches), whichever mod is running.
+No settings are needed. A submod can export `V2Mod_Init` (it then receives the API from `V2ModAPI.h`) or just do its work in `DllMain`.
+To disable one, rename it (e.g. `x.dll.off`) or move it out of the folder. Submods that need mod files (a `.gui`, textures) still read those from the running mod.
+Old installs: if `V2DLL\v2dll_settings.ini` is missing but `v2dll_settings.ini` exists next to v2game.exe, it is copied once.
   
 # Feature overview
 ## Explaining each option in the .ini file
@@ -134,7 +134,10 @@ Button in "ESC" menu (`menubar.gui`) called `true_exit` will restart the game wi
 The "Total income" row of the budget window did not include tariff income. This patch fixes it (made by balticšprott).
 #### 14. PATCH_NEEDS_HONEST_UI
 Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. With this patch, real needs fulfillment is displayed (made by balticšprott).
-   
+#### 15. ENABLE_VASSAL_COLORS=1 // VASSAL_COLOR_PERCENT=80
+Satellite colour will be closer to its overlord colour by set percent. 100 = take overlord colour, 0 = keep original colour (made by maxioten).
+  
+  
 ### Miscellaneous
 #### 1. PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH 
 Removes plurality growth from average consciousness. In-game tooltip says otherwise though. So this patch removes this tooltip too (hi tgc) (made by balticšprott).
@@ -155,6 +158,7 @@ When enabled, an AI country founds naval bases in at most `ai_naval_base_max_pro
 You don't need this if your mod only allows one naval base per state (made by balticšprott).
 #### 9. LOAD_DLL_FROM_MOD_FOLDER
 V2DLL will load `v2dll_mod.dll` in the mod folder. In case you want to add new patches for your mod independently (made by maxioten).
+  
   
 ### Script Extensions
 #### 1. ENABLE_ASSIMILATE_BLOCK 
@@ -222,7 +226,7 @@ railroad = {
 ```
 #### 3. ENABLE_EVENT_SOUNDS
 Enables playing sounds on certain events. Like the super-events. 
-Read `/watch/music.txt` file for more information (made by maxioten).
+Read `V2DLL\watch\music.txt` file for more information (made by maxioten). The same `watch\music.txt` + `sound\` pair inside a running mod folder is also read and takes priority over the one in `V2DLL\`.
 #### 3. POP_SALARY_ADDITIONAL_MULTIPLIER
 Scriptable increases of all pop income sources after taxes are withdrawn (pops get +income% from thin air).  
 Can be a constant increase or be a per-country modifier, configure in `<mod>/common\defines_v2dll.txt`.  

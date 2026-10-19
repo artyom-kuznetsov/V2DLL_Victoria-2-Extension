@@ -1,6 +1,6 @@
 # V2DLL — patch and memory-area reference
 
-Reference for every patch in the V2DLL proxy (`lua51.dll` for Victoria 2 `v2game.exe`): what each one touches in memory, how it is applied, which `v2dll_settings.ini` key controls it and what it does.
+Reference for every patch in V2DLL (`V2DLL\v2dll_core.dll`, started by the `dinput8.dll` proxy, for Victoria 2 `v2game.exe`): what each one touches in memory, how it is applied, which `v2dll_settings.ini` key controls it and what it does.
 
 * DLL version documented: **4.61** (`MOD_VERSION` in `Source/V2/V2/V2TechButton.cpp`).
 * Source moved 2026-09-30 to `I:\Vic2_DLL\V2DLL - Victoria 2 Extension` (git remote `V2DLL---Victoria-2-Extension`); the old `I:\Vic2_DLL\balticsprott_V2DLL` checkout no longer holds the source.
@@ -589,7 +589,7 @@ Exe import `ws2_32!select` (ordinal 18) → `HookSelect`. Calls from the mixer r
 | `ENABLE_CRASH_DUMP` | off | same handlers | Adds `v2dll_crash_*.dmp` (tens of MB each). Requires `ENABLE_CRASH_LOG=1`. |
 | `HIDE_NO_SUPPLY_DRY_RUN` | off | see 5.6 | Log only. |
 
-Live log path: `I:\Vic2_Dev\V2BDSM\Logs\v2dll.log`.
+Live log path: `I:\Vic2_Dev\V2BDSM\V2DLL\Logs\v2dll.log` (since 5.96 all V2DLL files live in `V2DLL\`; every `Logs\...` in the rows above means `V2DLL\Logs\...`). Extra patch DLLs: `V2DLL\dll_Submods\*.dll`, auto-loaded by `V2DLL_ModLoader.cpp` (`V2Mod_Init` optional).
 
 ---
 

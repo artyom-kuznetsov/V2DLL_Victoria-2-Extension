@@ -1,0 +1,2 @@
+Put all of this into your game folder. V2DLL folder contains the main file and configs.
+Don't forget to go to V2DLL folder and configure v2dll_settings.ini

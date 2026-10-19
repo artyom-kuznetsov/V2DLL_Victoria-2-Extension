@@ -1,0 +1,29 @@
+# SUB-0: submod load test. Deleted once there are real mechanics.
+political_decisions = {
+	tgcx_loadtest_decision = {
+		picture = cogs_red
+		potential = {
+			ai = no
+		}
+		# Stays visible and greyed out after use: if it is still greyed out
+		# after loading the save, the flag survived saving.
+		allow = {
+			NOT = { has_country_flag = tgcx_loadtest_done }
+		}
+		# The trigger of an is_triggered_only event is not checked when an
+		# effect fires it (U-2, 2026-10-12), so the branch is here, with the
+		# wiki's IF emulation (random_owned + limit) that TGC itself uses.
+		effect = {
+			set_country_flag = tgcx_loadtest_done
+			random_owned = {
+				limit = { ENG = { has_country_flag = great_gamer } }
+				owner = { country_event = 420000001 }
+			}
+			random_owned = {
+				limit = { ENG = { NOT = { has_country_flag = great_gamer } } }
+				owner = { country_event = 420000002 }
+			}
+		}
+		ai_will_do = { factor = 0 }
+	}
+}
