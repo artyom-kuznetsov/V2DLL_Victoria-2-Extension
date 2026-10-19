@@ -1,0 +1,18 @@
+spriteTypes={
+spriteType={name="tgcx_tpl_bg" texturefile="gfx/interface/tgcx_tpl_bg.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_header" texturefile="gfx/interface/tgcx_tpl_header.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_bar" texturefile="gfx/interface/tgcx_tpl_bar.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_blank_0" texturefile="gfx/interface/tgcx_tpl_blank_0.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_blank_1" texturefile="gfx/interface/tgcx_tpl_blank_1.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_blank_2" texturefile="gfx/interface/tgcx_tpl_blank_2.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_blank_3" texturefile="gfx/interface/tgcx_tpl_blank_3.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_pager" texturefile="gfx/interface/tgcx_tpl_pager.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_ring" texturefile="gfx/interface/tgcx_tpl_ring.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_tab" texturefile="gfx/interface/tgcx_tpl_tab.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_tabsel" texturefile="gfx/interface/tgcx_tpl_tabsel.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_left" texturefile="gfx/interface/tgcx_tpl_left.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_right" texturefile="gfx/interface/tgcx_tpl_right.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_tpl_recruit" texturefile="gfx/interface/tgcx_tpl_recruit.dds" noOfFrames=1 loadType="INGAME"}
+
+spriteType={name="tgcx_tpl_compact" texturefile="gfx/interface/tgcx_tpl_compact.dds" noOfFrames=1 loadType="INGAME"}
+}

@@ -1,0 +1,4 @@
+package = army
+base = universal
+modules = "templates conform"
+version = 0.10.4

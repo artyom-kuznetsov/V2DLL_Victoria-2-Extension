@@ -1,0 +1,4 @@
+; Optional nudges for the Templates window, in pixels, on top of the automatic anchor
+; (which follows the unit-folder row of the build window). Positive = right / down.
+window_dx = 0
+window_dy = 0

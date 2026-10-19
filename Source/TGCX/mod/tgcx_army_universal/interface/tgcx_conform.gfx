@@ -1,0 +1,15 @@
+spriteTypes={
+spriteType={name="tgcx_cf_bg" texturefile="gfx/interface/tgcx_cf_bg.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_slot" texturefile="gfx/interface/tgcx_cf_slot.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_blank_0" texturefile="gfx/interface/tgcx_cf_blank_0.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_blank_1" texturefile="gfx/interface/tgcx_cf_blank_1.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_blank_2" texturefile="gfx/interface/tgcx_cf_blank_2.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_blank_3" texturefile="gfx/interface/tgcx_cf_blank_3.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_pager" texturefile="gfx/interface/tgcx_cf_pager.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_ring" texturefile="gfx/interface/tgcx_cf_ring.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_left" texturefile="gfx/interface/tgcx_cf_left.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_right" texturefile="gfx/interface/tgcx_cf_right.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_button" texturefile="gfx/interface/tgcx_cf_button.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_open" texturefile="gfx/interface/tgcx_cf_open.dds" noOfFrames=1 loadType="INGAME"}
+spriteType={name="tgcx_cf_change" texturefile="gfx/interface/tgcx_cf_change.dds" noOfFrames=1 loadType="INGAME"}
+}

@@ -1,0 +1,414 @@
+guiTypes={
+windowType={name="tgcx_tpl_tab" position={x=30000 y=30000} size={x=20 y=20} moveable=0 fullScreen=no backGround=""
+guiButtonType={name="tgcx_tpl_open" quadTextureSprite="tgcx_tpl_compact" position={x=0 y=0} clicksound=click}
+}
+windowType={ name="tgcx_tpl_window" position={x=30000 y=30000} size={x=652 y=528} moveable=0 fullScreen=no backGround="" orientation="UPPER_LEFT"
+iconType={name="tgcx_tpl_header" spriteType="tgcx_tpl_header" position={x=0 y=-76}}
+iconType={name="tgcx_tpl_bg" spriteType="tgcx_tpl_bg" position={x=0 y=0}}
+iconType={name="tgcx_tpl_bar" spriteType="tgcx_tpl_bar" position={x=0 y=466}}
+iconType={name="tgcx_tpl_erow_0" spriteType="GFX_province_recruit_button" position={x=2 y=186}}
+iconType={name="tgcx_tpl_erow_1" spriteType="GFX_province_recruit_button" position={x=2 y=217}}
+iconType={name="tgcx_tpl_erow_2" spriteType="GFX_province_recruit_button" position={x=2 y=248}}
+iconType={name="tgcx_tpl_erow_3" spriteType="GFX_province_recruit_button" position={x=2 y=279}}
+iconType={name="tgcx_tpl_erow_4" spriteType="GFX_province_recruit_button" position={x=2 y=310}}
+iconType={name="tgcx_tpl_erow_5" spriteType="GFX_province_recruit_button" position={x=2 y=341}}
+iconType={name="tgcx_tpl_erow_6" spriteType="GFX_province_recruit_button" position={x=2 y=372}}
+iconType={name="tgcx_tpl_erow_7" spriteType="GFX_province_recruit_button" position={x=2 y=403}}
+guiButtonType={name="tgcx_tpl_slot_0" quadTextureSprite="GFX_province_recruit_group_button" position={x=2 y=2} clicksound=click}
+guiButtonType={name="tgcx_tpl_slot_1" quadTextureSprite="GFX_province_recruit_group_button" position={x=2 y=34} clicksound=click}
+guiButtonType={name="tgcx_tpl_slot_2" quadTextureSprite="GFX_province_recruit_group_button" position={x=2 y=66} clicksound=click}
+guiButtonType={name="tgcx_tpl_slot_3" quadTextureSprite="GFX_province_recruit_group_button" position={x=2 y=98} clicksound=click}
+guiButtonType={name="tgcx_tpl_list_prev" quadTextureSprite="tgcx_tpl_left" position={x=296 y=132} clicksound=click}
+guiButtonType={name="tgcx_tpl_list_next" quadTextureSprite="tgcx_tpl_right" position={x=364 y=132} clicksound=click}
+guiButtonType={name="tgcx_tpl_new" quadTextureSprite="GFX_bp_button_add" position={x=4 y=130} clicksound=click}
+guiButtonType={name="tgcx_tpl_delete" quadTextureSprite="GFX_bp_button_remove" position={x=193 y=485} clicksound=click}
+guiButtonType={name="tgcx_tpl_unit_prev" quadTextureSprite="tgcx_tpl_left" position={x=314 y=160} clicksound=click}
+guiButtonType={name="tgcx_tpl_unit_next" quadTextureSprite="tgcx_tpl_right" position={x=362 y=160} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_0" quadTextureSprite="tgcx_tpl_left" position={x=231 y=189} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_0" quadTextureSprite="tgcx_tpl_right" position={x=301 y=189} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_1" quadTextureSprite="tgcx_tpl_left" position={x=231 y=220} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_1" quadTextureSprite="tgcx_tpl_right" position={x=301 y=220} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_2" quadTextureSprite="tgcx_tpl_left" position={x=231 y=251} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_2" quadTextureSprite="tgcx_tpl_right" position={x=301 y=251} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_3" quadTextureSprite="tgcx_tpl_left" position={x=231 y=282} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_3" quadTextureSprite="tgcx_tpl_right" position={x=301 y=282} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_4" quadTextureSprite="tgcx_tpl_left" position={x=231 y=313} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_4" quadTextureSprite="tgcx_tpl_right" position={x=301 y=313} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_5" quadTextureSprite="tgcx_tpl_left" position={x=231 y=344} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_5" quadTextureSprite="tgcx_tpl_right" position={x=301 y=344} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_6" quadTextureSprite="tgcx_tpl_left" position={x=231 y=375} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_6" quadTextureSprite="tgcx_tpl_right" position={x=301 y=375} clicksound=click}
+guiButtonType={name="tgcx_tpl_minus_7" quadTextureSprite="tgcx_tpl_left" position={x=231 y=406} clicksound=click}
+guiButtonType={name="tgcx_tpl_plus_7" quadTextureSprite="tgcx_tpl_right" position={x=301 y=406} clicksound=click}
+guiButtonType={name="tgcx_tpl_recruit" quadTextureSprite="tgcx_tpl_recruit" position={x=7 y=482} clicksound=click}
+windowType={name="tgcx_tpl_slot_sel_0" position={x=2 y=2} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_ring_0" spriteType="tgcx_tpl_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_blank_0" position={x=2 y=2} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_blank_icon_0" spriteType="tgcx_tpl_blank_0" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_sel_1" position={x=2 y=34} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_ring_1" spriteType="tgcx_tpl_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_blank_1" position={x=2 y=34} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_blank_icon_1" spriteType="tgcx_tpl_blank_1" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_sel_2" position={x=2 y=66} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_ring_2" spriteType="tgcx_tpl_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_blank_2" position={x=2 y=66} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_blank_icon_2" spriteType="tgcx_tpl_blank_2" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_sel_3" position={x=2 y=98} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_ring_3" spriteType="tgcx_tpl_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_blank_3" position={x=2 y=98} size={x=366 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_blank_icon_3" spriteType="tgcx_tpl_blank_3" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_pager_blank" position={x=296 y=130} size={x=92 y=28} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_pager_icon" spriteType="tgcx_tpl_pager" position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_slot_icon_0_unit" position={x=3 y=0} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_slot_sprite_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_mini_0_0_unit" position={x=199 y=5} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_0_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_0_1_unit" position={x=241 y=5} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_0_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_0_2_unit" position={x=283 y=5} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_0_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_0_3_unit" position={x=325 y=5} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_0_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_slot_icon_1_unit" position={x=3 y=32} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_slot_sprite_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_mini_1_0_unit" position={x=199 y=37} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_1_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_1_1_unit" position={x=241 y=37} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_1_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_1_2_unit" position={x=283 y=37} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_1_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_1_3_unit" position={x=325 y=37} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_1_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_slot_icon_2_unit" position={x=3 y=64} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_slot_sprite_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_mini_2_0_unit" position={x=199 y=69} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_2_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_2_1_unit" position={x=241 y=69} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_2_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_2_2_unit" position={x=283 y=69} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_2_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_2_3_unit" position={x=325 y=69} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_2_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_slot_icon_3_unit" position={x=3 y=96} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_slot_sprite_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_mini_3_0_unit" position={x=199 y=101} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_3_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_3_1_unit" position={x=241 y=101} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_3_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_3_2_unit" position={x=283 y=101} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_3_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_mini_3_3_unit" position={x=325 y=101} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_mini_sprite_3_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_tpl_edit_icon_0" position={x=3 y=184} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_0" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_edit_icon_1" position={x=3 y=215} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_1" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_edit_icon_2" position={x=3 y=246} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_2" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_edit_icon_3" position={x=3 y=277} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_3" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_edit_icon_4" position={x=3 y=308} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_4" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_edit_icon_5" position={x=3 y=339} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_5" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_edit_icon_6" position={x=3 y=370} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_6" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_tpl_edit_icon_7" position={x=3 y=401} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_tpl_edit_sprite_7" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+instantTextBoxType={name="tgcx_tpl_text_title" position={x=4 y=-72} font="cgothic_18_bold" text="tgcx_tpl_text_title" maxWidth=360 maxHeight=22 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_slot_0" position={x=42 y=4} font="Arial12_bold_black" text="tgcx_tpl_text_slot_0" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_detail_0" position={x=42 y=18} font="Arial12_black" text="tgcx_tpl_text_detail_0" maxWidth=90 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_sdays_0" position={x=124 y=18} font="Arial12_black" text="tgcx_tpl_text_sdays_0" maxWidth=66 maxHeight=14 format=right allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_0_0" position={x=223 y=11} font="Arial12_bold" text="tgcx_tpl_text_mini_0_0" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_0_1" position={x=265 y=11} font="Arial12_bold" text="tgcx_tpl_text_mini_0_1" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_0_2" position={x=307 y=11} font="Arial12_bold" text="tgcx_tpl_text_mini_0_2" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_0_3" position={x=349 y=11} font="Arial12_bold" text="tgcx_tpl_text_mini_0_3" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_slot_1" position={x=42 y=36} font="Arial12_bold_black" text="tgcx_tpl_text_slot_1" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_detail_1" position={x=42 y=50} font="Arial12_black" text="tgcx_tpl_text_detail_1" maxWidth=90 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_sdays_1" position={x=124 y=50} font="Arial12_black" text="tgcx_tpl_text_sdays_1" maxWidth=66 maxHeight=14 format=right allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_1_0" position={x=223 y=43} font="Arial12_bold" text="tgcx_tpl_text_mini_1_0" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_1_1" position={x=265 y=43} font="Arial12_bold" text="tgcx_tpl_text_mini_1_1" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_1_2" position={x=307 y=43} font="Arial12_bold" text="tgcx_tpl_text_mini_1_2" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_1_3" position={x=349 y=43} font="Arial12_bold" text="tgcx_tpl_text_mini_1_3" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_slot_2" position={x=42 y=68} font="Arial12_bold_black" text="tgcx_tpl_text_slot_2" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_detail_2" position={x=42 y=82} font="Arial12_black" text="tgcx_tpl_text_detail_2" maxWidth=90 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_sdays_2" position={x=124 y=82} font="Arial12_black" text="tgcx_tpl_text_sdays_2" maxWidth=66 maxHeight=14 format=right allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_2_0" position={x=223 y=75} font="Arial12_bold" text="tgcx_tpl_text_mini_2_0" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_2_1" position={x=265 y=75} font="Arial12_bold" text="tgcx_tpl_text_mini_2_1" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_2_2" position={x=307 y=75} font="Arial12_bold" text="tgcx_tpl_text_mini_2_2" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_2_3" position={x=349 y=75} font="Arial12_bold" text="tgcx_tpl_text_mini_2_3" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_slot_3" position={x=42 y=100} font="Arial12_bold_black" text="tgcx_tpl_text_slot_3" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_detail_3" position={x=42 y=114} font="Arial12_black" text="tgcx_tpl_text_detail_3" maxWidth=90 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_sdays_3" position={x=124 y=114} font="Arial12_black" text="tgcx_tpl_text_sdays_3" maxWidth=66 maxHeight=14 format=right allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_3_0" position={x=223 y=107} font="Arial12_bold" text="tgcx_tpl_text_mini_3_0" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_3_1" position={x=265 y=107} font="Arial12_bold" text="tgcx_tpl_text_mini_3_1" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_3_2" position={x=307 y=107} font="Arial12_bold" text="tgcx_tpl_text_mini_3_2" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_mini_3_3" position={x=349 y=107} font="Arial12_bold" text="tgcx_tpl_text_mini_3_3" maxWidth=20 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_new" position={x=39 y=135} font="cgothic_18_bold_black" text="tgcx_tpl_text_new" maxWidth=190 maxHeight=20 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_list_page" position={x=320 y=136} font="Arial12_black" text="tgcx_tpl_text_list_page" maxWidth=44 maxHeight=16 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_editor" position={x=4 y=162} font="cgothic_18_bold_black" text="tgcx_tpl_text_editor" maxWidth=300 maxHeight=20 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_page" position={x=338 y=164} font="Arial12_black" text="tgcx_tpl_text_unit_page" maxWidth=24 maxHeight=16 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_0" position={x=42 y=188} font="Arial12_bold_black" text="tgcx_tpl_text_unit_0" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_0" position={x=42 y=202} font="Arial12_black" text="tgcx_tpl_text_days_0" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_0" position={x=257 y=192} font="cgothic_18_bold" text="tgcx_tpl_text_count_0" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_1" position={x=42 y=219} font="Arial12_bold_black" text="tgcx_tpl_text_unit_1" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_1" position={x=42 y=233} font="Arial12_black" text="tgcx_tpl_text_days_1" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_1" position={x=257 y=223} font="cgothic_18_bold" text="tgcx_tpl_text_count_1" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_2" position={x=42 y=250} font="Arial12_bold_black" text="tgcx_tpl_text_unit_2" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_2" position={x=42 y=264} font="Arial12_black" text="tgcx_tpl_text_days_2" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_2" position={x=257 y=254} font="cgothic_18_bold" text="tgcx_tpl_text_count_2" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_3" position={x=42 y=281} font="Arial12_bold_black" text="tgcx_tpl_text_unit_3" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_3" position={x=42 y=295} font="Arial12_black" text="tgcx_tpl_text_days_3" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_3" position={x=257 y=285} font="cgothic_18_bold" text="tgcx_tpl_text_count_3" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_4" position={x=42 y=312} font="Arial12_bold_black" text="tgcx_tpl_text_unit_4" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_4" position={x=42 y=326} font="Arial12_black" text="tgcx_tpl_text_days_4" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_4" position={x=257 y=316} font="cgothic_18_bold" text="tgcx_tpl_text_count_4" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_5" position={x=42 y=343} font="Arial12_bold_black" text="tgcx_tpl_text_unit_5" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_5" position={x=42 y=357} font="Arial12_black" text="tgcx_tpl_text_days_5" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_5" position={x=257 y=347} font="cgothic_18_bold" text="tgcx_tpl_text_count_5" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_6" position={x=42 y=374} font="Arial12_bold_black" text="tgcx_tpl_text_unit_6" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_6" position={x=42 y=388} font="Arial12_black" text="tgcx_tpl_text_days_6" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_6" position={x=257 y=378} font="cgothic_18_bold" text="tgcx_tpl_text_count_6" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_unit_7" position={x=42 y=405} font="Arial12_bold_black" text="tgcx_tpl_text_unit_7" maxWidth=150 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_days_7" position={x=42 y=419} font="Arial12_black" text="tgcx_tpl_text_days_7" maxWidth=150 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_count_7" position={x=257 y=409} font="cgothic_18_bold" text="tgcx_tpl_text_count_7" maxWidth=40 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_summary" position={x=231 y=487} font="Arial12_bold_black" text="tgcx_tpl_text_summary" maxWidth=420 maxHeight=16 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_status" position={x=231 y=503} font="Arial12_black" text="tgcx_tpl_text_status" maxWidth=420 maxHeight=22 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_tpl_text_recruit" position={x=7 y=490} font="cgothic_18_bold_black" text="tgcx_tpl_text_recruit" maxWidth=177 maxHeight=20 format=centre allwaystransparent=yes}
+}
+windowType={name="tgcx_cf_tab" position={x=30000 y=30000} size={x=20 y=20} backGround="" moveable=0 fullScreen=no
+guiButtonType={name="tgcx_cf_open" quadTextureSprite="tgcx_cf_open" position={x=0 y=0} clicksound=click}
+}
+windowType={name="tgcx_cf_window" position={x=30000 y=30000} size={x=332 y=594} backGround="" moveable=0 fullScreen=no orientation="UPPER_LEFT"
+guiButtonType={name="tgcx_cf_bg" quadTextureSprite="tgcx_cf_bg" position={x=0 y=0}}
+iconType={name="tgcx_cf_bg_icon" spriteType="tgcx_cf_bg" position={x=0 y=0}}
+guiButtonType={name="tgcx_cf_close" quadTextureSprite="GFX_unit_close" position={x=303 y=7} clicksound=click}
+guiButtonType={name="tgcx_cf_slot_0" quadTextureSprite="tgcx_cf_slot" position={x=7 y=42} clicksound=click}
+guiButtonType={name="tgcx_cf_slot_1" quadTextureSprite="tgcx_cf_slot" position={x=7 y=74} clicksound=click}
+guiButtonType={name="tgcx_cf_slot_2" quadTextureSprite="tgcx_cf_slot" position={x=7 y=106} clicksound=click}
+guiButtonType={name="tgcx_cf_slot_3" quadTextureSprite="tgcx_cf_slot" position={x=7 y=138} clicksound=click}
+guiButtonType={name="tgcx_cf_list_prev" quadTextureSprite="tgcx_cf_left" position={x=228 y=172} clicksound=click}
+guiButtonType={name="tgcx_cf_list_next" quadTextureSprite="tgcx_cf_right" position={x=300 y=172} clicksound=click}
+guiButtonType={name="tgcx_cf_conform" quadTextureSprite="tgcx_cf_button" position={x=12 y=558} clicksound=click}
+guiButtonType={name="tgcx_cf_cancel" quadTextureSprite="tgcx_cf_button" position={x=172 y=558} clicksound=click}
+windowType={name="tgcx_cf_slot_sel_0" position={x=7 y=42} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_ring_0" spriteType="tgcx_cf_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_blank_0" position={x=7 y=42} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_blank_icon_0" spriteType="tgcx_cf_blank_0" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_sel_1" position={x=7 y=74} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_ring_1" spriteType="tgcx_cf_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_blank_1" position={x=7 y=74} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_blank_icon_1" spriteType="tgcx_cf_blank_1" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_sel_2" position={x=7 y=106} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_ring_2" spriteType="tgcx_cf_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_blank_2" position={x=7 y=106} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_blank_icon_2" spriteType="tgcx_cf_blank_2" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_sel_3" position={x=7 y=138} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_ring_3" spriteType="tgcx_cf_ring" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_blank_3" position={x=7 y=138} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_blank_icon_3" spriteType="tgcx_cf_blank_3" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_pager_blank" position={x=228 y=170} size={x=96 y=28} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_pager_icon" spriteType="tgcx_cf_pager" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_0" position={x=7 y=232} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_0" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_1" position={x=7 y=264} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_1" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_2" position={x=7 y=296} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_2" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_3" position={x=7 y=328} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_3" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_4" position={x=7 y=360} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_4" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_5" position={x=7 y=392} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_5" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_6" position={x=7 y=424} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_6" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_row_7" position={x=7 y=456} size={x=317 y=30} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_bg_7" spriteType="tgcx_cf_change" position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_slot_icon_0_unit" position={x=8 y=40} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_slot_sprite_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_mini_0_0_unit" position={x=182 y=45} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_0_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_0_1_unit" position={x=217 y=45} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_0_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_0_2_unit" position={x=252 y=45} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_0_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_0_3_unit" position={x=287 y=45} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_0_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_slot_icon_1_unit" position={x=8 y=72} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_slot_sprite_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_mini_1_0_unit" position={x=182 y=77} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_1_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_1_1_unit" position={x=217 y=77} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_1_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_1_2_unit" position={x=252 y=77} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_1_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_1_3_unit" position={x=287 y=77} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_1_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_slot_icon_2_unit" position={x=8 y=104} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_slot_sprite_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_mini_2_0_unit" position={x=182 y=109} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_2_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_2_1_unit" position={x=217 y=109} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_2_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_2_2_unit" position={x=252 y=109} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_2_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_2_3_unit" position={x=287 y=109} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_2_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_slot_icon_3_unit" position={x=8 y=136} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_slot_sprite_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_mini_3_0_unit" position={x=182 y=141} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_3_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_3_1_unit" position={x=217 y=141} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_3_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_3_2_unit" position={x=252 y=141} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_3_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_mini_3_3_unit" position={x=287 y=141} size={x=24 y=24} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_mini_sprite_3_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0} scale=0.66}
+}
+windowType={name="tgcx_cf_change_icon_0_unit" position={x=8 y=230} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_0_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_icon_1_unit" position={x=8 y=262} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_1_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_icon_2_unit" position={x=8 y=294} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_2_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_icon_3_unit" position={x=8 y=326} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_3_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_icon_4_unit" position={x=8 y=358} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_4_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_icon_5_unit" position={x=8 y=390} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_5_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_icon_6_unit" position={x=8 y=422} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_6_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+windowType={name="tgcx_cf_change_icon_7_unit" position={x=8 y=454} size={x=36 y=36} backGround="" moveable=0 fullScreen=no
+iconType={name="tgcx_cf_change_sprite_7_unit" spriteType="GFX_unit_strip" frame=1 position={x=0 y=0}}
+}
+instantTextBoxType={name="tgcx_cf_text_title" position={x=12 y=9} font="Arial14" text="tgcx_cf_text_title" maxWidth=285 maxHeight=22 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_slot_0" position={x=47 y=44} font="Arial12_bold_black" text="tgcx_cf_text_slot_0" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_detail_0" position={x=47 y=58} font="Arial12_black" text="tgcx_cf_text_detail_0" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_0_0" position={x=202 y=51} font="Arial12_bold" text="tgcx_cf_text_mini_0_0" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_0_1" position={x=237 y=51} font="Arial12_bold" text="tgcx_cf_text_mini_0_1" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_0_2" position={x=272 y=51} font="Arial12_bold" text="tgcx_cf_text_mini_0_2" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_0_3" position={x=307 y=51} font="Arial12_bold" text="tgcx_cf_text_mini_0_3" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_slot_1" position={x=47 y=76} font="Arial12_bold_black" text="tgcx_cf_text_slot_1" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_detail_1" position={x=47 y=90} font="Arial12_black" text="tgcx_cf_text_detail_1" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_1_0" position={x=202 y=83} font="Arial12_bold" text="tgcx_cf_text_mini_1_0" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_1_1" position={x=237 y=83} font="Arial12_bold" text="tgcx_cf_text_mini_1_1" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_1_2" position={x=272 y=83} font="Arial12_bold" text="tgcx_cf_text_mini_1_2" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_1_3" position={x=307 y=83} font="Arial12_bold" text="tgcx_cf_text_mini_1_3" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_slot_2" position={x=47 y=108} font="Arial12_bold_black" text="tgcx_cf_text_slot_2" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_detail_2" position={x=47 y=122} font="Arial12_black" text="tgcx_cf_text_detail_2" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_2_0" position={x=202 y=115} font="Arial12_bold" text="tgcx_cf_text_mini_2_0" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_2_1" position={x=237 y=115} font="Arial12_bold" text="tgcx_cf_text_mini_2_1" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_2_2" position={x=272 y=115} font="Arial12_bold" text="tgcx_cf_text_mini_2_2" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_2_3" position={x=307 y=115} font="Arial12_bold" text="tgcx_cf_text_mini_2_3" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_slot_3" position={x=47 y=140} font="Arial12_bold_black" text="tgcx_cf_text_slot_3" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_detail_3" position={x=47 y=154} font="Arial12_black" text="tgcx_cf_text_detail_3" maxWidth=132 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_3_0" position={x=202 y=147} font="Arial12_bold" text="tgcx_cf_text_mini_3_0" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_3_1" position={x=237 y=147} font="Arial12_bold" text="tgcx_cf_text_mini_3_1" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_3_2" position={x=272 y=147} font="Arial12_bold" text="tgcx_cf_text_mini_3_2" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_mini_3_3" position={x=307 y=147} font="Arial12_bold" text="tgcx_cf_text_mini_3_3" maxWidth=18 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_list_page" position={x=252 y=176} font="Arial12_black" text="tgcx_cf_text_list_page" maxWidth=48 maxHeight=16 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_changes" position={x=14 y=203} font="Arial12_bold_black" text="tgcx_cf_text_changes" maxWidth=210 maxHeight=20 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_0" position={x=47 y=233} font="Arial12_bold_black" text="tgcx_cf_text_change_0" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_0" position={x=47 y=247} font="Arial12_black" text="tgcx_cf_text_note_0" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_1" position={x=47 y=265} font="Arial12_bold_black" text="tgcx_cf_text_change_1" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_1" position={x=47 y=279} font="Arial12_black" text="tgcx_cf_text_note_1" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_2" position={x=47 y=297} font="Arial12_bold_black" text="tgcx_cf_text_change_2" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_2" position={x=47 y=311} font="Arial12_black" text="tgcx_cf_text_note_2" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_3" position={x=47 y=329} font="Arial12_bold_black" text="tgcx_cf_text_change_3" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_3" position={x=47 y=343} font="Arial12_black" text="tgcx_cf_text_note_3" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_4" position={x=47 y=361} font="Arial12_bold_black" text="tgcx_cf_text_change_4" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_4" position={x=47 y=375} font="Arial12_black" text="tgcx_cf_text_note_4" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_5" position={x=47 y=393} font="Arial12_bold_black" text="tgcx_cf_text_change_5" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_5" position={x=47 y=407} font="Arial12_black" text="tgcx_cf_text_note_5" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_6" position={x=47 y=425} font="Arial12_bold_black" text="tgcx_cf_text_change_6" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_6" position={x=47 y=439} font="Arial12_black" text="tgcx_cf_text_note_6" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_change_7" position={x=47 y=457} font="Arial12_bold_black" text="tgcx_cf_text_change_7" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_note_7" position={x=47 y=471} font="Arial12_black" text="tgcx_cf_text_note_7" maxWidth=272 maxHeight=14 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_summary" position={x=10 y=492} font="Arial12_black" text="tgcx_cf_text_summary" maxWidth=312 maxHeight=28 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_status" position={x=10 y=522} font="Arial12_black" text="tgcx_cf_text_status" maxWidth=312 maxHeight=26 format=left allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_conform" position={x=12 y=565} font="Arial12_bold_black" text="tgcx_cf_text_conform" maxWidth=148 maxHeight=18 format=centre allwaystransparent=yes}
+instantTextBoxType={name="tgcx_cf_text_cancel" position={x=172 y=565} font="Arial12_bold_black" text="tgcx_cf_text_cancel" maxWidth=148 maxHeight=18 format=centre allwaystransparent=yes}
+}
+}
