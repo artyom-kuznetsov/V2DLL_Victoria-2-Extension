@@ -40,7 +40,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.91"
+#define MOD_VERSION "5.92"
 
 // Настройки ниже читаются из v2dll_settings.ini рядом с exe при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -231,6 +231,11 @@ struct Settings
     // Хост авторитетен; клиентские INI не нужны. Ключ входит в отпечаток:
     // все игроки обязаны иметь одинаковый DLL и одинаковое значение.
     bool mpHostHumanSync = true;
+    // ENABLE_VASSAL_COLORS / VASSAL_COLOR_PERCENT (vasalle_color.cpp): en el mapa politico
+    // los vasallos se pintan mezclando su color con el de su senor. El porcentaje es el peso
+    // del color del senor (0..100); 65 = 35% color propio + 65% color del senor.
+    bool vassalColors = true;
+    int  vassalColorPercent = 65;
     // PATCH_STATE_SAVINGS_CAP / STATE_SAVINGS_CAP_POUNDS (5.76): лечение
     // рассинхрона "казна vs сбережения штата". Сбережения штата (+0x228) в
     // MP-сейве обрезаются по int32 (65536.00 = 0x80000000), излишек попадает
@@ -4451,6 +4456,14 @@ static void ApplySetting(const char* key, const char* value)
             g_settings.patchParallelEvents = 0;
         return;
     }
+    if (_stricmp(key, "VASSAL_COLOR_PERCENT") == 0)
+    {
+        int pct = atoi(value);
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+        g_settings.vassalColorPercent = pct;
+        return;
+    }
     bool v = ParseBoolValue(value);
 
     if (_stricmp(key, "LOCAL_MOD_CONFIG") == 0)             { g_settings.localModConfig = v; return; }
@@ -4514,6 +4527,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "SP_WINDOW_TO") == 0)                     { strncpy_s(g_settings.spWindowTo, value, _TRUNCATE); return; }
     if (_stricmp(key, "MONEY_WATCH_TAGS") == 0)                 { strncpy_s(g_settings.mwTags, value, _TRUNCATE); return; }
     if (_stricmp(key, "MP_HOST_HUMAN_SYNC") == 0)               { g_settings.mpHostHumanSync = v; return; }
+    if (_stricmp(key, "ENABLE_VASSAL_COLORS") == 0)            { g_settings.vassalColors = v; return; }
     if (_stricmp(key, "PATCH_STATE_SAVINGS_CAP") == 0)          { g_settings.patchStateSavingsCap        = v; return; }
     if (_stricmp(key, "STATE_SAVINGS_CAP_POUNDS") == 0)         { g_settings.stateSavingsCapPounds       = atoi(value); return; }
     if (_stricmp(key, "ENABLE_CRASH_LOG") == 0)                 { g_settings.enableCrashLog              = v; return; }
@@ -4835,7 +4849,9 @@ static void WriteDefaultSettings(const char* path)
         "SP_WINDOW_FROM=%s\n"
         "SP_WINDOW_TO=%s\n"
         "MONEY_WATCH_TAGS=%s\n"
-        "MP_HOST_HUMAN_SYNC=%d\n",
+        "MP_HOST_HUMAN_SYNC=%d\n"
+        "ENABLE_VASSAL_COLORS=%d\n"
+        "VASSAL_COLOR_PERCENT=%d\n",
         (int)g_settings.log,
         (int)g_settings.debugLog,
         (int)g_settings.enableOosLog,
@@ -4848,7 +4864,9 @@ static void WriteDefaultSettings(const char* path)
         g_settings.spWindowFrom,
         g_settings.spWindowTo,
         g_settings.mwTags,
-        (int)g_settings.mpHostHumanSync);
+        (int)g_settings.mpHostHumanSync,
+        (int)g_settings.vassalColors,
+        g_settings.vassalColorPercent);
 
     fclose(f);
 }
@@ -4894,13 +4912,11 @@ static void LoadSettingsFrom(const char* path)
     fclose(f);
 }
 
-static bool ResolveModFolder(char* outFolder, size_t outSize)
+// modArg apunta justo despues de "-mod=" (un argumento concreto de la linea de comandos).
+static bool ResolveModFolderAt(const char* modArg, char* outFolder, size_t outSize)
 {
-    const char* cmdLine = GetCommandLineA();
-    const char* modArg = strstr(cmdLine, "-mod=");
     if (!modArg)
         return false;
-    modArg += 5;
 
     char modFile[MAX_PATH] = { 0 };
     size_t i = 0;
@@ -4963,6 +4979,15 @@ static bool ResolveModFolder(char* outFolder, size_t outSize)
 
     fclose(f);
     return found;
+}
+
+// Primer -mod= de la linea de comandos (lo usan los ajustes por mod).
+static bool ResolveModFolder(char* outFolder, size_t outSize)
+{
+    const char* modArg = strstr(GetCommandLineA(), "-mod=");
+    if (!modArg)
+        return false;
+    return ResolveModFolderAt(modArg + 5, outFolder, outSize);
 }
 
 // Сначала общий v2dll_settings.ini рядом с exe (LOCAL_MOD_CONFIG).
@@ -25558,6 +25583,9 @@ static void LogConfigFingerprint()
         LogRngFile("config %s", g_cfgFpLine);
 }
 
+// vasalle_color.cpp
+bool InstallVassalColors(int percent);
+
 static bool Install()
 {
     LoadSettings();
@@ -25872,13 +25900,29 @@ static bool Install()
         Log("ClipboardPaste: no se pudo iniciar el hilo independiente (%lu)", GetLastError());
     Log("IdleSkipNested: FIX_ARMY_WINDOW_LAG=%d", (int)g_settings.patchFixArmyWindowLag);
 
+    if (g_settings.vassalColors)
+        InstallVassalColors(g_settings.vassalColorPercent);
+    else
+        Log("VasalleColor: desactivado (ENABLE_VASSAL_COLORS=0)");
+
     // Optional plugin "mod\<Name>\v2dll_mod.dll" of the running mod: last, so
     // they see a fully patched game.
     if (g_settings.loadDllFromModFolder)
     {
-        char modDir[MAX_PATH];
-        if (ResolveModFolder(modDir, sizeof(modDir)))
-            LoadV2Mods(modDir);
+        // Todos los -mod= activos, en el orden de la linea de comandos (solo los
+        // mods seleccionados; no se recorre la carpeta mod\).
+        const char* cmd = GetCommandLineA();
+        int modsSeen = 0;
+        for (const char* p = strstr(cmd, "-mod="); p; p = strstr(p + 5, "-mod="))
+        {
+            char modDir[MAX_PATH];
+            if (ResolveModFolderAt(p + 5, modDir, sizeof(modDir)))
+            {
+                ++modsSeen;
+                LoadV2Mods(modDir);
+            }
+        }
+        Log("ModLoader: %d mod(s) activo(s) en la linea de comandos", modsSeen);
     }
     LogConfigFingerprint();
 
