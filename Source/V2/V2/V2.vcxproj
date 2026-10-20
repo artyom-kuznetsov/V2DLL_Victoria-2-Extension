@@ -26,6 +26,7 @@
   <ItemGroup>
     <ClCompile Include="V2TechButton.cpp" />
     <ClCompile Include="V2DLL_AssimilateBlock.cpp" />
+    <ClCompile Include="V2DLL_PopMergeIdentity.cpp" />
     <ClCompile Include="V2DLL_ModLoader.cpp" />
     <ClCompile Include="vasalle_color.cpp" />
     <ClCompile Include="minhook\src\buffer.c" />

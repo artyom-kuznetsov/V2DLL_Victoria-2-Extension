@@ -15,6 +15,13 @@ const char* V2_OwnDir();                              // folder V2DLL\ (holds v2
 
 // --- defined in V2DLL_AssimilateBlock.cpp ---
 bool   InstallAssimilateBlock();
+bool   InstallEffectFactoryHook();       // shared router of the block-form script effects
+
+// --- defined in V2DLL_PopMergeIdentity.cpp ---
+bool   InstallMovePopBlock();
+bool   InstallPopMergeIdentity();
+bool   MovePopBlockEnabled();
+void   CaptureMovePopBlock(void* effect, void* ctx, int keyId, int token);
 
 // --- defined in V2DLL_ModLoader.cpp ---
 // Loads "<modFolder>\v2dll_mod.dll" if present (modFolder = running -mod= path).

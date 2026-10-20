@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.97"
+#define MOD_VERSION "5.98"
 
 // Настройки ниже читаются из V2DLL\v2dll_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -161,6 +161,8 @@ struct Settings
     // платит деньги, цены не двигаются).
     // assimilate = { culture = ... religion = ... amount = ... } (block form).
     bool assimilateBlock             = true;
+    // move_pop = { where = province_id amount = 0..1 } plus identity-safe insertion.
+    bool movePopBlock                = true;
     // Load the running mod's v2dll_mod.dll if it has one (see V2ModAPI.h).
     bool loadDllFromModFolder                  = true;
 
@@ -4760,6 +4762,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "POP_SALARY_ADDITIONAL_MULTIPLIER") == 0) { g_settings.popSalaryAdditionalMultiplier = v; return; }
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "ENABLE_ASSIMILATE_BLOCK") == 0)          { g_settings.assimilateBlock             = v; return; }
+    if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "LOAD_DLL_FROM_MOD_FOLDER") == 0)                      { g_settings.loadDllFromModFolder                  = v; return; }
 
     if (_stricmp(key, "COMBAT_ROLL_MIN") == 0) { g_settings.combatRollMin = atoi(value); return; }
@@ -4957,11 +4960,13 @@ static void WriteDefaultSettings(const char* path)
     fprintf(f,
         "; Script Extensions\n"
         "ENABLE_ASSIMILATE_BLOCK=%d\n"
+        "ENABLE_MOVE_POP_BLOCK=%d\n"
         "ENABLE_EVENT_SOUNDS=%d\n"
         "BUILDING_GOODS_CONSUMPTION=%d\n"
         "POP_SALARY_ADDITIONAL_MULTIPLIER=%d\n"
         "\n",
         (int)g_settings.assimilateBlock,
+        (int)g_settings.movePopBlock,
         (int)g_settings.EventSounds,
         (int)g_settings.goodsConsumption,
         (int)g_settings.popSalaryAdditionalMultiplier);
@@ -26145,6 +26150,9 @@ static bool Install()
 
     if (g_settings.assimilateBlock)
         InstallAssimilateBlock();
+
+    if (g_settings.movePopBlock)
+        InstallMovePopBlock();
 
     if (g_settings.goodsIconsAsSeparateFiles)
         InstallGoodsIcons();

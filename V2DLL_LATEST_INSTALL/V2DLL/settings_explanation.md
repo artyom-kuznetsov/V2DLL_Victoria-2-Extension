@@ -1,3 +1,4 @@
+
 ### dll_Submods
 Every `*.dll` in `V2DLL\dll_Submods\` is loaded at startup (alphabetical order, after all built-in patches), whichever mod is running.
 No settings are needed. A submod can export `V2Mod_Init` (it then receives the API from `V2ModAPI.h`) or just do its work in `DllMain`.
@@ -219,6 +220,22 @@ Can be a constant increase or be a per-country modifier, configure in `<mod>/com
 Used to keep pops consuming goods and combat endgame economy crisis.  
 Comes with `pop_income_modifier` for technologies and inventions, change `RGO_INPUT_TECH` localization to give the modifier a name.  
 Can't be negative (you can't cut pop's salary, only raise it) (made by balticšprott).
+#### 4. ENABLE_MOVE_POP_BLOCK
+Expands the `move_pop` effect with a block form that moves only a share of a pop to another province. Example:
+```
+any_pop = {
+	limit = { culture = french }
+	move_pop = {
+		where = 425
+		amount = 0.7
+	}
+}
+```
+`where` is a province id, `amount` is a share from 0 to 1 (0.7 moves 70 percent, 1 moves the whole pop like the vanilla `move_pop = 425`). The moved part carries its share of money, bank, militancy and consciousness, jobs the remaining part loses are re-hired by the same employers.
+The moved pop is never merged into a pop of another type, culture or religion in the destination (vanilla merges them). 
+The effect tooltip uses the localisation key `MOVE_POP_AMOUNT_EFFECT`, you should add it to your mod's localization.
+Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by this patch.
+Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 

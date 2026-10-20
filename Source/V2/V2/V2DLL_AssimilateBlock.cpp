@@ -1,5 +1,5 @@
-// V2DLL_AssimilateBlock.cpp - separate translation unit; V2TechButton.cpp
-// only calls InstallAssimilateBlock() (see V2DLL_Shared.h).
+// V2DLL_AssimilateBlock.cpp - assimilate block plus the shared effect-factory
+// router; move_pop implementation lives in V2DLL_PopMergeIdentity.cpp.
 #include <windows.h>
 #include <string.h>
 #include <stdio.h>
@@ -87,6 +87,7 @@ static const int   OFF_FACTORY_NEXT          = 0x224;
 static const int   OFF_FACTORY_EMPLOYER      = 0xE0;
 static const int   OFF_EMPLOYER_STAFF        = 0x10;      // vector of 16-byte {?, ?, pop, count}
 static const int   OFF_POP_EMPLOYED          = 0x60;
+static const int   OFF_POP_PREVIOUS_SIZE     = 0x5C;
 static const int   OFF_POPTYPE_EMPLOYABLE    = 0x40;
 static const int   ASSIM_MAX_EMPLOYERS       = 64;
 static const int   OFF_CTX_PROVINCE          = 0x10;
@@ -143,6 +144,7 @@ static LONG g_assimRuns = 0;
 
 typedef void(__fastcall* tEffectFactory)(void* self, void* edx, void* ctx, int keyId);
 typedef void(__fastcall* tAssimExecute)(void* self, void* edx, void* ctx, int arg);
+typedef void*(__thiscall* tProvinceGetName)(void* province, void* outString);
 typedef void*(__stdcall* tPopCreate)(void* province, void* popType);
 typedef void*(__thiscall* tStdStringAssign)(void* self, const char* s, unsigned n);
 typedef void(__cdecl* tGameDelete)(void* p);
@@ -151,6 +153,10 @@ typedef char(__thiscall* tPopIsReal)(void* pop);
 __declspec(align(16)) static unsigned char g_trampEffectFactory[32];
 static tEffectFactory g_origEffectFactory = 0;
 static tAssimExecute g_origAssimExecute = 0;
+
+static bool g_assimEnabled = false;
+static bool g_factoryHookInstalled = false;
+static bool g_assimHookInstalled = false;
 
 
 static AssimBlock* AssimFind(void* effect)
@@ -697,23 +703,27 @@ static void ParseAssimilateBlock(void* effect, void* ctx)
 static void __fastcall EffectFactoryHook(void* self, void* edx, void* ctx, int keyId)
 {
     g_origEffectFactory(self, edx, ctx, keyId);
-    if (keyId != KW_ASSIMILATE)
+    if (!g_assimEnabled && !MovePopBlockEnabled())
         return;
 
     __try
     {
         char* node = *(char**)((char*)self + OFF_EFFECT_CHILD_TAIL);
         void* effect = node ? *(void**)node : 0;
-        if (!effect || *(DWORD*)effect != g_base + RVA_CASSIMILATE_VTABLE)
+        if (!effect)
             return;
-
-        // The address may belong to a freed effect from an earlier load.
-        AssimBlock* stale = AssimFind(effect);
-        if (stale)
-            stale->effect = 0;
-
-        if (*(int*)((char*)ctx + OFF_PARSER_VALUE_TOKEN) == TOKEN_OPEN_BRACE)
+        int token = *(int*)((char*)ctx + OFF_PARSER_VALUE_TOKEN);
+        if (g_assimEnabled && keyId == KW_ASSIMILATE &&
+            *(DWORD*)effect == g_base + RVA_CASSIMILATE_VTABLE && token == TOKEN_OPEN_BRACE)
+        {
+            AssimBlock* stale = AssimFind(effect);
+            if (stale) stale->effect = 0;
             ParseAssimilateBlock(effect, ctx);
+        }
+        else if (MovePopBlockEnabled())
+        {
+            CaptureMovePopBlock(effect, ctx, keyId, token);
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -721,33 +731,49 @@ static void __fastcall EffectFactoryHook(void* self, void* edx, void* ctx, int k
     }
 }
 
-bool InstallAssimilateBlock()
+bool InstallEffectFactoryHook()
 {
-    void** slot = (void**)(g_base + RVA_CASSIMILATE_VTABLE) + ASSIM_EXECUTE_SLOT;
-    if (*slot != (void*)(g_base + RVA_ASSIM_EXECUTE))
-    {
-        Log("AssimilateBlock: CAssimilateEffect slot %d points to %p, expected %p - not installed",
-            ASSIM_EXECUTE_SLOT, *slot, (void*)(g_base + RVA_ASSIM_EXECUTE));
-        return false;
-    }
-
-    void* orig = 0;
-    if (!PatchSlot(RVA_CASSIMILATE_VTABLE, ASSIM_EXECUTE_SLOT, (void*)&AssimExecuteHook, &orig))
-    {
-        Log("AssimilateBlock: PatchSlot failed");
-        return false;
-    }
-    g_origAssimExecute = (tAssimExecute)orig;
-
+    if (g_factoryHookInstalled)
+        return true;
     static const unsigned char FACTORY_SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
     void* origFactory = 0;
     if (!StealToTrampoline(RVA_EFFECT_FACTORY, 6, g_trampEffectFactory, sizeof(g_trampEffectFactory),
-            FACTORY_SIG, (void*)&EffectFactoryHook, &origFactory, "AssimilateBlock"))
+            FACTORY_SIG, (void*)&EffectFactoryHook, &origFactory, "EffectBlockExtensions"))
     {
-        Log("AssimilateBlock: effect factory detour failed - block form disabled");
+        Log("EffectBlockExtensions: effect factory detour failed");
         return false;
     }
     g_origEffectFactory = (tEffectFactory)origFactory;
+    g_factoryHookInstalled = true;
+    return true;
+}
+
+bool InstallAssimilateBlock()
+{
+    g_assimEnabled = true;
+    if (!g_assimHookInstalled)
+    {
+        void** slot = (void**)(g_base + RVA_CASSIMILATE_VTABLE) + ASSIM_EXECUTE_SLOT;
+        if (*slot != (void*)(g_base + RVA_ASSIM_EXECUTE))
+        {
+            Log("AssimilateBlock: CAssimilateEffect slot %d points to %p, expected %p - not installed",
+                ASSIM_EXECUTE_SLOT, *slot, (void*)(g_base + RVA_ASSIM_EXECUTE));
+            return false;
+        }
+        void* orig = 0;
+        if (!PatchSlot(RVA_CASSIMILATE_VTABLE, ASSIM_EXECUTE_SLOT, (void*)&AssimExecuteHook, &orig))
+        {
+            Log("AssimilateBlock: PatchSlot failed");
+            return false;
+        }
+        g_origAssimExecute = (tAssimExecute)orig;
+        g_assimHookInstalled = true;
+    }
+    if (!InstallEffectFactoryHook())
+    {
+        return false;
+    }
     Log("AssimilateBlock: installed (assimilate = { culture = ... amount = ... })");
     return true;
 }
+

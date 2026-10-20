@@ -1,0 +1,30 @@
+diff --git a/Source/V2/V2/V2.vcxproj b/Source/V2/V2/V2.vcxproj
+index 14705bd..30dca56 100644
+--- a/Source/V2/V2/V2.vcxproj
++++ b/Source/V2/V2/V2.vcxproj
+@@ -27,6 +27,7 @@
+   <ItemGroup>
+     <ClCompile Include="V2TechButton.cpp" />
+     <ClCompile Include="V2DLL_AssimilateBlock.cpp" />
++    <ClCompile Include="V2DLL_PopMergeIdentity.cpp" />
+     <ClCompile Include="V2DLL_ModLoader.cpp" />
+     <ClCompile Include="vasalle_color.cpp" />
+     <ClCompile Include="minhook\src\buffer.c" />
+diff --git a/Source/V2/V2/V2DLL_Shared.h b/Source/V2/V2/V2DLL_Shared.h
+index 6359f68..cb68642 100644
+--- a/Source/V2/V2/V2DLL_Shared.h
++++ b/Source/V2/V2/V2DLL_Shared.h
+@@ -14,6 +14,13 @@ double ConsParseNumber(const char* s);
+ 
+ // --- defined in V2DLL_AssimilateBlock.cpp ---
+ bool   InstallAssimilateBlock();
++bool   InstallEffectFactoryHook();
++
++// --- defined in V2DLL_PopMergeIdentity.cpp ---
++bool   InstallMovePopBlock();
++bool   InstallPopMergeIdentity();
++bool   MovePopBlockEnabled();
++void   CaptureMovePopBlock(void* effect, void* ctx, int keyId, int token);
+ 
+ // --- defined in V2DLL_ModLoader.cpp ---
+ // Loads "<modFolder>\v2dll_mod.dll" if present (modFolder = running -mod= path).

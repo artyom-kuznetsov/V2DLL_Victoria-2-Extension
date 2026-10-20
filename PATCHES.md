@@ -100,6 +100,7 @@ Key | Default | Kind | Address(es) | Section
 `HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES` (+ `HIDE_NO_SUPPLY_DRY_RUN`) | on (dry-run off) | HOOK | `0x2F9E41` | 5
 `HIDE_RAW_GOODS_PRODUCTION_FILTER_BUTTONS` | on | HOOK ×2 | `0x2F1C30`, `0x2F1EC0` | 5
 `FILTER_SHOW_ALL_FACTORIES_IN_STATE`, `FACTORY_FILTER_BY_PRODUCERS_ONLY` | on, on | CALL ×2 | `0x2F41F7`, `0x2F7471` | 5
+`ENABLE_MOVE_POP_BLOCK` | on | VSLOT x2 + detour + HOOK | `0xA2BF44` slots 9/11, `0x476B30`, `0xB8ED2` | 6a.1
 `ENABLE_MUSIC_PLAYER` | on | CALL ×3, VSLOT ×2, ENTRY | see 5.9 | 5
 `GOODS_ICONS_AS_SEPARATE_FILES` | on (inert without `icon` keys) | ENTRY ×3 + IAT | `0x721F40`, `0x7206E0`, `0x7221E0`; IAT slot `0x88A424` | 5.11
 `PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH` | on | BYTE | `0x10C5DE` | 3
@@ -504,6 +505,17 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 * **Not covered.** Naval bases built by pops/capitalists (`POP_BUILD_NEW_PROVINCEBUILDING`) and by the player. Bases already built are not removed.
 
 ---
+
+## 6a. Script extensions (`ini` category "Script Extensions")
+
+### 6a.1 `ENABLE_MOVE_POP_BLOCK` - VSLOT x2 + effect-factory detour + HOOK, on (added 5.98)
+
+* **What.** `move_pop = { where = <province_id> amount = <0..1> }` (block form of the vanilla `move_pop = <id>`). Code: `V2DLL_PopMergeIdentity.cpp`; the effect-factory router is shared with `ENABLE_ASSIMILATE_BLOCK` (`V2DLL_AssimilateBlock.cpp`, `InstallEffectFactoryHook`, detour of `FUN_00876B30` at RVA `0x476B30`, 6 bytes `55 8B EC 83 E4 F8`). After the factory built a `CMovePopEffect` (vtable `0xA2BF44`) for a `{` value, `CaptureMovePopBlock` reads the block and stores `where`/`amount` per effect object; `where * 1000` goes into `effect+0x20`, as the vanilla effect expects.
+* **Execute** (vtable slot 11, `FUN_00897140`, RVA `0x497140`): for `amount < 1` a new pop of the same type is created in the source province (`FUN_004B8D30`, attributes copied by `FUN_00955A00`), the share (money, bank, con/mil fractions) is split off, the source keeps `size - n` (jobs freed by the shrink are re-hired through `FUN_004EE780` like in the assimilate block), then the vanilla executor moves the temporary pop. `amount = 1` goes straight to the vanilla executor. A block that was not captured and has no valid destination is ignored (otherwise it would move to province 0).
+* **Tooltip** (vtable slot 9, `FUN_004971A0`, RVA `0x4971A0`): the block form is formatted with `MOVE_POP_AMOUNT_EFFECT`; on any failure the vanilla tooltip is returned.
+* **Identity guard** (`PopMergeIdentity`, HOOK `0xB8ED2` in `FUN_004B8E80`, 8 bytes `84 C0 0F 84 9B 00 00 00`, continue `0xB8EDA`, separate-pop fallback `0xB8F75`): the vanilla move merges the arriving pop into any destination pop of its type; the hook makes it take the "create a new pop" path when type, culture or religion of the two real pops differ.
+* **Config.** `ENABLE_MOVE_POP_BLOCK` (ini, default on). It changes how scripts are parsed, so it must be the same for all players of a multiplayer game (it is part of the config fingerprint like the other ini keys). The block tooltip needs the localisation key `MOVE_POP_AMOUNT_EFFECT` (`$AMOUNT$`, `$WHERE$`) in the mod's localisation; the DLL does not add it.
+* **Log.** Install lines `MovePopAmount: ...`, `PopMergeIdentity: installed ...`; per-execution lines (`MovePopAmount: split ...`, `MovePopBlock: captured ...`) only with `DEBUG_LOG=1`.
 
 ## 7. Stability and performance
 
