@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.96"
+#define MOD_VERSION "5.97"
 
 // Настройки ниже читаются из V2DLL\v2dll_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -4034,6 +4034,103 @@ static const DWORD RVA_PRICE_DELTA = 0xE5B9E0;  // int64, младшее сло�
 
 static const unsigned char PRICE_SIG[5] = { 0xC1, 0xFA, 0x0F, 0x8B, 0xF8 };
 
+// ---- Товары, на которые процентный (и экспоненциальный) шаг не действует ----
+// price_delta_exempt_goods в <мод>\common\defines_v2dll.txt: имена товаров через пробел/запятую.
+// Для них шаг остаётся ванильным (0x0125B9E0 = 328 = 0.01 в фикс. точке). В точке перехвата ESI = номер
+// товара в менеджере товаров (тот же индекс, что у ResolveGoodNameByIndex), таблица флагов
+// g_priceExempt[номер] заполняется при первом вызове (товары к этому времени уже загружены).
+static char g_defPriceExempt[512] = "";
+static bool g_defPriceExemptKeySeen = false;
+static unsigned char g_priceExempt[256];
+static unsigned char g_priceExemptReady = 0;
+static const DWORD VANILLA_PRICE_DELTA = 328;
+
+static void EnsureV2dllDefines();
+
+static void __cdecl PriceExemptResolve()
+{
+    EnsureV2dllDefines();
+    memset(g_priceExempt, 0, sizeof(g_priceExempt));
+    __try
+    {
+        char* mgr = *(char**)(g_base + RVA_GOODS_MANAGER);
+        if (!mgr)
+            return;
+        int* b = *(int**)(mgr + 0xC);
+        int* e = *(int**)(mgr + 0x10);
+        int n = (int)(e - b);
+        if (!b || n <= 0)
+            return;
+        if (n > 256)
+            n = 256;
+
+        char list[512];
+        strncpy_s(list, sizeof(list), g_defPriceExempt, _TRUNCATE);
+        int found = 0, total = 0;
+        char* ctx = 0;
+        for (char* tok = strtok_s(list, " \t,;", &ctx); tok; tok = strtok_s(0, " \t,;", &ctx))
+        {
+            ++total;
+            int idx = -1;
+            for (int i = 0; i < n; ++i)
+            {
+                const char* nm = ResolveGoodNameByIndex(i);
+                if (nm && _stricmp(nm, tok) == 0)
+                {
+                    idx = i;
+                    break;
+                }
+            }
+            if (idx < 0)
+                Log("PriceDelta: товар '%s' из price_delta_exempt_goods не найден среди %d товаров", tok, n);
+            else
+            {
+                g_priceExempt[idx] = 1;
+                ++found;
+            }
+        }
+        Log("PriceDelta: товаров с ванильным шагом цены: %d из %d в price_delta_exempt_goods", found, total);
+        g_priceExemptReady = 1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Блок пещеры после воспроизведённых "sar edx,0Fh / mov edi,eax": при первом проходе заполняет
+// таблицу, а для товара из списка пишет ванильный шаг и уходит на RVA_PRICE_RESUME.
+static void EmitPriceExemptPrefix(unsigned char* cave, int& n)
+{
+    // cmp byte ptr [ready], 0
+    cave[n++] = 0x80; cave[n++] = 0x3D;
+    *(DWORD*)(cave + n) = (DWORD)(DWORD_PTR)&g_priceExemptReady; n += 4;
+    cave[n++] = 0x00;
+    // jne skip (пропускаем pushad / call / popad = 7 байт)
+    cave[n++] = 0x75; cave[n++] = 0x07;
+    cave[n++] = 0x60;                                       // pushad
+    cave[n++] = 0xE8;                                       // call PriceExemptResolve
+    *(DWORD*)(cave + n) = (DWORD)(DWORD_PTR)&PriceExemptResolve - (DWORD)(DWORD_PTR)(cave + n + 4); n += 4;
+    cave[n++] = 0x61;                                       // popad
+    // skip: cmp esi, 0xFF ; ja pct
+    cave[n++] = 0x81; cave[n++] = 0xFE; *(DWORD*)(cave + n) = 0xFF; n += 4;
+    cave[n++] = 0x77; cave[n++] = 0x22;                     // ja pct (7 + 2 + 25 = 34)
+    // cmp byte ptr [esi + table], 0
+    cave[n++] = 0x80; cave[n++] = 0xBE;
+    *(DWORD*)(cave + n) = (DWORD)(DWORD_PTR)&g_priceExempt[0]; n += 4;
+    cave[n++] = 0x00;
+    cave[n++] = 0x74; cave[n++] = 0x19;                     // je pct (10 + 10 + 5 = 25)
+    // mov dword ptr [deltaLo], 328 ; mov dword ptr [deltaHi], 0 ; jmp resume
+    cave[n++] = 0xC7; cave[n++] = 0x05;
+    *(DWORD*)(cave + n) = g_base + RVA_PRICE_DELTA; n += 4;
+    *(DWORD*)(cave + n) = VANILLA_PRICE_DELTA; n += 4;
+    cave[n++] = 0xC7; cave[n++] = 0x05;
+    *(DWORD*)(cave + n) = g_base + RVA_PRICE_DELTA + 4; n += 4;
+    *(DWORD*)(cave + n) = 0; n += 4;
+    cave[n++] = 0xE9;
+    *(DWORD*)(cave + n) = (g_base + RVA_PRICE_RESUME) - (DWORD)(DWORD_PTR)(cave + n + 4); n += 4;
+    // pct:
+}
+
 static bool InstallPriceDelta()
 {
     unsigned char* hook = (unsigned char*)(g_base + RVA_PRICE_HOOK);
@@ -4045,10 +4142,12 @@ static bool InstallPriceDelta()
     }
 
     unsigned char* cave = (unsigned char*)VirtualAlloc(
-        0, 128, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        0, 256, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
     if (!cave)
         return false;
+
+    EnsureV2dllDefines();
 
     DWORD deltaLo = g_base + RVA_PRICE_DELTA;
     DWORD deltaHi = deltaLo + 4;
@@ -4058,6 +4157,8 @@ static bool InstallPriceDelta()
     // Восстанавливаем то, что перекрыли прыжком.
     cave[n++] = 0xC1; cave[n++] = 0xFA; cave[n++] = 0x0F;   // sar edx, 0Fh
     cave[n++] = 0x8B; cave[n++] = 0xF8;                     // mov edi, eax
+
+    EmitPriceExemptPrefix(cave, n);                         // товары из price_delta_exempt_goods - ванильный шаг
 
     // EAX и ECX — цена, EDX — целевая цена; MUL затирает EDX.
     cave[n++] = 0x50;                                       // push eax
@@ -4148,10 +4249,12 @@ static bool InstallExponentialPriceDelta()
     }
 
     unsigned char* cave = (unsigned char*)VirtualAlloc(
-        0, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        0, 256, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
     if (!cave)
         return false;
+
+    EnsureV2dllDefines();
 
     DWORD deltaLo = g_base + RVA_PRICE_DELTA;
     DWORD deltaHi = deltaLo + 4;
@@ -4160,6 +4263,8 @@ static bool InstallExponentialPriceDelta()
 
     cave[n++] = 0xC1; cave[n++] = 0xFA; cave[n++] = 0x0F;   // sar edx, 0Fh
     cave[n++] = 0x89; cave[n++] = 0xC7;                     // mov edi, eax
+
+    EmitPriceExemptPrefix(cave, n);                         // товары из price_delta_exempt_goods - ванильный шаг
 
     cave[n++] = 0x0F; cave[n++] = 0xAC; cave[n++] = 0xCF; cave[n++] = 0x08; // shrd edi, ecx, 8
 
@@ -8554,6 +8659,11 @@ static void DefinesApplyLine(const char* key, const char* value)
     {
         strncpy_s(g_defMintingFormula, sizeof(g_defMintingFormula), value, _TRUNCATE);
     }
+    else if (_stricmp(key, "price_delta_exempt_goods") == 0)
+    {
+        strncpy_s(g_defPriceExempt, sizeof(g_defPriceExempt), value, _TRUNCATE);
+        g_defPriceExemptKeySeen = true;
+    }
 }
 
 static const char* const AI_EXPAND_DEFINES_BLOCK =
@@ -8600,6 +8710,15 @@ static const char* const POP_SALARY_DEFINES_BLOCK =
     "# The national modifier pop_income_modifier (technologies, inventions, events, ...; 0.1 = +10%)\n"
     "# is added to the result. Result in percent, 0..1000 (negative = 0). 0 = no formula bonus.\n"
     "pop_salary_additional_multiplier = %s\n";
+
+static const char* const PRICE_EXEMPT_DEFINES_BLOCK =
+    "\n"
+    "# --- Goods excluded from the percentual price step (TRADE_PRICE_DELTA_PERCENTUAL in v2dll_settings.ini) ---\n"
+    "# Names of goods (as in common/goods.txt), separated by spaces or commas, whose price keeps the\n"
+    "# vanilla step (a fixed 0.01 per day) instead of the percentual one. Works only while the\n"
+    "# percentual (or exponential) price step patch is on. Unknown names are written to v2dll.log.\n"
+    "# Empty = every good uses the percentual step.\n"
+    "price_delta_exempt_goods = %s\n";
 
 static void FormatMinWageValue(char* out, size_t cap)
 {
@@ -8672,6 +8791,16 @@ static void EnsureV2dllDefines()
                 Log("defines_v2dll: в '%s' дописан factory_min_wage_per_10000 = %s", g_defPath, val);
             }
         }
+        if (!g_defPriceExemptKeySeen)
+        {
+            FILE* xf = 0;
+            if (fopen_s(&xf, g_defPath, "a") == 0 && xf)
+            {
+                fprintf(xf, PRICE_EXEMPT_DEFINES_BLOCK, g_defPriceExempt);
+                fclose(xf);
+                Log("defines_v2dll: в '%s' дописан price_delta_exempt_goods", g_defPath);
+            }
+        }
         if (!g_defPopSalaryKeySeen)
         {
             FILE* pf = 0;
@@ -8734,6 +8863,7 @@ static void EnsureV2dllDefines()
         FormatMinWageValue(val, sizeof(val));
         fprintf(f, MIN_WAGE_DEFINES_BLOCK, val);
         fprintf(f, POP_SALARY_DEFINES_BLOCK, g_defPopSalaryFormula);
+        fprintf(f, PRICE_EXEMPT_DEFINES_BLOCK, g_defPriceExempt);
     }
     fclose(f);
 

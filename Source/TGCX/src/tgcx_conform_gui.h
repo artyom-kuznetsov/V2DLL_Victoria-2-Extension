@@ -170,7 +170,7 @@ static void tgcx_CfLabels(tgcx_CfPanel* p) {
         {char count_text[96];tgcx_LocRegiments(total,count_text,sizeof(count_text));tgcx_CfText(p,text+1,"%s",used?count_text:"");}
         unsigned leading=tgcx_tpl_kinds,mini[4]={},minis=0;
         if(used)minis=tgcx_TplMinis(c,&leading,mini);
-        for(unsigned k=0;k<tgcx_cf_minis;++k)tgcx_CfText(p,text+2+k,k<minis?"\xD7%d":"",k<minis?c.count[mini[k]]:0);
+        for(unsigned k=0;k<tgcx_cf_minis;++k)tgcx_CfText(p,text+2+k,k<minis?"x%d":"",k<minis?c.count[mini[k]]:0);
         if(tgcx_army_universal) {
             char sprite[96];sprintf_s(key,"tgcx_cf_slot_icon_%u_unit",row);sprintf_s(sprite,"tgcx_cf_slot_sprite_%u_unit",row);
             tgcx_UnivIcon(p->window,key,sprite,leading,leading<tgcx_tpl_kinds);

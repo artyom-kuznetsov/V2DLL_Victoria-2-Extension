@@ -51,9 +51,11 @@ The "Command army" button on a satellite is always available (vanilla: only whil
   
 ### Economic
 #### 1. TRADE_PRICE_DELTA_PERCENTUAL 
-Prices shift by 0.25% of the base price instead of flat 0.01 per day (made by balticšprott).
+Prices shift by 0.25% of the base price instead of flat 0.01 per day.
+Goods that must keep the flat step can be listed in `common/defines_v2dll.txt` (made by balticšprott).
 #### 2. TRADE_PRICE_DELTA_EXPONENTIAL 
 Enables exponential price shifts instead of flat or percentual. INCOMPATIBLE with №1 (made by vesper).
+Goods that must keep the flat step can be listed in `common/defines_v2dll.txt`.
 #### 3. TRADE_MAX_PRICE_20X_MULTIPLIER
 Just changes the price ceiling from x5 of base price to x20 of it.  
 Note: an overflow might occur that will break your game if prices of some factory inputs go beyond its max savings. I recommend increasing MAX_FACTORY_MONEY_SAVE define if you are using this (made by balticšprott).

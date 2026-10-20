@@ -160,7 +160,7 @@ static void tgcx_TplLabels(tgcx_TplPanel* p) {
         tgcx_TplText(p,text+2,used?tgcx_T("tgcx_str_days","%d Days"):"",tgcx_TplBaseDays(c));
         unsigned leading=tgcx_tpl_kinds,mini[4]={},minis=0;
         if(used)minis=tgcx_TplMinis(c,&leading,mini);
-        for(unsigned k=0;k<4;++k)tgcx_TplText(p,text+3+k,k<minis?"\xD7%d":"",k<minis?c.count[mini[k]]:0);
+        for(unsigned k=0;k<4;++k)tgcx_TplText(p,text+3+k,k<minis?"x%d":"",k<minis?c.count[mini[k]]:0);
         if(tgcx_army_universal) {
             char sprite[96];sprintf_s(key,"tgcx_tpl_slot_icon_%u_unit",row);sprintf_s(sprite,"tgcx_tpl_slot_sprite_%u_unit",row);
             tgcx_UnivIcon(p->window,key,sprite,leading,leading<tgcx_tpl_kinds);
