@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.111"
+#define MOD_VERSION "5.116"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -114,6 +114,11 @@ struct Settings
     // (factory_min_wage_per_10000 фунтов в день на 10000 работников из
     // common\defines_ccore.txt), не зависящий от прибыльности.
     bool factoryForceMinWage         = true;
+    // FACTORY_SUBSIDY_COVERS_TARIFF: цель субсидии (деньги, до которых государство доливает субсидируемую
+    // фабрику) считается по базовым ценам суточной потребности, а закупка стоит дороже (наценка импорта) -
+    // фабрика докупала только часть сырья (+0x1E0 < 1) и застревала на этом уровне. Если вчера фабрика
+    // получила долю r < 1, цель субсидии поднимается до стоимости полной потребности (затраты / r).
+    bool factorySubsidyCoversTariff = true;
     // PATCH_NEEDS_HONEST_UI: доли выполнения потребностей попа на экране (подсказки, окно
     // попа) умножаются на фактическое покрытие общего пула денег типа попа. Только вид.
     bool patchNeedsHonestUi          = true;
@@ -4697,6 +4702,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "TRADE_WINDOW_REAL_POP_NEEDS") == 0) { g_settings.tradeRealPopNeeds = v; return; }
     if (_stricmp(key, "PATCH_AI_NAVAL_BASE_LIMIT") == 0)       { g_settings.patchAiNavalBaseLimit       = v; return; }
     if (_stricmp(key, "FACTORY_FORCE_MIN_WAGE") == 0)          { g_settings.factoryForceMinWage         = v; return; }
+    if (_stricmp(key, "FACTORY_SUBSIDY_COVERS_TARIFF") == 0) { g_settings.factorySubsidyCoversTariff = v; return; }
     if (_stricmp(key, "PATCH_NEEDS_HONEST_UI") == 0)           { g_settings.patchNeedsHonestUi          = v; return; }
     if (_stricmp(key, "FACTORY_AI_FACTORY_PRIORITY_RULESWAP") == 0)  { g_settings.factoryAiFactoryPriorityRuleSwap  = v; return; }
     if (_stricmp(key, "POP_CARD_NEEDS_AFFECTED_BY_NEEDS_MODIFIERS_FIX") == 0) { g_settings.popCardNeedsAffectedByNeedsModifiersFix      = v; return; }
@@ -4908,6 +4914,7 @@ static void WriteDefaultSettings(const char* path)
         "POP_FIX_NEEDS_MODIFIERS=%d\n"
         "ENABLE_MINTING=%d\n"
         "FACTORY_MAINTENANCE_IGNORE_THROUGHPUT=%d\n"
+        "FACTORY_SUBSIDY_COVERS_TARIFF=%d\n"
         "\n",
         (int)g_settings.tradePriceDeltaPercentual,
         (int)g_settings.tradePriceDeltaExponential,
@@ -4925,7 +4932,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.popBudgetPayoutNeedsScaled,
         (int)g_settings.popFixNeedsModifiers,
         (int)g_settings.minting,
-        (int)g_settings.factoryMaintenanceIgnoreThroughput);
+        (int)g_settings.factoryMaintenanceIgnoreThroughput,
+        (int)g_settings.factorySubsidyCoversTariff);
 
     fprintf(f,
         "; UI\n"
@@ -22422,36 +22430,68 @@ static const DWORD RVA_MIN_WAGE_BUDGET_SITE   = 0xF4C0E;
 static const DWORD RVA_MIN_WAGE_BUDGET_RESUME = 0xF4C16;
 static DWORD g_minWageBudgetResume = 0;
 
-static long long __cdecl FactoryMinWageBudgetExtra(void* factory)
+static const int FAC_OFF_SPENT  = 0x158;   // затраты на закупки входов за день (int64, тот же масштаб, что деньги)
+static const int FAC_OFF_RATIO  = 0x1E0;   // доля суточной потребности, купленная за день (int64 fixed15, 1.0 = всё)
+
+// Добавка к цели субсидии B (цена_суточной_потребности * 1000 + 0.2 * W): минимум зарплаты
+// (FACTORY_FORCE_MIN_WAGE) и доплата до полной закупки (FACTORY_SUBSIDY_COVERS_TARIFF).
+//
+// Закупка идёт по бюджету = min(деньги, 1.05 * вчерашние затраты) (FUN_00482FF0), а покупаемая доля
+// r = бюджет / стоимость потребности по ценам закупки (с наценкой импорта и т.п.). Цель субсидии
+// считается по базовым ценам, поэтому деньги субсидируемой фабрики покрывают только часть закупки, и
+// вчерашние затраты (основа бюджета) не растут - состояние устойчиво (замер: r = 0.81 годами). Если
+// вчера r < 1, полная потребность стоила затраты / r: цель поднимается до неё (но не более 3x базовой).
+static long long __cdecl FactoryBudgetExtra(void* factory, unsigned costLo, int costHi)
 {
-    if (!g_settings.factoryForceMinWage || g_defMinWageMilli <= 0)
-        return 0;
+    long long total = 0;
     __try
     {
         unsigned char* f = (unsigned char*)factory;
         if (*(f + FAC_OFF_SUBSIDY) == 0 || *(f + FAC_OFF_CLOSED) != 0 || *(int*)(f + FAC_OFF_LEVEL) <= 0)
             return 0;
-        long long minRaw = FacMinWageRaw(f);
-        return minRaw > 0 ? minRaw : 0;
+        if (g_settings.factoryForceMinWage && g_defMinWageMilli > 0)
+        {
+            long long minRaw = FacMinWageRaw(f);
+            if (minRaw > 0)
+                total += minRaw;
+        }
+        if (g_settings.factorySubsidyCoversTariff)
+        {
+            long long cost  = ((long long)costHi << 32) | (unsigned long long)costLo;
+            long long spent = *(long long*)(f + FAC_OFF_SPENT);
+            long long r     = *(long long*)(f + FAC_OFF_RATIO);
+            if (cost > 0 && spent > 0 && r > 0 && r < 32768)
+            {
+                long long full = (spent << 15) / r;
+                if (full > cost * 3)
+                    full = cost * 3;
+                if (full > cost)
+                    total += full - cost;
+            }
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
         return 0;
     }
+    return total;
 }
 
 // VA 0x4F4C0E: add esi,[esp+0x28] / mov eax,edx / adc eax,edi (8 байт); дальше xor edi,edi.
-// ESI:EAX = B. ECX/EDX после этого места не живы (перезаписываются ниже).
+// ESI:EAX = B, стоимость суточной потребности * 1000 = EDI:[esp+0x28]. ECX/EDX после этого места не живы.
 __declspec(naked) static void FactoryMinWageBudgetThunk()
 {
     __asm {
-        add esi, dword ptr [esp + 0x28]
+        mov ecx, dword ptr [esp + 0x28]
+        add esi, ecx
         mov eax, edx
         adc eax, edi
         pushad
+        push edi
+        push ecx
         push ebx
-        call FactoryMinWageBudgetExtra
-        add esp, 4
+        call FactoryBudgetExtra
+        add esp, 12
         mov dword ptr [esp + 20], edx
         mov dword ptr [esp + 24], eax
         popad
@@ -22459,6 +22499,21 @@ __declspec(naked) static void FactoryMinWageBudgetThunk()
         adc eax, edx
         jmp dword ptr [g_minWageBudgetResume]
     }
+}
+
+static bool InstallFactorySubsidyBudget()
+{
+    static const unsigned char BSIG[8]    = { 0x03, 0x74, 0x24, 0x28, 0x8B, 0xC2, 0x13, 0xC7 };
+    static const unsigned char BRESUME[4] = { 0x33, 0xFF, 0x39, 0xBB };
+    g_minWageBudgetResume = g_base + RVA_MIN_WAGE_BUDGET_RESUME;
+    bool ok = WriteJmpSite(RVA_MIN_WAGE_BUDGET_SITE, BSIG, sizeof(BSIG), 8,
+        RVA_MIN_WAGE_BUDGET_RESUME, BRESUME, sizeof(BRESUME),
+        (void*)&FactoryMinWageBudgetThunk, "FactorySubsidy(цель субсидии)");
+    Log("FactorySubsidy: цель субсидии %s (минимум зарплаты %s, доплата до полной закупки %s)",
+        ok ? "установлена" : "НЕ установлена",
+        (g_settings.factoryForceMinWage && g_defMinWageMilli > 0) ? "да" : "нет",
+        g_settings.factorySubsidyCoversTariff ? "да" : "нет");
+    return ok;
 }
 
 static bool InstallFactoryMinWage()
@@ -22471,17 +22526,9 @@ static bool InstallFactoryMinWage()
         RVA_MIN_WAGE_RESUME, RESUME, sizeof(RESUME),
         (void*)&FactoryMinWageThunk, "FactoryMinWage");
 
-    static const unsigned char BSIG[8]    = { 0x03, 0x74, 0x24, 0x28, 0x8B, 0xC2, 0x13, 0xC7 };
-    static const unsigned char BRESUME[4] = { 0x33, 0xFF, 0x39, 0xBB };
-    g_minWageBudgetResume = g_base + RVA_MIN_WAGE_BUDGET_RESUME;
-    bool okBudget = WriteJmpSite(RVA_MIN_WAGE_BUDGET_SITE, BSIG, sizeof(BSIG), 8,
-        RVA_MIN_WAGE_BUDGET_RESUME, BRESUME, sizeof(BRESUME),
-        (void*)&FactoryMinWageBudgetThunk, "FactoryMinWage(цель субсидии)");
-
-    Log("FactoryMinWage: %s, цель субсидии %s (минимум %d.%03d в день на 10000 работников, 0 = выкл; factory_min_wage_per_10000 в common\\defines_ccore.txt)",
-        ok ? "установлен" : "НЕ установлен", okBudget ? "установлена" : "НЕ установлена",
-        g_defMinWageMilli / 1000, g_defMinWageMilli % 1000);
-    return ok || okBudget;
+    Log("FactoryMinWage: %s (минимум %d.%03d в день на 10000 работников, 0 = выкл; factory_min_wage_per_10000 в common\\defines_ccore.txt)",
+        ok ? "установлен" : "НЕ установлен", g_defMinWageMilli / 1000, g_defMinWageMilli % 1000);
+    return ok;
 }
 
 // ---------------------------------------------------------------
@@ -22526,6 +22573,12 @@ static const int COUNTRY_OFF_MODIFIERS = 0xA60;
 // Модификатор pop_income_modifier: ключевое слово существующего, нигде не используемого
 // rgo_input (слот 54 блока модификаторов страны, токен 0x847, текст MODIFIER_RGO_INPUT).
 static const int   POPSAL_MOD_SLOT       = 54;
+// Эффекты ТЕХНОЛОГИЙ (сумма изученных) движок хранит не в блоке модификаторов, а в объекте country+0xBCC
+// (тот же раскладкой, что CTechnology): 16 значений int64 fixed15 с +0xE0, индекс = 4 * группа + вид
+// (группа 0 = RGO, 1 = фабрики, 2 = кустари; вид 0 = input, 1 = output, 2 = throughput). Так читает подсказку
+// FUN_004EFAD0. pop_income_modifier = переименованный rgo_input = группа 0, вид 0 -> +0xE0.
+static const int   COUNTRY_OFF_TECHSTATE = 0xBCC;
+static const int   TECHSTATE_OFF_RGO_INPUT = 0xE0;
 static const DWORD RVA_KW_NAME_IMM       = 0x84EA7B;   // imm32 в "mov edx, offset 'rgo_input'" (FUN_00C381C0)
 static const DWORD RVA_KW_NAME_STR       = 0xA1EA7C;   // строка "rgo_input" в .rdata
 static const DWORD RVA_KW_OBJECT         = 0xEEE3C4;   // статический объект ключевого слова {токен, имя[255]}
@@ -22542,6 +22595,7 @@ static int   g_popSalLastHours = 0;
 static int   g_popSalMonthKey = 0;
 static bool  g_popSalTimeKnown = false;
 static LONG  g_popSalLogged = 0;
+static LONG  g_popSalTechLogged = 0;
 
 static int PopSalaryComputeTenths(void* country)
 {
@@ -22559,8 +22613,20 @@ static int PopSalaryComputeTenths(void* country)
     }
     // Национальный модификатор pop_income_modifier: тысячные (0.1 -> 100) = десятые доли процента.
     unsigned char* block = *(unsigned char**)((char*)country + COUNTRY_OFF_MODIFIERS);
-    if (block)
-        t += *(int*)(block + POPSAL_MOD_SLOT * 8);
+    long long fromBlock = block ? *(int*)(block + POPSAL_MOD_SLOT * 8) : 0;
+    t += fromBlock;
+    // Сумма эффектов изученных технологий (fixed15 -> тысячные).
+    long long fromTech = 0;
+    unsigned char* techState = *(unsigned char**)((char*)country + COUNTRY_OFF_TECHSTATE);
+    if (techState)
+    {
+        long long raw = *(long long*)(techState + TECHSTATE_OFF_RGO_INPUT);
+        fromTech = (raw * 1000 + (raw >= 0 ? 16384 : -16384)) / 32768;
+        t += fromTech;
+    }
+    if (country == GetLocalPlayerCountry() && InterlockedIncrement(&g_popSalTechLogged) <= 12)
+        LogDbg("PopSalaryBonus: pop_income_modifier игрока: модификаторы %d, технологии %d (сырое %lld) тысячных",
+            (int)fromBlock, (int)fromTech, techState ? *(long long*)(techState + TECHSTATE_OFF_RGO_INPUT) : 0LL);
     return t < 0 ? 0 : (t > 10000 ? 10000 : (int)t);
 }
 
@@ -26792,6 +26858,10 @@ static bool Install()
 
     if (g_settings.factoryForceMinWage)
         InstallFactoryMinWage();
+
+    EnsureCCoreDefines();
+    if ((g_settings.factoryForceMinWage && g_defMinWageMilli > 0) || g_settings.factorySubsidyCoversTariff)
+        InstallFactorySubsidyBudget();
 
     // Исправление вылета, без переключателя (как CivilizeNullCheck).
     InstallDestroyCmdNullCheck();

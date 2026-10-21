@@ -1,9 +1,7 @@
 
 ### dll_Submods
 Every `*.dll` in `z_CreatineCore\dll_Submods\` is loaded at startup (alphabetical order, after all built-in patches), whichever mod is running.
-No settings are needed. A submod can export `V2Mod_Init` (it then receives the API from `V2ModAPI.h`) or just do its work in `DllMain`.
-To disable one, rename it (e.g. `x.dll.off`) or move it out of the folder. Submods that need mod files (a `.gui`, textures) still read those from the running mod.
-Old installs: if `z_CreatineCore\creatinecore_settings.ini` is missing but `creatinecore_settings.ini` exists next to v2game.exe, it is copied once.
+If the author did not provide his submod with settings, to disable one, rename it (e.g. `x.dll.off`) or move it out of the folder. Submods that need mod files (a `.gui`, textures) still read those from the running mod.
   
 # Feature overview
 ## Explaining each option in the .ini file
@@ -78,6 +76,11 @@ Fixes pop need modifiers, they now do exactly what you expect (some of them were
 #### 18. ENABLE_MINTING
 Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common\defines_ccore.txt` inside your mod folder. 
 `minting_inc` label in `country_budget.gui` will display the income (made by balticšprott).
+#### 19. FACTORY_MAINTENANCE_IGNORE_THROUGHPUT
+Factories buy maintenance goods (`efficiency` in production types) in the amount they really consume, without the throughput multiplier. Vanilla bought base x level x throughput every day but consumed only base x level, so the stock grew every day when throughput was above 100% (made by balticšprott).
+#### 20. FACTORY_SUBSIDY_COVERS_TARIFF
+Tariffs make factories spend more money and subsidy does not calculate for that ==> Factory can't work on 100% efficiency.  
+This fix makes subsidies cover tariff expenses (made by balticšprott).
   
 ### UI 
 #### 1. ENABLE_BUTTONS 
@@ -123,10 +126,14 @@ The "Total income" row of the budget window did not include tariff income. This 
 Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. With this patch, real needs fulfillment is displayed (made by balticšprott).
 #### 15. ENABLE_VASSAL_COLORS=1 // VASSAL_COLOR_PERCENT=80
 Satellite colour will be closer to its overlord colour by set percent. 100 = take overlord colour, 0 = keep original colour (made by maxioten).
-#### 16. FACTORY_MAINTENANCE_DISPLAY_FIX=1
-Fixes mismatch between factory maintenance displayed in factory tooltip and trade good window.
-This is not just a cosmetic fix - it stops factories from stockpiling more than they need daily.
+#### 16. FACTORY_MAINTENANCE_DISPLAY_FIX
+Trade window and factory window now show the same real consumption of maintenance goods (`efficiency` in production types): base x level x (1 + factory_maintenance), without the throughput multiplier (made by balticšprott).
   
+#### 17. GOODS_NEED_TOTAL
+Goods card (`trade_flow`) gets a third total, "Required": government and factory needs of the shown country for this good (factory need from the same statistics as the "Used" column, so Required is never below Used) plus the needs of buildings with `goods_consumption` (budget expenses). Population is not included. Needs `total_need_text` / `total_need_value` in `trade_flow.gui` and the `TRADE_FLOW_TOTAL_NEED` localisation key; works for any country (made by balticšprott).
+  
+#### 18. TRADE_WINDOW_REAL_POP_NEEDS
+The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand the engine really builds for pops (with life/everyday/luxury and strata need modifiers), not the vanilla simplified estimate. Values are the demand of the last finished day; before the first day passes the vanilla numbers stay (made by balticšprott).
   
 ### Miscellaneous
 #### 1. PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH 
@@ -147,7 +154,7 @@ Prevents game from crashing in miscellaneous scenarios with "limit_by_local_supp
 When enabled, an AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of one state (`<mod>\common\defines_ccore.txt`, default 1, `0` = no limit). The vanilla AI builds a naval base in every port province. The player and capitalists are not limited.  
 You don't need this if your mod only allows one naval base per state (made by balticšprott).
 #### 9. LOAD_DLL_FROM_MOD_FOLDER
-CreatineCore will load `v2dll_mod.dll` in the mod folder. In case you want to add new patches for your mod independently (made by maxioten).
+CreatineCore will load `ccore_mod.dll` in the mod folder. In case you want to add new patches for your mod independently (made by maxioten).
   
   
 ### Script Extensions
@@ -241,10 +248,9 @@ Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by th
 Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
   
 #### 5. POP_BUILD_INFRASTRUCTURE_RULE
-Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt` like `pop_build_factory`).
+Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt`).
 `pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
-Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` next to `pop_build_factory`.
-Give it a name by changing the `RULE_POP_OPEN_FACTORY_INVEST` localization (the rule takes over the old, unused `pop_open_factory_invest` key, which stops working) (made by balticšprott).
+Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` to your economic policies/reforms before enabling (made by balticšprott).
 
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
@@ -290,7 +296,8 @@ Logs used for debugging multiplayer out-of-syncs (made by av213238).
 Crash log :) (made by av213238).
 #### 5. ENABLE_CRASH_DUMP
 Creates Windows memory dump on game crash (made by av213238).
-#### 6. FACTORY_EXPAND_TRACE
-Removed. The factory expansion observer is no longer part of the code: there is no such key and `Logs\v2dll_expand.log` is never written.
-#### 7. PATCH_STATE_SAVINGS_CAP / STATE_SAVINGS_CAP_POUNDS 
+#### 6. PATCH_STATE_SAVINGS_CAP / STATE_SAVINGS_CAP_POUNDS 
 Caps state savings to fix repeating desyncs in MP (made by balticšprott).
+#### 7. MP_HOST_HUMAN_SYNC=1
+Should prevent one certain miscellanous desync issue. Not confirmed.
+  

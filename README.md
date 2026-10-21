@@ -88,6 +88,9 @@ Every country gets a new daily income called "minting", calculated from a formul
 `minting_inc` label in `country_budget.gui` will display the income (made by balticšprott).
 #### 19. FACTORY_MAINTENANCE_IGNORE_THROUGHPUT
 Factories buy maintenance goods (`efficiency` in production types) in the amount they really consume, without the throughput multiplier. Vanilla bought base x level x throughput every day but consumed only base x level, so the stock grew every day when throughput was above 100% (made by balticšprott).
+#### 20. FACTORY_SUBSIDY_COVERS_TARIFF
+Tariffs make factories spend more money and subsidy does not calculate for that ==> Factory can't work on 100% efficiency.  
+This fix makes subsidies cover tariff expenses (made by balticšprott).
   
 ### UI 
 #### 1. ENABLE_BUTTONS 
@@ -255,7 +258,7 @@ Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by th
 Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
   
 #### 5. POP_BUILD_INFRASTRUCTURE_RULE
-Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt` like `pop_build_factory`).
+Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt`).
 `pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
 Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` to your economic policies/reforms before enabling (made by balticšprott).
 
