@@ -1,0 +1,8 @@
+1. Put all .dds files into gfx/interface/
+2. Put musicplayer.gfx into interface/ folder
+3. Do what the .gui file says :)
+4. Set "ENABLE_MUSIC_PLAYER" to 1 (you might also want to use "MUSIC_FAIR_RANDOM")
+5. It's done! Enjoy your music!
+
+
+NB! /gfx/interface/ and /interface/ are different folders.
