@@ -14,7 +14,7 @@
     
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="V2DLL_Dinput8Proxy.cpp" />
+    <ClCompile Include="CCore_Dinput8Proxy.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>

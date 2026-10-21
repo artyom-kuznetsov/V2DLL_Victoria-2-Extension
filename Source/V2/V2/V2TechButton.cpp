@@ -7,10 +7,10 @@
 // Собирать: Visual Studio, Dynamic-Link Library, платформа x86 (Win32),
 // конфигурация Release, рантайм /MT.
 //
-// Загружается как V2DLL\v2dll_core.dll: крошечный прокси dinput8.dll в папке
-// игры (V2DLL_Dinput8Proxy.cpp) подгружает его при старте, ванильный lua51.dll
-// не трогаем. Все файлы V2DLL (ini, Logs\, eventmusic.dll, dll_Submods\)
-// лежат в папке V2DLL\ рядом с этой DLL.
+// Загружается как z_CreatineCore\creatinecore.dll: крошечный прокси dinput8.dll в папке
+// игры (CCore_Dinput8Proxy.cpp) подгружает его при старте, ванильный lua51.dll
+// не трогаем. Все файлы CreatineCore (ini, Logs\, eventmusic.dll, dll_Submods\)
+// лежат в папке z_CreatineCore\ рядом с этой DLL.
 
 #ifdef _WIN64
 #error This DLL must be built for Win32 (x86)
@@ -31,7 +31,7 @@
 #include <pmmintrin.h>
 #include <vector>
 
-#include "V2DLL_Shared.h"
+#include "CCore_Shared.h"
 
 // ---------------------------------------------------------------
 // Настройки сборки
@@ -41,9 +41,9 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.98"
+#define MOD_VERSION "5.111"
 
-// Настройки ниже читаются из V2DLL\v2dll_settings.ini при
+// Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
 // значениями по умолчанию (перечисленными здесь). Правка файла не
 // требует пересборки DLL - изменения применяются при следующем
@@ -52,7 +52,7 @@ struct Settings
 {
     // Если true - после чтения этого же файла DLL определяет папку
     // запущенного мода (по "-mod=" в командной строке) и перечитывает
-    // v2dll_settings.ini УЖЕ ОТТУДА, независимо от того, что здесь.
+    // creatinecore_settings.ini УЖЕ ОТТУДА, независимо от того, что здесь.
     // См. ResolveModFolder/LoadSettings ниже по файлу.
     bool localModConfig = false;
 
@@ -87,21 +87,32 @@ struct Settings
     bool factoryAllowConstructionInColonial     = true;
     bool patchHideNoSupplyFactories  = true;
     // Фабрики: накопления уходят владельцам при любом закрытии, а убыточная
-    // несубсидируемая фабрика закрывается сама (срок - в common\defines_v2dll.txt).
+    // несубсидируемая фабрика закрывается сама (срок - в common\defines_ccore.txt).
     // См. InstallFactoryClose. DRY_RUN: только лог, ничего не меняется.
     bool factoryRefundSavingsOnClose     = true;
     bool factoryAutoCloseUnprofitable       = true;
     // PATCH_AI_EXPAND_STAFFING: ИИ-страна расширяет существующую фабрику
     // (FUN_00857530, выбор региона) только если она укомплектована рабочими
-    // не меньше ai_factory_expand_min_staffing % (common\defines_v2dll.txt).
+    // не меньше ai_factory_expand_min_staffing % (common\defines_ccore.txt).
     bool factoryAiSpamFix       = true;
+    // FACTORY_MAINTENANCE_DISPLAY_FIX: окна торговли и фабрики показывают реальный расход товаров
+    // содержания (база x уровень x (1 + factory_maintenance)). См. InstallMaintenanceDisplayFix.
+    bool factoryMaintenanceDisplayFix = true;
+    // FACTORY_MAINTENANCE_IGNORE_THROUGHPUT: закупка товаров содержания = их реальный расход
+    // (без множителя товарооборота), запас на складе больше не растёт. См. InstallMaintenanceIgnoreThroughput.
+    bool factoryMaintenanceIgnoreThroughput = true;
+    // GOODS_NEED_TOTAL: поле "Всего нужно" в карточке товара (сумма нужд страны). См. InstallGoodsNeedTotal.
+    bool goodsNeedTotal = true;
+    // TRADE_WINDOW_REAL_POP_NEEDS: столбец "Нужда" населения в окне торговли = полный спрос, который реально
+    // строит движок (с модификаторами классов и страт). См. InstallTradeRealPopNeeds.
+    bool tradeRealPopNeeds = true;
     // PATCH_AI_NAVAL_BASE_LIMIT: ИИ не закладывает новую морскую базу (уровень
     // 0 -> 1) в регионе, где базы уже есть в >= ai_naval_base_max_provinces_per_state
-    // провинциях (common\defines_v2dll.txt). Улучшение существующей не ограничено.
+    // провинциях (common\defines_ccore.txt). Улучшение существующей не ограничено.
     bool patchAiNavalBaseLimit       = false;
     // FACTORY_FORCE_MIN_WAGE: фиксированный минимум зарплаты работникам фабрики
     // (factory_min_wage_per_10000 фунтов в день на 10000 работников из
-    // common\defines_v2dll.txt), не зависящий от прибыльности.
+    // common\defines_ccore.txt), не зависящий от прибыльности.
     bool factoryForceMinWage         = true;
     // PATCH_NEEDS_HONEST_UI: доли выполнения потребностей попа на экране (подсказки, окно
     // попа) умножаются на фактическое покрытие общего пула денег типа попа. Только вид.
@@ -150,8 +161,12 @@ struct Settings
     // POP_SALARY_ADDITIONAL_MULTIPLIER: каждое зачисление дохода попу (зарплата, доля
     // владельца, доход ремесленника, выплата из бюджета) после вычета налога
     // увеличивается на pop_salary_additional_multiplier % - формула по стране в
-    // common\defines_v2dll.txt, считается раз в игровой месяц (как minting_formula).
+    // common\defines_ccore.txt, считается раз в игровой месяц (как minting_formula).
     bool popSalaryAdditionalMultiplier = true;
+    // POP_BUILD_INFRASTRUCTURE_RULE: новое правило реформ pop_build_infrastructure решает, строят ли
+    // капиталисты не-фабрики (железные дороги и другие провинциальные здания); pop_build_factory
+    // остаётся только за фабриками (см. InstallPopBuildInfrastructureRule).
+    bool popBuildInfrastructureRule = true;
     // Ключ goods_consumption в common\buildings.txt: чтение блока (иначе
     // игра падает) и ежедневная закупка товаров государством по рыночной
     // цене для каждого такого здания в стране; сумма - в строке бюджета
@@ -308,7 +323,7 @@ struct Settings
 
 static Settings g_settings;
 
-// Загрузка/сохранение настроек (v2dll_settings.ini) реализовано
+// Загрузка/сохранение настроек (creatinecore_settings.ini) реализовано
 // ниже по файлу, после таблицы EXE_PATCHES - подстановка значений
 // по ключам PATCH_<ИМЯ> ищет патч в этой таблице по имени.
 static void LoadSettings();
@@ -320,15 +335,15 @@ static bool g_logCsInit = false;
 
 static HMODULE g_selfModule = 0;
 
-// Папка V2DLL\ (в ней лежит эта DLL), без '\' на конце. Здесь же v2dll_settings.ini,
+// Папка z_CreatineCore\ (в ней лежит эта DLL), без '\' на конце. Здесь же creatinecore_settings.ini,
 // Logs\, eventmusic.dll и dll_Submods\. Папка игры (там v2game.exe) - GetGameDirectory.
-static wchar_t g_v2dllDirW[MAX_PATH];
-static char    g_v2dllDirA[MAX_PATH];
-static bool    g_v2dllDirReady = false;
+static wchar_t g_ccoreDirW[MAX_PATH];
+static char    g_ccoreDirA[MAX_PATH];
+static bool    g_ccoreDirReady = false;
 
 static void InitOwnDir()
 {
-    if (g_v2dllDirReady)
+    if (g_ccoreDirReady)
         return;
 
     wchar_t path[MAX_PATH];
@@ -345,31 +360,31 @@ static void InitOwnDir()
     if (slash)
     {
         *slash = 0;
-        wcscpy_s(g_v2dllDirW, path);
+        wcscpy_s(g_ccoreDirW, path);
     }
     else
     {
-        // запасной вариант: <папка exe>\V2DLL
+        // запасной вариант: <папка exe>\CreatineCore
         DWORD n = GetModuleFileNameW(NULL, path, MAX_PATH);
         slash = (n && n < MAX_PATH) ? wcsrchr(path, L'\\') : 0;
         if (slash)
         {
             *slash = 0;
-            swprintf_s(g_v2dllDirW, L"%s\\V2DLL", path);
+            swprintf_s(g_ccoreDirW, L"%s\\z_CreatineCore", path);
         }
         else
-            wcscpy_s(g_v2dllDirW, L"V2DLL");
+            wcscpy_s(g_ccoreDirW, L"z_CreatineCore");
     }
-    WideCharToMultiByte(CP_ACP, 0, g_v2dllDirW, -1, g_v2dllDirA, MAX_PATH, 0, 0);
-    g_v2dllDirA[MAX_PATH - 1] = 0;
-    g_v2dllDirReady = true;
+    WideCharToMultiByte(CP_ACP, 0, g_ccoreDirW, -1, g_ccoreDirA, MAX_PATH, 0, 0);
+    g_ccoreDirA[MAX_PATH - 1] = 0;
+    g_ccoreDirReady = true;
 }
 
-// Для V2DLL_ModLoader.cpp (dll_Submods\).
+// Для CCore_ModLoader.cpp (dll_Submods\).
 const char* V2_OwnDir()
 {
     InitOwnDir();
-    return g_v2dllDirA;
+    return g_ccoreDirA;
 }
 
 static wchar_t g_logsDir[MAX_PATH];
@@ -389,7 +404,7 @@ static void InitLogDir()
         return;
 
     InitOwnDir();
-    swprintf_s(g_logsDir, L"%s\\Logs", g_v2dllDirW);
+    swprintf_s(g_logsDir, L"%s\\Logs", g_ccoreDirW);
 
     if (!CreateDirectoryW(g_logsDir, NULL))
     {
@@ -526,7 +541,7 @@ void Log(const char* fmt, ...)
 
 // Отладочный лог: диагностика, которую мы заводили при разработке отдельных
 // фич (покадровые/по событию записи, зонды, дампы). По умолчанию выключен
-// (DEBUG_LOG=0 в v2dll_settings.ini): иначе лог растёт на десятки мегабайт.
+// (DEBUG_LOG=0 в creatinecore_settings.ini): иначе лог растёт на десятки мегабайт.
 // Строки установки патчей и ошибок (сигнатура не совпала, исключения) идут
 // через обычный Log и остаются всегда. Аргументы при выключенном режиме не
 // вычисляются.
@@ -2957,7 +2972,7 @@ static const char* ResolveProdTypeNamePtr(void* typePtr)
 }
 
 // Папка игры (где v2game.exe). Раньше это была папка DLL (lua51.dll лежал рядом с
-// exe), теперь DLL в V2DLL\ - поэтому берём путь exe.
+// exe), теперь DLL в z_CreatineCore\ - поэтому берём путь exe.
 static void GetGameDirectory(char* outDir, size_t outSize)
 {
     outDir[0] = 0;
@@ -4037,7 +4052,7 @@ static const DWORD RVA_PRICE_DELTA = 0xE5B9E0;  // int64, младшее сло�
 static const unsigned char PRICE_SIG[5] = { 0xC1, 0xFA, 0x0F, 0x8B, 0xF8 };
 
 // ---- Товары, на которые процентный (и экспоненциальный) шаг не действует ----
-// price_delta_exempt_goods в <мод>\common\defines_v2dll.txt: имена товаров через пробел/запятую.
+// price_delta_exempt_goods в <мод>\common\defines_ccore.txt: имена товаров через пробел/запятую.
 // Для них шаг остаётся ванильным (0x0125B9E0 = 328 = 0.01 в фикс. точке). В точке перехвата ESI = номер
 // товара в менеджере товаров (тот же индекс, что у ResolveGoodNameByIndex), таблица флагов
 // g_priceExempt[номер] заполняется при первом вызове (товары к этому времени уже загружены).
@@ -4047,11 +4062,11 @@ static unsigned char g_priceExempt[256];
 static unsigned char g_priceExemptReady = 0;
 static const DWORD VANILLA_PRICE_DELTA = 328;
 
-static void EnsureV2dllDefines();
+static void EnsureCCoreDefines();
 
 static void __cdecl PriceExemptResolve()
 {
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
     memset(g_priceExempt, 0, sizeof(g_priceExempt));
     __try
     {
@@ -4149,7 +4164,7 @@ static bool InstallPriceDelta()
     if (!cave)
         return false;
 
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
 
     DWORD deltaLo = g_base + RVA_PRICE_DELTA;
     DWORD deltaHi = deltaLo + 4;
@@ -4256,7 +4271,7 @@ static bool InstallExponentialPriceDelta()
     if (!cave)
         return false;
 
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
 
     DWORD deltaLo = g_base + RVA_PRICE_DELTA;
     DWORD deltaHi = deltaLo + 4;
@@ -4559,7 +4574,7 @@ static const int EXE_PATCH_COUNT = sizeof(EXE_PATCHES) / sizeof(EXE_PATCHES[0]);
 
 
 // ---------------------------------------------------------------
-// Загрузка/сохранение настроек (v2dll_settings.ini)
+// Загрузка/сохранение настроек (creatinecore_settings.ini)
 //
 // Ключи ENABLE_* и семь именованных PATCH_* правят поля g_settings.
 // Любой другой ключ PATCH_<ИМЯ> ищется (без учёта регистра) в
@@ -4676,6 +4691,10 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "FACTORY_REFUND_SAVINGS_ON_CLOSE") == 0)      { g_settings.factoryRefundSavingsOnClose     = v; return; }
     if (_stricmp(key, "FACTORY_AUTO_CLOSE_UNPROFITABLE") == 0) { g_settings.factoryAutoCloseUnprofitable = v; return; }
     if (_stricmp(key, "FACTORY_AI_SPAM_FIX") == 0)        { g_settings.factoryAiSpamFix       = v; return; }
+    if (_stricmp(key, "FACTORY_MAINTENANCE_DISPLAY_FIX") == 0) { g_settings.factoryMaintenanceDisplayFix = v; return; }
+    if (_stricmp(key, "FACTORY_MAINTENANCE_IGNORE_THROUGHPUT") == 0) { g_settings.factoryMaintenanceIgnoreThroughput = v; return; }
+    if (_stricmp(key, "GOODS_NEED_TOTAL") == 0)           { g_settings.goodsNeedTotal           = v; return; }
+    if (_stricmp(key, "TRADE_WINDOW_REAL_POP_NEEDS") == 0) { g_settings.tradeRealPopNeeds = v; return; }
     if (_stricmp(key, "PATCH_AI_NAVAL_BASE_LIMIT") == 0)       { g_settings.patchAiNavalBaseLimit       = v; return; }
     if (_stricmp(key, "FACTORY_FORCE_MIN_WAGE") == 0)          { g_settings.factoryForceMinWage         = v; return; }
     if (_stricmp(key, "PATCH_NEEDS_HONEST_UI") == 0)           { g_settings.patchNeedsHonestUi          = v; return; }
@@ -4760,6 +4779,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "ENABLE_RESTART_GAME_BUTTON") == 0)                     { g_settings.enableRestartGameButton                = v; return; }
     if (_stricmp(key, "ENABLE_MINTING") == 0)                   { g_settings.minting                     = v; return; }
     if (_stricmp(key, "POP_SALARY_ADDITIONAL_MULTIPLIER") == 0) { g_settings.popSalaryAdditionalMultiplier = v; return; }
+    if (_stricmp(key, "POP_BUILD_INFRASTRUCTURE_RULE") == 0)    { g_settings.popBuildInfrastructureRule = v; return; }
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "ENABLE_ASSIMILATE_BLOCK") == 0)          { g_settings.assimilateBlock             = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
@@ -4887,6 +4907,7 @@ static void WriteDefaultSettings(const char* path)
         "POP_BUDGET_PAYOUT_NEEDS_SCALED=%d\n"
         "POP_FIX_NEEDS_MODIFIERS=%d\n"
         "ENABLE_MINTING=%d\n"
+        "FACTORY_MAINTENANCE_IGNORE_THROUGHPUT=%d\n"
         "\n",
         (int)g_settings.tradePriceDeltaPercentual,
         (int)g_settings.tradePriceDeltaExponential,
@@ -4903,7 +4924,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.popCardNeedsAffectedByNeedsModifiersFix,
         (int)g_settings.popBudgetPayoutNeedsScaled,
         (int)g_settings.popFixNeedsModifiers,
-        (int)g_settings.minting);
+        (int)g_settings.minting,
+        (int)g_settings.factoryMaintenanceIgnoreThroughput);
 
     fprintf(f,
         "; UI\n"
@@ -4920,6 +4942,9 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_RESTART_GAME_BUTTON=%d\n"
         "ENABLE_VASSAL_COLORS=%d\n"
         "VASSAL_COLOR_PERCENT=%d\n"
+        "FACTORY_MAINTENANCE_DISPLAY_FIX=%d\n"
+        "GOODS_NEED_TOTAL=%d\n"
+        "TRADE_WINDOW_REAL_POP_NEEDS=%d\n"
         "\n",
         (int)g_settings.buttons,
         (int)g_settings.decisionFilter,
@@ -4933,7 +4958,10 @@ static void WriteDefaultSettings(const char* path)
         (int)FindExePatchEnabled("budget_total_income_tariffs_1"),
         (int)g_settings.enableRestartGameButton,
         (int)g_settings.vassalColors,
-        g_settings.vassalColorPercent);
+        g_settings.vassalColorPercent,
+        (int)g_settings.factoryMaintenanceDisplayFix,
+        (int)g_settings.goodsNeedTotal,
+        (int)g_settings.tradeRealPopNeeds);
 
     fprintf(f,
         "; Miscellaneous\n"
@@ -4964,12 +4992,14 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_EVENT_SOUNDS=%d\n"
         "BUILDING_GOODS_CONSUMPTION=%d\n"
         "POP_SALARY_ADDITIONAL_MULTIPLIER=%d\n"
+        "POP_BUILD_INFRASTRUCTURE_RULE=%d\n"
         "\n",
         (int)g_settings.assimilateBlock,
         (int)g_settings.movePopBlock,
         (int)g_settings.EventSounds,
         (int)g_settings.goodsConsumption,
-        (int)g_settings.popSalaryAdditionalMultiplier);
+        (int)g_settings.popSalaryAdditionalMultiplier,
+        (int)g_settings.popBuildInfrastructureRule);
 
     fprintf(f,
         "; Stability and Performance\n"
@@ -5170,26 +5200,33 @@ static bool ResolveModFolder(char* outFolder, size_t outSize)
     return ResolveModFolderAt(modArg + 5, outFolder, outSize);
 }
 
-// Сначала общий V2DLL\v2dll_settings.ini (LOCAL_MOD_CONFIG).
+// Сначала общий z_CreatineCore\creatinecore_settings.ini (LOCAL_MOD_CONFIG).
 // Если включён - перечитываем из папки запущенного мода.
 static void LoadSettings()
 {
     static char ROOT_PATH[MAX_PATH];
-    _snprintf_s(ROOT_PATH, sizeof(ROOT_PATH), _TRUNCATE, "%s\\v2dll_settings.ini", V2_OwnDir());
+    _snprintf_s(ROOT_PATH, sizeof(ROOT_PATH), _TRUNCATE, "%s\\creatinecore_settings.ini", V2_OwnDir());
 
-    // Переезд со старой раскладки: ini лежал в папке игры. Если в V2DLL\ его ещё нет,
-    // а в папке игры есть - копируем один раз (старый файл не трогаем).
+    // Переезд со старых раскладок: v2dll_settings.ini лежал в папке игры или в папке V2DLL\.
+    // Если нового ini ещё нет, а старый есть - копируем один раз (старый файл не трогаем).
     if (GetFileAttributesA(ROOT_PATH) == INVALID_FILE_ATTRIBUTES)
     {
         char gameDir[MAX_PATH];
         GetGameDirectory(gameDir, sizeof(gameDir));
-        char oldIni[MAX_PATH];
-        _snprintf_s(oldIni, sizeof(oldIni), _TRUNCATE, "%s\\v2dll_settings.ini", gameDir);
-        if (gameDir[0] && GetFileAttributesA(oldIni) != INVALID_FILE_ATTRIBUTES)
+        if (gameDir[0])
         {
-            CreateDirectoryA(V2_OwnDir(), NULL);
-            if (CopyFileA(oldIni, ROOT_PATH, TRUE))
-                Log("LoadSettings: v2dll_settings.ini перенесён из папки игры (%s) в V2DLL\\", oldIni);
+            static const char* const OLD_INI[2] = { "%s\\v2dll_settings.ini", "%s\\V2DLL\\v2dll_settings.ini" };
+            for (int i = 0; i < 2; ++i)
+            {
+                char oldIni[MAX_PATH];
+                _snprintf_s(oldIni, sizeof(oldIni), _TRUNCATE, OLD_INI[i], gameDir);
+                if (GetFileAttributesA(oldIni) == INVALID_FILE_ATTRIBUTES)
+                    continue;
+                CreateDirectoryA(V2_OwnDir(), NULL);
+                if (CopyFileA(oldIni, ROOT_PATH, TRUE))
+                    Log("LoadSettings: старый ini перенесён (%s) в %s", oldIni, ROOT_PATH);
+                break;
+            }
         }
     }
 
@@ -5208,7 +5245,7 @@ static void LoadSettings()
     }
 
     char modPath[MAX_PATH];
-    _snprintf_s(modPath, sizeof(modPath), _TRUNCATE, "%s\\v2dll_settings.ini", modFolder);
+    _snprintf_s(modPath, sizeof(modPath), _TRUNCATE, "%s\\creatinecore_settings.ini", modFolder);
 
     Log("LOCAL_MOD_CONFIG=1: настройки берутся из %s", modPath);
     LoadSettingsFrom(modPath);
@@ -8022,7 +8059,7 @@ static bool InstallVersionLabel()
     }
 
     sprintf_s(g_versionLabel, sizeof(g_versionLabel),
-        "V2 v3.04 + V2DLL v%s", MOD_VERSION);
+        "V2 v3.04 + CreatineCore v%s", MOD_VERSION);
 
     unsigned len = (unsigned)strlen(g_versionLabel);
 
@@ -8534,10 +8571,10 @@ static void* GetLocalPlayerCountry()
 }
 
 // ---------------------------------------------------------------
-// <мод>\common\defines_v2dll.txt - настройки DLL, относящиеся к данным
+// <мод>\common\defines_ccore.txt - настройки DLL, относящиеся к данным
 // мода (а не к машине игрока): они должны совпадать у всех игроков
 // сетевой партии, иначе OOS, поэтому живут рядом с defines.lua, а не
-// в v2dll_settings.ini. Файл создаётся при первом запуске.
+// в creatinecore_settings.ini. Файл создаётся при первом запуске.
 //   factory_unprofitable_close_days - срок автозакрытия убыточной
 //                                     фабрики (InstallFactoryClose), 0 = выкл
 //   minting_formula                 - формула minting (раньше лежала в
@@ -8567,7 +8604,7 @@ static char g_defMintingFormula[256] = "";
 static char g_defPath[MAX_PATH] = "";
 static bool g_defLoaded = false;
 
-static void V2dllDefinesPath(const char* fileName, char* out, size_t outSize)
+static void CCoreDefinesPath(const char* fileName, char* out, size_t outSize)
 {
     char folder[MAX_PATH];
     if (ResolveModFolder(folder, sizeof(folder)))
@@ -8673,7 +8710,7 @@ static void DefinesApplyLine(const char* key, const char* value)
 
 static const char* const AI_EXPAND_DEFINES_BLOCK =
     "\n"
-    "# --- AI factory expansion (PATCH_AI_EXPAND_STAFFING in v2dll_settings.ini) ---\n"
+    "# --- AI factory expansion (PATCH_AI_EXPAND_STAFFING in creatinecore_settings.ini) ---\n"
     "# An AI country expands an existing factory only if at least this percent of the factory's\n"
     "# jobs are filled with workers (employees / (workforce * level)). The vanilla AI only looks at\n"
     "# the unemployed share of the whole state and builds the most profitable factory type up to\n"
@@ -8683,7 +8720,7 @@ static const char* const AI_EXPAND_DEFINES_BLOCK =
 
 static const char* const AI_NAVAL_DEFINES_BLOCK =
     "\n"
-    "# --- AI naval bases (PATCH_AI_NAVAL_BASE_LIMIT in v2dll_settings.ini) ---\n"
+    "# --- AI naval bases (PATCH_AI_NAVAL_BASE_LIMIT in creatinecore_settings.ini) ---\n"
     "# In how many provinces of one state an AI country may have a naval base. Once a state has\n"
     "# that many provinces with a naval base (built or being built), the AI does not start a base\n"
     "# in another province of the state. Upgrading a base the AI already has is not limited. The\n"
@@ -8692,7 +8729,7 @@ static const char* const AI_NAVAL_DEFINES_BLOCK =
 
 static const char* const MIN_WAGE_DEFINES_BLOCK =
     "\n"
-    "# --- Factory minimum wage (FACTORY_FORCE_MIN_WAGE in v2dll_settings.ini) ---\n"
+    "# --- Factory minimum wage (FACTORY_FORCE_MIN_WAGE in creatinecore_settings.ini) ---\n"
     "# Every day a factory pays its workers at least this many pounds per 10000 workers (owners and\n"
     "# slaves are not counted), whether or not the factory is profitable. The wage is paid only out of\n"
     "# the money the factory has (its budget): if the factory has less, it pays what it has, and its\n"
@@ -8705,7 +8742,7 @@ static const char* const MIN_WAGE_DEFINES_BLOCK =
 
 static const char* const POP_SALARY_DEFINES_BLOCK =
     "\n"
-    "# --- Pop salary bonus (POP_SALARY_ADDITIONAL_MULTIPLIER in v2dll_settings.ini) ---\n"
+    "# --- Pop salary bonus (POP_SALARY_ADDITIONAL_MULTIPLIER in creatinecore_settings.ini) ---\n"
     "# Every income a pop receives (factory wages, RGO and artisan income, owners' profit share,\n"
     "# budget payouts to clergy/bureaucrats/soldiers) is increased by this many percent AFTER the\n"
     "# income tax is taken, so the pops keep the extra money to spend. The extra money is created\n"
@@ -8718,7 +8755,7 @@ static const char* const POP_SALARY_DEFINES_BLOCK =
 
 static const char* const PRICE_EXEMPT_DEFINES_BLOCK =
     "\n"
-    "# --- Goods excluded from the percentual price step (TRADE_PRICE_DELTA_PERCENTUAL in v2dll_settings.ini) ---\n"
+    "# --- Goods excluded from the percentual price step (TRADE_PRICE_DELTA_PERCENTUAL in creatinecore_settings.ini) ---\n"
     "# Names of goods (as in common/goods.txt), separated by spaces or commas, whose price keeps the\n"
     "# vanilla step (a fixed 0.01 per day) instead of the percentual one. Works only while the\n"
     "# percentual (or exponential) price step patch is on. Unknown names are written to v2dll.log.\n"
@@ -8748,20 +8785,28 @@ static void LegacyMintingLine(const char* key, const char* value)
         strncpy_s(g_legacyFormula, sizeof(g_legacyFormula), value, _TRUNCATE);
 }
 
-static void EnsureV2dllDefines()
+static void EnsureCCoreDefines()
 {
     if (g_defLoaded)
         return;
     g_defLoaded = true;
 
-    V2dllDefinesPath("defines_v2dll.txt", g_defPath, sizeof(g_defPath));
+    CCoreDefinesPath("defines_ccore.txt", g_defPath, sizeof(g_defPath));
+    if (GetFileAttributesA(g_defPath) == INVALID_FILE_ATTRIBUTES)
+    {
+        // Старое имя файла (до переименования проекта): переименовываем, содержимое не меняется.
+        char oldDef[MAX_PATH];
+        CCoreDefinesPath("defines_v2dll.txt", oldDef, sizeof(oldDef));
+        if (GetFileAttributesA(oldDef) != INVALID_FILE_ATTRIBUTES && MoveFileA(oldDef, g_defPath))
+            Log("defines_ccore: старый '%s' переименован в '%s'", oldDef, g_defPath);
+    }
 
     static char buf[16384];
     size_t len = 0;
     if (ReadWholeFile(g_defPath, buf, sizeof(buf), &len))
     {
         ForEachDefinesLine(buf, len, DefinesApplyLine);
-        Log("defines_v2dll: прочитан '%s' (factory_unprofitable_close_days=%d, ai_factory_expand_min_staffing=%d, minting_formula %s)",
+        Log("defines_ccore: прочитан '%s' (factory_unprofitable_close_days=%d, ai_factory_expand_min_staffing=%d, minting_formula %s)",
             g_defPath, g_defFactoryCloseDays, g_defAiExpandMinStaffing, g_defMintingFormula[0] ? "задана" : "пуста");
         if (!g_defAiExpandKeySeen)
         {
@@ -8771,7 +8816,7 @@ static void EnsureV2dllDefines()
             {
                 fprintf(af, AI_EXPAND_DEFINES_BLOCK, g_defAiExpandMinStaffing);
                 fclose(af);
-                Log("defines_v2dll: в '%s' дописан ai_factory_expand_min_staffing = %d", g_defPath, g_defAiExpandMinStaffing);
+                Log("defines_ccore: в '%s' дописан ai_factory_expand_min_staffing = %d", g_defPath, g_defAiExpandMinStaffing);
             }
         }
         if (!g_defAiNavalBaseKeySeen)
@@ -8781,7 +8826,7 @@ static void EnsureV2dllDefines()
             {
                 fprintf(nf, AI_NAVAL_DEFINES_BLOCK, g_defAiNavalBaseMax);
                 fclose(nf);
-                Log("defines_v2dll: в '%s' дописан ai_naval_base_max_provinces_per_state = %d", g_defPath, g_defAiNavalBaseMax);
+                Log("defines_ccore: в '%s' дописан ai_naval_base_max_provinces_per_state = %d", g_defPath, g_defAiNavalBaseMax);
             }
         }
         if (!g_defMinWageKeySeen)
@@ -8793,7 +8838,7 @@ static void EnsureV2dllDefines()
                 FormatMinWageValue(val, sizeof(val));
                 fprintf(wf, MIN_WAGE_DEFINES_BLOCK, val);
                 fclose(wf);
-                Log("defines_v2dll: в '%s' дописан factory_min_wage_per_10000 = %s", g_defPath, val);
+                Log("defines_ccore: в '%s' дописан factory_min_wage_per_10000 = %s", g_defPath, val);
             }
         }
         if (!g_defPriceExemptKeySeen)
@@ -8803,7 +8848,7 @@ static void EnsureV2dllDefines()
             {
                 fprintf(xf, PRICE_EXEMPT_DEFINES_BLOCK, g_defPriceExempt);
                 fclose(xf);
-                Log("defines_v2dll: в '%s' дописан price_delta_exempt_goods", g_defPath);
+                Log("defines_ccore: в '%s' дописан price_delta_exempt_goods", g_defPath);
             }
         }
         if (!g_defPopSalaryKeySeen)
@@ -8813,7 +8858,7 @@ static void EnsureV2dllDefines()
             {
                 fprintf(pf, POP_SALARY_DEFINES_BLOCK, g_defPopSalaryFormula);
                 fclose(pf);
-                Log("defines_v2dll: в '%s' дописан pop_salary_additional_multiplier = %s", g_defPath, g_defPopSalaryFormula);
+                Log("defines_ccore: в '%s' дописан pop_salary_additional_multiplier = %s", g_defPath, g_defPopSalaryFormula);
             }
         }
         return;
@@ -8821,7 +8866,7 @@ static void EnsureV2dllDefines()
 
     // Файла нет - создаём. Формулу берём из старого minting.txt, если он есть.
     char legacyPath[MAX_PATH];
-    V2dllDefinesPath("minting.txt", legacyPath, sizeof(legacyPath));
+    CCoreDefinesPath("minting.txt", legacyPath, sizeof(legacyPath));
     g_legacyFormula[0] = 0;
     static char lbuf[8192];
     size_t llen = 0;
@@ -8832,23 +8877,23 @@ static void EnsureV2dllDefines()
     FILE* f = 0;
     if (fopen_s(&f, g_defPath, "w") != 0 || !f)
     {
-        Log("defines_v2dll: не удалось создать '%s' - берутся значения по умолчанию", g_defPath);
+        Log("defines_ccore: не удалось создать '%s' - берутся значения по умолчанию", g_defPath);
         return;
     }
 
     fprintf(f,
-        "# V2DLL settings tied to this mod's game data. Created automatically, edit freely.\n"
+        "# CreatineCore settings tied to this mod's game data. Created automatically, edit freely.\n"
         "# Every player in a multiplayer game must have identical values here, otherwise OOS.\n"
         "# '#' starts a comment.\n"
         "\n"
-        "# --- Factories (PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE in v2dll_settings.ini) ---\n"
+        "# --- Factories (PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE in creatinecore_settings.ini) ---\n"
         "# A factory that is NOT subsidized and has been unprofitable (sales below the cost of its\n"
         "# input goods) for this many days in a row is closed automatically, as if closed by hand.\n"
         "# The money stored in the factory is paid out to the capitalists of its state.\n"
         "# 0 = never close automatically.\n"
         "factory_unprofitable_close_days = %d\n"
         "\n"
-        "# --- Minting (ENABLE_MINTING in v2dll_settings.ini) ---\n"
+        "# --- Minting (ENABLE_MINTING in creatinecore_settings.ini) ---\n"
         "# Daily income every country gets. Added to the treasury once per day, shown in the budget\n"
         "# window as \"minting_inc\", included in total income (budget window, topbar chart, tooltips).\n"
         "#\n"
@@ -8872,7 +8917,7 @@ static void EnsureV2dllDefines()
     }
     fclose(f);
 
-    Log("defines_v2dll: создан '%s' (minting_formula %s)", g_defPath,
+    Log("defines_ccore: создан '%s' (minting_formula %s)", g_defPath,
         g_legacyFormula[0] ? "перенесена из minting.txt" : "пуста");
 
     if (g_legacyFormula[0])
@@ -8880,16 +8925,16 @@ static void EnsureV2dllDefines()
         char movedPath[MAX_PATH];
         _snprintf_s(movedPath, sizeof(movedPath), _TRUNCATE, "%s.moved", legacyPath);
         if (MoveFileExA(legacyPath, movedPath, MOVEFILE_REPLACE_EXISTING))
-            Log("defines_v2dll: старый '%s' переименован в '%s'", legacyPath, movedPath);
+            Log("defines_ccore: старый '%s' переименован в '%s'", legacyPath, movedPath);
         else
-            Log("defines_v2dll: не удалось переименовать '%s' (ошибка %u) - можно удалить вручную",
+            Log("defines_ccore: не удалось переименовать '%s' (ошибка %u) - можно удалить вручную",
                 legacyPath, (unsigned)GetLastError());
     }
 }
 
 static bool LoadMintingFormula()
 {
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
 
     const char* path = g_defPath;
     const char* expr = g_defMintingFormula;
@@ -14577,7 +14622,7 @@ static bool SleepHookModuleUnsafe(HMODULE m)
            !_wcsicmp(base, L"winmm.dll") ||
            !_wcsicmp(base, L"lua51.dll") ||
            !_wcsicmp(base, L"lua51_real.dll") ||
-           !_wcsicmp(base, L"v2dll_core.dll") ||
+           !_wcsicmp(base, L"creatinecore.dll") ||
            !_wcsicmp(base, L"dinput8.dll");
 }
 
@@ -16852,11 +16897,13 @@ static bool FpWantFile(const wchar_t* name, bool atRoot)
 static void FpWalk(const wchar_t* rootDir, size_t rootLen, const wchar_t* dir, FpBuf* out, int depth,
     unsigned char* chunk)
 {
-    // V2DLL\ (ядро, ini, eventmusic, dll_Submods\): там хэшируем и dll, а Logs пропускаем.
+    // z_CreatineCore\ (ядро, ini, eventmusic, dll_Submods\): там хэшируем и dll, а Logs пропускаем.
     size_t dirLen = wcslen(dir);
-    bool v2dllTree = dirLen > rootLen + 5 && _wcsnicmp(dir + rootLen + 1, L"V2DLL", 5) == 0 &&
-                     (dirLen == rootLen + 6 || dir[rootLen + 6] == L'\\');
-    bool v2dllRoot = depth == 1 && v2dllTree && dirLen == rootLen + 6;
+    static const wchar_t kCoreDir[] = L"z_CreatineCore";
+    const size_t coreLen = (sizeof(kCoreDir) / sizeof(kCoreDir[0])) - 1;
+    bool ccoreTree = dirLen > rootLen + coreLen && _wcsnicmp(dir + rootLen + 1, kCoreDir, coreLen) == 0 &&
+                     (dirLen == rootLen + 1 + coreLen || dir[rootLen + 1 + coreLen] == L'\\');
+    bool ccoreRoot = depth == 1 && ccoreTree && dirLen == rootLen + 1 + coreLen;
     wchar_t pat[1100];
     swprintf_s(pat, L"%s\\*", dir);
     WIN32_FIND_DATAW fd;
@@ -16877,13 +16924,13 @@ static void FpWalk(const wchar_t* rootDir, size_t rootLen, const wchar_t* dir, F
                                _wcsicmp(fd.cFileName, L"Screenshots") == 0 ||
                                _wcsicmp(fd.cFileName, L"save games") == 0))
                 continue;
-            if (v2dllRoot && _wcsicmp(fd.cFileName, L"Logs") == 0)
+            if (ccoreRoot && _wcsicmp(fd.cFileName, L"Logs") == 0)
                 continue;
             if (depth < 12)
                 FpWalk(rootDir, rootLen, full, out, depth + 1, chunk);
             continue;
         }
-        if (!FpWantFile(fd.cFileName, depth == 0 || v2dllTree))
+        if (!FpWantFile(fd.cFileName, depth == 0 || ccoreTree))
             continue;
 
         // относительный путь в UTF-8
@@ -16922,8 +16969,8 @@ static void FpWalk(const wchar_t* rootDir, size_t rootLen, const wchar_t* dir, F
         _strlwr_s(low);
         unsigned long long ph = FpFnv((const unsigned char*)low, strlen(low), 14695981039346656037ULL);
         bool volatileFile = (depth == 0 && (_wcsicmp(fd.cFileName, L"settings.txt") == 0 ||
-                                            _wcsicmp(fd.cFileName, L"v2dll_settings.ini") == 0)) ||
-                            (v2dllRoot && _wcsicmp(fd.cFileName, L"v2dll_settings.ini") == 0);
+                                            _wcsicmp(fd.cFileName, L"creatinecore_settings.ini") == 0)) ||
+                            (ccoreRoot && _wcsicmp(fd.cFileName, L"creatinecore_settings.ini") == 0);
         if (!volatileFile)
         {
             FpDir* d = FpDirFor(key);
@@ -20890,7 +20937,7 @@ static HMODULE EventMusicTryLoad(const wchar_t* dir, char* usedPath, size_t cap)
 
 static void LoadEventMusicDll()
 {
-    // Primero junto a esta DLL (carpeta V2DLL\); si no esta, junto al .exe (instalacion antigua).
+    // Primero junto a esta DLL (carpeta z_CreatineCore\); si no esta, junto al .exe (instalacion antigua).
     wchar_t exeDir[MAX_PATH] = {}, selfDir[MAX_PATH] = {};
     bool haveExe = EventMusicDirOf(NULL, exeDir, MAX_PATH);
     bool haveSelf = g_selfModule && EventMusicDirOf(g_selfModule, selfDir, MAX_PATH);
@@ -20936,7 +20983,7 @@ static void LoadEventMusicDll()
 // ЗАКРЫТИЕ ФАБРИК: выплата накоплений владельцам при любом закрытии и
 // автозакрытие убыточных (PATCH_FACTORY_CLOSE_PAYOUT,
 // PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE; срок - factory_unprofitable_
-// close_days в common\defines_v2dll.txt).
+// close_days в common\defines_ccore.txt).
 //
 // Карта движка (Ghidra + дизассемблер по реальному v2game.exe).
 // Фабрика = CStateBuilding (ESI/EBX/EAX в разных функциях):
@@ -21355,9 +21402,493 @@ __declspec(naked) static void FactoryFinanceThunk()
     }
 }
 
+// ---------------------------------------------------------------
+// FACTORY_MAINTENANCE_DISPLAY_FIX (5.102): товары содержания фабрики (efficiency = { ... } в
+// production_types) в окне торговли и в окне фабрики показывали разное и оба - не реальный расход.
+// Реальный расход (FUN_004DDE00, вызывается из FUN_004F3620): склад -= база x уровень x (1 + factory_maintenance/1000)
+// (если склада хватает). Окно фабрики (FUN_004DD6B0) дополнительно умножало на factory+0x100 x +0x110
+// ("товарооборот"), окно торговли (FUN_004F53E0) брало c8 - потребность закупки (с эффективностью
+// владельца) x factory+0x1E0. Здесь оба места считают по реальной формуле.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_MAINT_TIP        = 0xDD797;   // FUN_004DD6B0: mov eax,[ebp+0x14] / mov edx,[eax+4]
+static const DWORD RVA_MAINT_TIP_RESUME = 0xDD79D;
+static const DWORD RVA_MAINT_USED        = 0xF5467;  // FUN_004F53E0: расход = c8 x +0x1E0
+static const DWORD RVA_MAINT_USED_RESUME = 0xF5482;
+static const DWORD RVA_COUNTRY_LIST_PTR  = 0xE587E4; // DAT_012587e4; +4 = вектор стран
+
+static DWORD g_maintTipResume  = 0;
+static DWORD g_maintUsedResume = 0;
+static unsigned g_maintNeutralTp[6] = { 0x8000, 0, 0, 0, 0x8000, 0 };   // +0x100 = +0x110 = 1.0
+static long long g_maintRealDemand = 0;
+
+// Реальная потребность фабрики в товаре содержания (fixed15). Если товар не из содержания -
+// отдаёт c8, как раньше.
+static void __cdecl MaintRealDemand(unsigned char* fac, unsigned char* goodInfo)
+{
+    long long c8 = 0;
+    g_maintRealDemand = 0;
+    __try
+    {
+        int g = *(int*)(goodInfo + 8);
+        int slot = fac[g + 0x88];
+        c8 = *(long long*)(*(unsigned char**)(fac + 0xC8) + slot * 8);
+        g_maintRealDemand = c8;
+
+        unsigned char* type = *(unsigned char**)(*(unsigned char**)(fac + 0x18) + 0x12C);
+        long long amt = *(long long*)(*(unsigned char**)(type + 0xD8) + type[g + 0x98] * 8);
+        if (amt == 0)
+            return;
+
+        unsigned char* state = *(unsigned char**)(fac + 0x1C);
+        unsigned char** countries = *(unsigned char***)(*(unsigned char**)(g_base + RVA_COUNTRY_LIST_PTR) + 4);
+        unsigned char* country = countries[*(int*)(state + 0x5C)];
+        int mod = *(int*)(*(unsigned char**)(country + 0xA60) + 0x128);
+        long long b = 0x8000 + ((long long)mod * 32768) / 1000;
+        long long level = *(int*)(fac + 0x20);
+        g_maintRealDemand = (amt * level * b) >> 15;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        g_maintRealDemand = c8;
+    }
+}
+
+// FUN_004DD6B0: подставляем нейтральные +0x100/+0x110 (1.0), чтобы "Требуется" не включало товарооборот.
+__declspec(naked) static void MaintTipThunk()
+{
+    __asm {
+        mov eax, offset g_maintNeutralTp
+        mov edx, dword ptr [eax + 4]
+        jmp dword ptr [g_maintTipResume]
+    }
+}
+
+// FUN_004F53E0: вместо c8 в расходе (+8 накопителя) берём реальную потребность.
+__declspec(naked) static void MaintUsedThunk()
+{
+    __asm {
+        mov edx, dword ptr [eax + 0x1E4]
+        push edx
+        mov edx, dword ptr [eax + 0x1E0]
+        push edx
+        pushad
+        push dword ptr [ebp + 8]
+        push eax
+        call MaintRealDemand
+        add esp, 8
+        popad
+        mov eax, dword ptr [g_maintRealDemand]
+        mov edx, dword ptr [g_maintRealDemand + 4]
+        jmp dword ptr [g_maintUsedResume]
+    }
+}
+
+static bool InstallMaintenanceDisplayFix()
+{
+    static const unsigned char TIP_SIG[6]  = { 0x8B, 0x45, 0x14, 0x8B, 0x50, 0x04 };
+    static const unsigned char TIP_RES[3]  = { 0x8B, 0x08, 0x52 };
+    static const unsigned char USED_SIG[12] = { 0x8B, 0x90, 0xE4, 0x01, 0x00, 0x00, 0x52, 0x8B, 0x90, 0xE0, 0x01, 0x00 };
+    static const unsigned char USED_RES[3] = { 0x52, 0x50, 0xE8 };
+
+    g_maintTipResume  = g_base + RVA_MAINT_TIP_RESUME;
+    g_maintUsedResume = g_base + RVA_MAINT_USED_RESUME;
+    bool ok = WriteJmpSite(RVA_MAINT_TIP, TIP_SIG, sizeof(TIP_SIG), 6,
+        RVA_MAINT_TIP_RESUME, TIP_RES, sizeof(TIP_RES), (void*)&MaintTipThunk, "MaintenanceDisplay.tip");
+    ok = WriteJmpSite(RVA_MAINT_USED, USED_SIG, sizeof(USED_SIG), 0x1B,
+        RVA_MAINT_USED_RESUME, USED_RES, sizeof(USED_RES), (void*)&MaintUsedThunk, "MaintenanceDisplay.used") && ok;
+    if (ok)
+        Log("MaintenanceDisplay: установлен (rva %06X, %06X)", RVA_MAINT_TIP, RVA_MAINT_USED);
+    return ok;
+}
+
+// ---------------------------------------------------------------
+// FACTORY_MAINTENANCE_IGNORE_THROUGHPUT (5.103): закупка и проверка удовлетворённости товаров содержания
+// считались по базе x уровень x товарооборот (factory+0x100 x +0x110) x (1 + factory_maintenance), а списание
+// (FUN_004DDE00, цикл 2) - без товарооборота. Фабрика каждый день покупала c8 = расход x товарооборот,
+// и запас рос на (товарооборот - 1) x расход в день. Теперь в обоих местах товарооборот для товаров содержания
+// заменён на 1.0 (входные товары производства не тронуты).
+//  1) FUN_004DD470 (потребность, c8): перед циклом по товарам содержания множитель Q = товарооборот x уровень
+//     (локали [ebp-0x10]/[ebp-0xc]) подменяется на один уровень; входы к этому моменту уже масштабированы.
+//  2) FUN_004DDE00 (цикл 1, проверка запаса): множитель P вместо [ebp-0x44]:ESI берётся из аргумента уровня.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_MAINT_NEED_Q        = 0xDD4DE;   // FUN_004DD470: xor eax,eax / mov [ebp+0x14],eax
+static const DWORD RVA_MAINT_NEED_Q_RESUME = 0xDD4E3;
+static const DWORD RVA_MAINT_RATIO_P        = 0xDDF4B;  // FUN_004DDE00: mov edx,[ebp-0x44] / push esi / push edx
+static const DWORD RVA_MAINT_RATIO_P_RESUME = 0xDDF50;
+static DWORD g_maintNeedQResume  = 0;
+static DWORD g_maintRatioPResume = 0;
+
+__declspec(naked) static void MaintNeedQThunk()
+{
+    __asm {
+        mov eax, dword ptr [ebp + 0x14]
+        shl eax, 15
+        mov dword ptr [ebp - 0x10], eax
+        mov dword ptr [ebp - 0xc], 0
+        xor eax, eax
+        mov dword ptr [ebp + 0x14], eax
+        jmp dword ptr [g_maintNeedQResume]
+    }
+}
+
+__declspec(naked) static void MaintRatioPThunk()
+{
+    __asm {
+        push dword ptr [ebp + 0x20]
+        push dword ptr [ebp + 0x1C]
+        jmp dword ptr [g_maintRatioPResume]
+    }
+}
+
+static bool InstallMaintenanceIgnoreThroughput()
+{
+    static const unsigned char Q_SIG[5]   = { 0x33, 0xC0, 0x89, 0x45, 0x14 };
+    static const unsigned char Q_RES[2]   = { 0x39, 0x05 };
+    static const unsigned char P_SIG[5]   = { 0x8B, 0x55, 0xBC, 0x56, 0x52 };
+    static const unsigned char P_RES[3]   = { 0x50, 0x51, 0xE8 };
+
+    g_maintNeedQResume  = g_base + RVA_MAINT_NEED_Q_RESUME;
+    g_maintRatioPResume = g_base + RVA_MAINT_RATIO_P_RESUME;
+    bool ok = WriteJmpSite(RVA_MAINT_NEED_Q, Q_SIG, sizeof(Q_SIG), 5,
+        RVA_MAINT_NEED_Q_RESUME, Q_RES, sizeof(Q_RES), (void*)&MaintNeedQThunk, "MaintenanceNoThroughput.need");
+    ok = WriteJmpSite(RVA_MAINT_RATIO_P, P_SIG, sizeof(P_SIG), 5,
+        RVA_MAINT_RATIO_P_RESUME, P_RES, sizeof(P_RES), (void*)&MaintRatioPThunk, "MaintenanceNoThroughput.ratio") && ok;
+    if (ok)
+        Log("MaintenanceNoThroughput: установлен (rva %06X, %06X)", RVA_MAINT_NEED_Q, RVA_MAINT_RATIO_P);
+    return ok;
+}
+
+// ---------------------------------------------------------------
+// GOODS_NEED_TOTAL (5.104): третье поле итога в карточке товара (окно trade_flow), рядом с
+// "Всего произведено" и "Всего использовано": "Требуется" (5.107) = нужда правительства (FUN_00539760) + нужда
+// фабрик (сумма c8 по фабрикам страны - из этого же карточка считает "использовано", поэтому требуется >= использовано) + потребность зданий с
+// goods_consumption (расходы в бюджете). Население не входит.
+//  * Карточка (FUN_00477AD0, окно на [esp+4]; +0x0C индекс страны, +0x10 товар, +4 контейнер элементов).
+//    Хук на её вход пишет сумму в textbox "total_need_value" (interface\trade_flow.gui). Окно торговли для
+//    расчёта не нужно, работает для любой страны.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_TFCARD_UPDATE         = 0x77AD0;
+static const DWORD RVA_TFCARD_UPDATE_RESUME  = 0x77AD6;
+static const DWORD RVA_GOV_NEED_FN           = 0x139760;   // FUN_00539760: EAX = страна, ESI = out int64, [стек] индекс товара, ret 4
+
+static DWORD g_tfCardResume  = 0;
+static LONG  g_needLogged    = 0;
+
+// Потребность зданий с goods_consumption (расход в бюджете, naval_base_expense): уровни зданий страны x количество
+// из buildings.txt (то же, что колонка "Использовано" до умножения на долю купленного).
+static long long BudgetGoodsNeedFixed(int countryIdx, int gi)
+{
+    if (!GoodsConsumptionActive() || gi < 0 || gi >= CONS_MAX_GOODS)
+        return 0;
+    if (!g_consResolved)
+        ConsResolveGoods();
+    void* country = GetCountryPtr(countryIdx);
+    ExpSlot* slot = country ? ExpFindSlot(country, false) : 0;
+    if (!slot)
+        return 0;
+    double need = 0.0;
+    for (int bi = 0; bi < g_consBuildingCount; ++bi)
+    {
+        ConsBuilding& cb = g_consBuildings[bi];
+        double perLevel = 0.0;
+        for (int k = 0; k < cb.count; ++k)
+        {
+            if (cb.goods[k].index == gi)
+                perLevel += cb.goods[k].amount;
+        }
+        long long raw = slot->raw[bi];
+        if (perLevel > 0.0 && raw > 0)
+            need += perLevel * ((double)raw / 1000.0);
+    }
+    return MintToFixed(need);
+}
+
+// Нужда правительства по товару (то же, что колонка "Правительство" окна торговли).
+static long long GovNeedFixed(void* country, int goodIndex)
+{
+    long long v = 0;
+    long long* pv = &v;
+    DWORD fn = g_base + RVA_GOV_NEED_FN;
+    __asm {
+        push esi
+        mov esi, pv
+        mov eax, country
+        push goodIndex
+        call fn
+        pop esi
+    }
+    return v;
+}
+
+// Нужда фабрик по товару: сумма потребности c8 по всем фабрикам страны - ровно то, что карточка складывает в
+// "использовано" (FUN_004F53E0, поле +0, до умножения на +0x1E0). Обход как в FUN_0053EB30: список штатов
+// country+0xE44 (узел: +0 штат, +8 следующий), фабрики штата [state+0x60] -> [fac+0x224].
+static long long FactoryNeedFixed(void* country, void* good)
+{
+    long long total = 0;
+    for (unsigned char* node = *(unsigned char**)((unsigned char*)country + 0xE44); node; node = *(unsigned char**)(node + 8))
+    {
+        unsigned char* state = *(unsigned char**)node;
+        if (!state)
+            continue;
+        for (unsigned char* f = *(unsigned char**)(state + 0x60); f; f = *(unsigned char**)(f + 0x224))
+        {
+            MaintRealDemand(f, (unsigned char*)good);
+            total += g_maintRealDemand;
+        }
+    }
+    return total;
+}
+
+static void __cdecl TradeFlowNeedUpdate(unsigned char* window)
+{
+    __try
+    {
+        if (!window)
+            return;
+        unsigned char* good = *(unsigned char**)(window + 0x10);
+        if (!good)
+            return;
+        int goodIndex = *(int*)(good + 8);
+        int countryIdx = *(int*)(window + 0x0C);
+
+        void* container = *(void**)(window + 4);
+        if (!container)
+            return;
+        char nameStore[32];
+        GStr name;
+        MakeStr(&name, nameStore, sizeof(nameStore), "total_need_value");
+        void* box = VCall1(container, VT_FIND_TEXTBOX, &name);
+        if (!box)
+            return;
+
+        void* country = GetCountryPtr(countryIdx);
+        long long sum = 0;
+        bool ok = country != 0;
+        if (ok)
+        {
+            sum = GovNeedFixed(country, goodIndex) + FactoryNeedFixed(country, good) +
+                  BudgetGoodsNeedFixed(countryIdx, goodIndex);
+        }
+
+        char text[32];
+        double v = (double)sum / 32768.0;
+        if (!ok)
+            strcpy_s(text, "-");
+        else if (v >= 10000.0)
+            _snprintf_s(text, sizeof(text), _TRUNCATE, "%.0f", v);
+        else if (v >= 1000.0)
+            _snprintf_s(text, sizeof(text), _TRUNCATE, "%.1f", v);
+        else
+            _snprintf_s(text, sizeof(text), _TRUNCATE, "%.3f", v);
+
+        if (InterlockedIncrement(&g_needLogged) <= 3)
+            LogDbg("GoodsNeedTotal: товар %d страна %d, значение %s", goodIndex, countryIdx, text);
+
+        char textStore[64];
+        GStr str;
+        MakeStr(&str, textStore, sizeof(textStore), text);
+        ((tStrAssign)(g_base + RVA_STR_ASSIGN))((char*)box + OFF_TEXTBOX_STR, 0, &str, 0, 0xFFFFFFFFu);
+
+        void* inner = *(void**)((char*)box + OFF_TEXTBOX_INNER);
+        if (!inner)
+            return;
+        DWORD fn = g_base + RVA_TEXT_SETTEXT;
+        void* pStr = &str;
+        __asm {
+            push esi
+            push 0
+            push pStr
+            mov esi, inner
+            call fn
+            pop esi
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// FUN_00477AD0 (обновление карточки товара, окно на [esp+4]): сначала пишем итог нужд, потом ваниль.
+__declspec(naked) static void TradeFlowCardThunk()
+{
+    __asm {
+        pushad
+        push dword ptr [esp + 0x24]
+        call TradeFlowNeedUpdate
+        add esp, 4
+        popad
+        push ebp
+        mov ebp, esp
+        and esp, 0xfffffff8
+        jmp dword ptr [g_tfCardResume]
+    }
+}
+
+static bool InstallGoodsNeedTotal()
+{
+    static const unsigned char SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
+    static const unsigned char RES[3] = { 0x6A, 0xFF, 0x68 };
+
+    g_tfCardResume  = g_base + RVA_TFCARD_UPDATE_RESUME;
+    bool ok = WriteJmpSite(RVA_TFCARD_UPDATE, SIG, sizeof(SIG), 6,
+        RVA_TFCARD_UPDATE_RESUME, RES, sizeof(RES), (void*)&TradeFlowCardThunk, "GoodsNeedTotal.карточка товара");
+    if (ok)
+        Log("GoodsNeedTotal: установлен (rva %06X)", RVA_TFCARD_UPDATE);
+    return ok;
+}
+
+// ---------------------------------------------------------------
+// TRADE_WINDOW_REAL_POP_NEEDS (5.105): столбец "Нужда" населения в окне торговли (и, значит, итог "Всего нужно"
+// в карточке товара) считался по упрощённой формуле: потребность типа попа x число попов x (база + модификатор
+// needs), без модификаторов классов life/everyday/luxury (country+0x130/0x138/0x140), страт и прочих множителей
+// движка. Реальная покупка (FUN_00485960, по записи "страна x тип попа" и классу 0/1/2) строит в
+// скретч-списке 0x13F2558 полный спрос = список класса x rec.scale[класс] и только потом урезает его по деньгам
+// пула. Берём этот полный спрос:
+//  1) хук на 0x485A81 (сразу после умножения на scale): при флаге покупки ([ebp+0x1C] != 0) и стране игрока
+//     складываем список по товарам в суточный накопитель; на смене дня накопитель -> "вчера";
+//  2) хук на вызов FUN_00719FF0 (0x71E6A6, ECX = запись списка попов в окне торговли, на стеке int64 значение):
+//     подменяем значение на накопленное, если оно есть (иначе остаётся ванильное).
+// ---------------------------------------------------------------
+
+static const DWORD RVA_POPNEED_SCRATCH       = 0x85A81;    // VA 0x485A81: push 0x13F2558 (5 байт)
+static const DWORD RVA_POPNEED_SCRATCH_RESUME = 0x85A86;   // VA 0x485A86: mov eax,0x13F2500
+static const DWORD RVA_POPNEED_ENTRY_SET     = 0x31E6A6;   // call FUN_00719FF0 (5 байт), VA 0x71E6A6
+static const DWORD RVA_POPNEED_ENTRY_RESUME  = 0x31E6AB;   // mov ebx,0xF
+static const DWORD RVA_POPNEED_ENTRY_SETFN   = 0x319FF0;
+static const DWORD RVA_SCRATCH_SLOTMAP       = 0xFF2560;   // скретч 0x13F2558: +8 карта товар -> слот
+static const DWORD RVA_SCRATCH_VECTOR        = 0xFF25A0;   // скретч +0x48: begin вектора значений
+static const DWORD RVA_GOODS_COUNT           = 0xE587F4;   // DAT_012587f4
+
+static const int POPNEED_MAX_GOODS = 256;
+static long long g_popNeedCur[POPNEED_MAX_GOODS];
+static long long g_popNeedLast[POPNEED_MAX_GOODS];
+static bool g_popNeedHaveCur  = false;
+static bool g_popNeedHaveLast = false;
+static unsigned g_popNeedDay  = 0xFFFFFFFFu;
+static DWORD g_popNeedScratchResume = 0;
+static DWORD g_popNeedScratchAddr   = 0;   // 0x13F2558 с поправкой на базу образа (код ASLR-перемещается, в thunk нельзя ставить абсолютный адрес)
+static DWORD g_popNeedEntryResume   = 0;
+static DWORD g_popNeedEntrySetFn    = 0;
+
+static void __cdecl PopNeedCapture(unsigned char* frame)
+{
+    __try
+    {
+        if (!*(unsigned char*)(frame + 0x1C))
+            return;
+        void* country = *(void**)(frame + 0x10);
+        if (!country || country != GetLocalPlayerCountry())
+            return;
+
+        char* world = *(char**)(g_base + RVA_WORLD_PTR);
+        unsigned day = world ? (*(unsigned*)(world + 0xB0C)) / 24 : 0;
+        if (day != g_popNeedDay)
+        {
+            if (g_popNeedHaveCur)
+            {
+                memcpy(g_popNeedLast, g_popNeedCur, sizeof(g_popNeedLast));
+                g_popNeedHaveLast = true;
+            }
+            memset(g_popNeedCur, 0, sizeof(g_popNeedCur));
+            g_popNeedHaveCur = false;
+            g_popNeedDay = day;
+        }
+
+        int n = *(int*)(g_base + RVA_GOODS_COUNT);
+        if (n > POPNEED_MAX_GOODS)
+            n = POPNEED_MAX_GOODS;
+        const unsigned char* slotMap = (const unsigned char*)(g_base + RVA_SCRATCH_SLOTMAP);
+        const unsigned char* vec = *(const unsigned char**)(g_base + RVA_SCRATCH_VECTOR);
+        if (!vec)
+            return;
+        for (int g = 0; g < n; ++g)
+        {
+            int slot = slotMap[g];
+            if (slot)
+                g_popNeedCur[g] += *(const long long*)(vec + slot * 8);
+        }
+        g_popNeedHaveCur = true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static void __cdecl PopNeedOverride(unsigned char* entry, long long* value)
+{
+    __try
+    {
+        const long long* src = g_popNeedHaveLast ? g_popNeedLast : (g_popNeedHaveCur ? g_popNeedCur : 0);
+        if (!src || !entry)
+            return;
+        unsigned char* good = *(unsigned char**)(entry + 0x28);
+        if (!good)
+            return;
+        int g = *(int*)(good + 8);
+        if (g < 0 || g >= POPNEED_MAX_GOODS)
+            return;
+        *value = src[g];
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+__declspec(naked) static void PopNeedScratchThunk()
+{
+    __asm {
+        pushad
+        push ebp
+        call PopNeedCapture
+        add esp, 4
+        popad
+        push dword ptr [g_popNeedScratchAddr]
+        jmp dword ptr [g_popNeedScratchResume]
+    }
+}
+
+__declspec(naked) static void PopNeedEntryThunk()
+{
+    __asm {
+        pushad
+        lea eax, [esp + 0x20]
+        push eax
+        push ecx
+        call PopNeedOverride
+        add esp, 8
+        popad
+        call dword ptr [g_popNeedEntrySetFn]
+        jmp dword ptr [g_popNeedEntryResume]
+    }
+}
+
+static bool InstallTradeRealPopNeeds()
+{
+    static const unsigned char SCR_SIG[1] = { 0x68 };
+    static const unsigned char SCR_RES[1] = { 0xB8 };
+    static const unsigned char ENT_SIG[1] = { 0xE8 };
+    static const unsigned char ENT_RES[1] = { 0xBB };
+
+    g_popNeedScratchResume = g_base + RVA_POPNEED_SCRATCH_RESUME;
+    g_popNeedScratchAddr   = g_base + 0xFF2558;
+    g_popNeedEntryResume   = g_base + RVA_POPNEED_ENTRY_RESUME;
+    g_popNeedEntrySetFn    = g_base + RVA_POPNEED_ENTRY_SETFN;
+    bool ok = WriteJmpSite(RVA_POPNEED_SCRATCH, SCR_SIG, sizeof(SCR_SIG), 5,
+        RVA_POPNEED_SCRATCH_RESUME, SCR_RES, sizeof(SCR_RES), (void*)&PopNeedScratchThunk, "RealPopNeeds.спрос");
+    ok = WriteJmpSite(RVA_POPNEED_ENTRY_SET, ENT_SIG, sizeof(ENT_SIG), 5,
+        RVA_POPNEED_ENTRY_RESUME, ENT_RES, sizeof(ENT_RES), (void*)&PopNeedEntryThunk, "RealPopNeeds.окно торговли") && ok;
+    if (ok)
+        Log("RealPopNeeds: установлен (rva %06X, %06X)", RVA_POPNEED_SCRATCH, RVA_POPNEED_ENTRY_SET);
+    return ok;
+}
+
 static bool InstallFactoryClose()
 {
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
 
     g_ownerPayoutAddr = g_base + RVA_OWNER_PAYOUT;
     g_facCloseFnAddr  = g_base + RVA_FACTORY_CLOSE;
@@ -21493,7 +22024,7 @@ __declspec(naked) static void AiExpandCandThunk()
 
 static bool InstallAiExpandStaffing()
 {
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
     static const unsigned char SIG[7]    = { 0x83, 0xB9, 0x7C, 0x01, 0x00, 0x00, 0x00 };
     static const unsigned char RESUME[6] = { 0x0F, 0x85, 0x62, 0x01, 0x00, 0x00 };
     g_aiExpandResume = g_base + RVA_AI_EXPAND_CAND_RESUME;
@@ -21501,7 +22032,7 @@ static bool InstallAiExpandStaffing()
     bool ok = WriteJmpSite(RVA_AI_EXPAND_CAND, SIG, sizeof(SIG), 7,
         RVA_AI_EXPAND_CAND_RESUME, RESUME, sizeof(RESUME),
         (void*)&AiExpandCandThunk, "AiExpand(кандидат)");
-    Log("AiExpand: %s (порог занятости %d%%, 0 = выкл; ai_factory_expand_min_staffing в common\\defines_v2dll.txt)",
+    Log("AiExpand: %s (порог занятости %d%%, 0 = выкл; ai_factory_expand_min_staffing в common\\defines_ccore.txt)",
         ok ? "установлен" : "НЕ установлен", g_defAiExpandMinStaffing);
     return ok;
 }
@@ -21725,7 +22256,7 @@ __declspec(naked) static void AiCanBuildThunk()
 
 static bool InstallAiNavalBaseLimit()
 {
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
     g_aiCanBuildOrig = g_base + RVA_AI_CANBUILD_FN;
 
     static const unsigned char PROLOGUE[4] = { 0x55, 0x8B, 0xEC, 0x53 };
@@ -21755,7 +22286,7 @@ static bool InstallAiNavalBaseLimit()
         ++done;
     }
     Log("AiNavalLimit: подменено call'ов %d из 3 (провинций с базой в регионе для ИИ: %d, 0 = выкл; "
-        "ai_naval_base_max_provinces_per_state в common\\defines_v2dll.txt)", done, g_defAiNavalBaseMax);
+        "ai_naval_base_max_provinces_per_state в common\\defines_ccore.txt)", done, g_defAiNavalBaseMax);
     return done > 0;
 }
 
@@ -21932,7 +22463,7 @@ __declspec(naked) static void FactoryMinWageBudgetThunk()
 
 static bool InstallFactoryMinWage()
 {
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
     static const unsigned char SIG[8]    = { 0x2B, 0xF8, 0x1B, 0xF2, 0x66, 0x0F, 0x57, 0xC0 };
     static const unsigned char RESUME[6] = { 0x66, 0x0F, 0x13, 0x44, 0x24, 0x40 };
     g_minWageResume = g_base + RVA_MIN_WAGE_RESUME;
@@ -21947,7 +22478,7 @@ static bool InstallFactoryMinWage()
         RVA_MIN_WAGE_BUDGET_RESUME, BRESUME, sizeof(BRESUME),
         (void*)&FactoryMinWageBudgetThunk, "FactoryMinWage(цель субсидии)");
 
-    Log("FactoryMinWage: %s, цель субсидии %s (минимум %d.%03d в день на 10000 работников, 0 = выкл; factory_min_wage_per_10000 в common\\defines_v2dll.txt)",
+    Log("FactoryMinWage: %s, цель субсидии %s (минимум %d.%03d в день на 10000 работников, 0 = выкл; factory_min_wage_per_10000 в common\\defines_ccore.txt)",
         ok ? "установлен" : "НЕ установлен", okBudget ? "установлена" : "НЕ установлена",
         g_defMinWageMilli / 1000, g_defMinWageMilli % 1000);
     return ok || okBudget;
@@ -22178,7 +22709,7 @@ static void InstallPopIncomeKeyword()
 // Вызывать после InstallMinting: формула кладётся в общий пул узлов minting.
 static bool InstallPopSalaryBonus()
 {
-    EnsureV2dllDefines();
+    EnsureCCoreDefines();
     InstallPopIncomeKeyword();
 
     // Формула необязательна: без неё (пусто или константа 0) бонус даёт только pop_income_modifier.
@@ -22242,7 +22773,7 @@ static bool InstallPopSalaryBonus()
         Log("PopSalaryBonus: '%s' - переменная страны (0, если не задана)", g_mintCVarNames[i]);
     double sample[MINT_VAR_COUNT] = { 1000.0, 4000000.0 };
     Log("PopSalaryBonus: подменено call'ов %d из %d, формула '%s'%s; пример без переменных страны: "
-        "industry_score=1000, total_population=4000000 -> %.1f %% (pop_salary_additional_multiplier в common\\defines_v2dll.txt)",
+        "industry_score=1000, total_population=4000000 -> %.1f %% (pop_salary_additional_multiplier в common\\defines_ccore.txt)",
         done, N, text, g_popSalRoot >= 0 ? "" : " (не используется)", g_popSalRoot >= 0 ? MintEval(g_popSalRoot, sample, 0) : 0.0);
     return done > 0;
 }
@@ -24325,7 +24856,7 @@ static bool InstallFlagCache()
         return true;
 
     // Capture the current imports rather than resolving the exports again. This
-    // preserves V2DLL's D3DX hook chain when GoodsIcons has already installed.
+    // preserves CreatineCore's D3DX hook chain when GoodsIcons has already installed.
     g_fcSaveTexture = (tFcSaveTexture)*(void**)(g_base + RVA_FC_IAT_SAVE_TEXTURE);
     g_fcCreateTexture = (tFcCreateTexture)*(void**)(g_base + RVA_FC_IAT_CREATE_TEXTURE);
     g_fcLoadTexture = (tFcLoadTexture)*(void**)(g_base + RVA_FC_IAT_LOAD_TEXTURE);
@@ -25741,13 +26272,13 @@ namespace ParallelEvents
 // ---------------------------------------------------------------
 // Отпечаток конфигурации (5.61). Рассинхрон MP почти наверняка значит, что
 // у какой-то машины отличается то, что меняет симуляцию, но НЕ входит в
-// проверку лобби: v2dll_settings.ini (у каждого свой), defines_v2dll.txt
+// проверку лобби: creatinecore_settings.ini (у каждого свой), defines_ccore.txt
 // (создаётся/дописывается DLL на каждой машине), production_types.txt.
 // Счётчик Random() - запаздывающий индикатор: другие деньги/цены не меняют
 // число вызовов, пока какая-нибудь ветка не перевернётся, поэтому OOS может
 // появиться через сотни дней после того, как состояния разошлись.
 // В конце Install пишем в v2dll.log все ключи эффективных настроек
-// ("Cfg KEY=VAL"), нормализованные строки defines_v2dll.txt ("Cfg def ...")
+// ("Cfg KEY=VAL"), нормализованные строки defines_ccore.txt ("Cfg def ...")
 // и три хэша; те же хэши - в v2dll_oos.log / v2dll_rng.log. Хэши обязаны
 // совпасть у ВСЕХ игроков (включая хоста). Косметические ключи (логи) в
 // хэш не входят, но печатаются. Сравнение: Patches\compare_install_logs.py.
@@ -25821,9 +26352,9 @@ static void LogConfigFingerprint()
         DeleteFileA(tmp);
     }
 
-    // 2) defines_v2dll.txt: строки без комментариев, без пробелов.
+    // 2) defines_ccore.txt: строки без комментариев, без пробелов.
     char dpath[MAX_PATH];
-    V2dllDefinesPath("defines_v2dll.txt", dpath, sizeof(dpath));
+    CCoreDefinesPath("defines_ccore.txt", dpath, sizeof(dpath));
     static char dbuf[16384];
     size_t dlen = 0;
     if (ReadWholeFile(dpath, dbuf, sizeof(dbuf), &dlen))
@@ -25892,6 +26423,156 @@ static void LogConfigFingerprint()
 
 // vasalle_color.cpp
 bool InstallVassalColors(int percent);
+
+// ---------------------------------------------------------------
+// POP_BUILD_INFRASTRUCTURE_RULE: правило реформ pop_build_infrastructure.
+//
+// Карта (disasm v2game.exe, подробно в PATCHES.md): проект капиталистов типа "здание" (тип 1 планировщика
+// состояния, генератор FUN_004A5C40 - железная дорога и другие провинциальные здания) проверял то же
+// правило страны RULE_POP_BUILD_FACTORY (байт country+0xB00, индекс 8), что и постройка фабрик (тип 0).
+// Три места, где правило читалось именно для зданий, переведены на байт правила
+// RULE_POP_OPEN_FACTORY_INVEST (country+0xB58, индекс 19): ни один код движка этот байт не читает
+// (только очищает и накапливает при пересчёте правил), в моде ключ pop_open_factory_invest не
+// использовался. Ключевое слово pop_open_factory_invest переименовано в pop_build_infrastructure
+// (статический объект {токен 0x94D, имя}, имя пишет FUN_00C381C0 из строки в .rdata: подменяем imm32
+// "mov edx, <имя>" на свою строку, как у pop_income_modifier). Фабрики остаются за pop_build_factory.
+//   0x4A4815  FUN_004A46E0, тип 1 (исполнитель): cmp byte [ebx+0xB00],0 -> +0xB58 (disp32)
+//   0x511F79  FUN_00511EF0 (можно ли строить здание, флаг "строит население"): disp32 тоже
+//   0x4A5367  FUN_004A5170 (выбор типа проекта): вес генератора зданий обнулялся при выключенном
+//             pop_build_factory (по AL = байт 0xB00); хук сверяет байт 0xB58 страны (ECX)
+//   0x4A4B84  FUN_004A4B10 (проверка "можно начать проект", общая для типов 0 и 1: таблица переходов
+//             0x4A4C9C ведёт оба на 0x4A4B4A): cmp byte [country+0xB00],0 - для типа 1 (planner+0x7C == 1)
+//             сверяем 0xB58, для типа 0 остаётся 0xB00. Без этого проект здания копил деньги, но не стартовал
+//             при pop_build_factory = no.
+// Без новых правил в issues здания капиталистами строиться не будут: добавляйте
+// pop_build_infrastructure рядом с pop_build_factory.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_INFRA_KW_IMM      = 0x851783;   // imm32 "mov edx, 'pop_open_factory_invest'" (FUN_00C381C0)
+static const DWORD RVA_INFRA_KW_STR      = 0xA1D8B8;   // строка "pop_open_factory_invest" в .rdata
+static const DWORD RVA_INFRA_KW_OBJECT   = 0xEFEDDC;   // статический объект ключевого слова {токен, имя[255]}
+static const int   INFRA_KW_TOKEN        = 0x94D;
+static const DWORD RVA_INFRA_DISP_SITES[2] = { 0xA4817, 0x111F7B };   // disp32 в cmp byte [ebx+0xB00],0
+static const DWORD RVA_INFRA_CHOOSER_SITE   = 0xA5367;
+static const DWORD RVA_INFRA_CHOOSER_RESUME = 0xA5370;
+static char  g_infraKeyword[] = "pop_build_infrastructure";
+static DWORD g_infraChooserResume = 0;
+static const DWORD RVA_INFRA_GATE_SITE   = 0xA4B84;
+static const DWORD RVA_INFRA_GATE_RESUME = 0xA4B8D;
+static DWORD g_infraGateResume = 0;
+
+// VA 0x4A4B84: mov eax,edi / cmp byte [eax+0xB00],0 (9 байт); дальше "je 0x4A4B9D" по флагам.
+// EDI = страна, EBX = планировщик проекта (+0x7C = тип: 0 фабрика, 1 здание).
+__declspec(naked) static void InfraGateThunk()
+{
+    __asm {
+        mov eax, edi
+        cmp dword ptr [ebx + 0x7C], 1
+        je infra
+        cmp byte ptr [eax + 0xB00], 0
+        jmp dword ptr [g_infraGateResume]
+    infra:
+        cmp byte ptr [eax + 0xB58], 0
+        jmp dword ptr [g_infraGateResume]
+    }
+}
+
+// VA 0x4A5367: test al,al / jne +5 / xor ebx,ebx / mov [ebp-0x20],ebx. ECX = страна, EBX = вес генератора
+// зданий (число фабрик + 1). Обнуляем вес, если правило pop_build_infrastructure выключено.
+__declspec(naked) static void InfraChooserThunk()
+{
+    __asm {
+        cmp byte ptr [ecx + 0xB58], 0
+        jne keep
+        xor ebx, ebx
+        mov dword ptr [ebp - 0x20], ebx
+    keep:
+        jmp dword ptr [g_infraChooserResume]
+    }
+}
+
+static bool InstallPopBuildInfrastructureRule()
+{
+    // 1. Проверяем все места до первой записи.
+    unsigned char* imm = (unsigned char*)(g_base + RVA_INFRA_KW_IMM);
+    const char* want = (const char*)(g_base + RVA_INFRA_KW_STR);
+    bool ok = imm[-1] == 0xBA && *(DWORD*)imm == (DWORD)(DWORD_PTR)want && strcmp(want, "pop_open_factory_invest") == 0;
+    for (int i = 0; i < 2 && ok; ++i)
+    {
+        unsigned char* p = (unsigned char*)(g_base + RVA_INFRA_DISP_SITES[i]);
+        ok = p[-2] == 0x80 && p[-1] == 0xBB && *(DWORD*)p == 0xB00 && p[4] == 0;
+    }
+    static const unsigned char CSIG[9]    = { 0x84, 0xC0, 0x75, 0x05, 0x33, 0xDB, 0x89, 0x5D, 0xE0 };
+    static const unsigned char CRESUME[5] = { 0x33, 0xC9, 0x8D, 0x45, 0xD4 };
+    unsigned char* chooser = (unsigned char*)(g_base + RVA_INFRA_CHOOSER_SITE);
+    ok = ok && memcmp(chooser, CSIG, sizeof(CSIG)) == 0 &&
+         memcmp((void*)(g_base + RVA_INFRA_CHOOSER_RESUME), CRESUME, sizeof(CRESUME)) == 0;
+    static const unsigned char GSIG[9]    = { 0x8B, 0xC7, 0x80, 0xB8, 0x00, 0x0B, 0x00, 0x00, 0x00 };
+    static const unsigned char GRESUME[7] = { 0x74, 0x0E, 0xB8, 0x01, 0x00, 0x00, 0x00 };
+    unsigned char* gate = (unsigned char*)(g_base + RVA_INFRA_GATE_SITE);
+    ok = ok && memcmp(gate, GSIG, sizeof(GSIG)) == 0 &&
+         memcmp((void*)(g_base + RVA_INFRA_GATE_RESUME), GRESUME, sizeof(GRESUME)) == 0;
+    if (!ok)
+    {
+        Log("PopBuildInfrastructure: сигнатуры не совпали - правило pop_build_infrastructure не установлено");
+        return false;
+    }
+
+    DWORD oldProtect = 0;
+    // 2. Ключевое слово.
+    if (!VirtualProtect(imm, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    *(DWORD*)imm = (DWORD)(DWORD_PTR)g_infraKeyword;
+    VirtualProtect(imm, 4, oldProtect, &oldProtect);
+
+    // Если таблица ключевых слов уже заполнена, переименовываем готовый объект.
+    unsigned char* obj = (unsigned char*)(g_base + RVA_INFRA_KW_OBJECT);
+    if (*(int*)obj == INFRA_KW_TOKEN && strcmp((const char*)obj + 4, "pop_open_factory_invest") == 0 &&
+        VirtualProtect(obj, 8, PAGE_READWRITE, &oldProtect))
+    {
+        strcpy_s((char*)obj + 4, 255, g_infraKeyword);
+        VirtualProtect(obj, 8, oldProtect, &oldProtect);
+    }
+
+    // 3. Два прямых чтения правила для зданий -> байт 0xB58.
+    for (int i = 0; i < 2; ++i)
+    {
+        unsigned char* p = (unsigned char*)(g_base + RVA_INFRA_DISP_SITES[i]);
+        if (VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+        {
+            *(DWORD*)p = 0xB58;
+            VirtualProtect(p, 4, oldProtect, &oldProtect);
+        }
+    }
+
+    // 4. Выбор типа проекта.
+    g_infraChooserResume = g_base + RVA_INFRA_CHOOSER_RESUME;
+    unsigned char patch[9];
+    memset(patch, 0x90, sizeof(patch));
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&InfraChooserThunk - ((DWORD)(DWORD_PTR)chooser + 5);
+    if (VirtualProtect(chooser, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
+    {
+        memcpy(chooser, patch, sizeof(patch));
+        VirtualProtect(chooser, sizeof(patch), oldProtect, &oldProtect);
+    }
+
+    // 5. Проверка "можно начать проект".
+    g_infraGateResume = g_base + RVA_INFRA_GATE_RESUME;
+    unsigned char gpatch[9];
+    memset(gpatch, 0x90, sizeof(gpatch));
+    gpatch[0] = 0xE9;
+    *(DWORD*)(gpatch + 1) = (DWORD)(DWORD_PTR)&InfraGateThunk - ((DWORD)(DWORD_PTR)gate + 5);
+    if (VirtualProtect(gate, sizeof(gpatch), PAGE_EXECUTE_READWRITE, &oldProtect))
+    {
+        memcpy(gate, gpatch, sizeof(gpatch));
+        VirtualProtect(gate, sizeof(gpatch), oldProtect, &oldProtect);
+    }
+
+    Log("PopBuildInfrastructure: установлено (ключ pop_build_infrastructure = правило country+0xB58; "
+        "pop_build_factory теперь только для фабрик)");
+    return true;
+}
 
 static bool Install()
 {
@@ -26094,6 +26775,15 @@ static bool Install()
     if (g_settings.factoryRefundSavingsOnClose || g_settings.factoryAutoCloseUnprofitable)
         InstallFactoryClose();
 
+    if (g_settings.factoryMaintenanceDisplayFix)
+        InstallMaintenanceDisplayFix();
+    if (g_settings.factoryMaintenanceIgnoreThroughput)
+        InstallMaintenanceIgnoreThroughput();
+    if (g_settings.goodsNeedTotal)
+        InstallGoodsNeedTotal();
+    if (g_settings.tradeRealPopNeeds)
+        InstallTradeRealPopNeeds();
+
     if (g_settings.factoryAiSpamFix)
         InstallAiExpandStaffing();
 
@@ -26145,6 +26835,9 @@ static bool Install()
 
     if (g_settings.popSalaryAdditionalMultiplier)
         InstallPopSalaryBonus();
+
+    if (g_settings.popBuildInfrastructureRule)
+        InstallPopBuildInfrastructureRule();
 
     InstallGoodsConsumption();
 
@@ -26237,7 +26930,7 @@ static bool Install()
         }
         Log("ModLoader: %d mod(s) activo(s) en la linea de comandos", modsSeen);
     }
-    // V2DLL\dll_Submods\*.dll: any other patch DLLs, loaded automatically, whatever mod runs.
+    // z_CreatineCore\dll_Submods\*.dll: any other patch DLLs, loaded automatically, whatever mod runs.
     LoadV2Submods();
     LogConfigFingerprint();
 
@@ -27250,6 +27943,11 @@ static void InstallCrashWatch()
 
 // Export for tools: lets one check the loaded core without parsing the log.
 extern "C" __declspec(dllexport) const char* __cdecl V2DLL_CoreVersion()
+{
+    return MOD_VERSION;
+}
+
+extern "C" __declspec(dllexport) const char* __cdecl CCore_CoreVersion()
 {
     return MOD_VERSION;
 }

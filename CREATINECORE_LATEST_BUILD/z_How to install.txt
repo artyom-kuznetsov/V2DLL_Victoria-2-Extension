@@ -1,0 +1,2 @@
+Put all of this into your game folder. CreatineCore folder contains the main file and configs.
+Don't forget to go to CreatineCore folder and configure creatinecore_settings.ini

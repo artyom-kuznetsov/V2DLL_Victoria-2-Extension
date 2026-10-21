@@ -1,10 +1,10 @@
-// V2DLL_AssimilateBlock.cpp - assimilate block plus the shared effect-factory
-// router; move_pop implementation lives in V2DLL_PopMergeIdentity.cpp.
+// CCore_AssimilateBlock.cpp - assimilate block plus the shared effect-factory
+// router; move_pop implementation lives in CCore_PopMergeIdentity.cpp.
 #include <windows.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "V2DLL_Shared.h"
+#include "CCore_Shared.h"
 
 // Debug log goes through the main file's DEBUG_LOG setting.
 #define LogDbg(...) do { if (V2_DebugLogEnabled()) Log(__VA_ARGS__); } while (0)

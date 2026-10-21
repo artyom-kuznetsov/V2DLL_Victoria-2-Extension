@@ -1,4 +1,4 @@
-// V2DLL_ModLoader.cpp - loads optional plugin DLLs.
+// CCore_ModLoader.cpp - loads optional plugin DLLs.
 //
 // Two sources, both speaking the same V2ModAPI / V2Mod_Init interface:
 //
@@ -8,7 +8,7 @@
 //     built from V2Mod_Template.cpp; a modder who wants custom logic rebuilds
 //     ONLY that DLL and drops it in the mod folder.
 //
-//  2. Every "*.dll" in "<V2DLL folder>\dll_Submods\" (LoadV2Submods), in
+//  2. Every "*.dll" in "<z_CreatineCore folder>\dll_Submods\" (LoadV2Submods), in
 //     alphabetical order and with no settings. Such a DLL may export V2Mod_Init
 //     (it then gets V2ModAPI) or be a plain patch DLL that works in DllMain.
 //
@@ -17,10 +17,10 @@
 #include <windows.h>
 #include <string.h>
 #include <stdio.h>
-#include "V2DLL_Shared.h"
+#include "CCore_Shared.h"
 #include "V2ModAPI.h"
 
-static const char* const MOD_DLL_NAME = "v2dll_mod.dll";
+static const char* const MOD_DLL_NAMES[] = { "v2dll_mod.dll", "ccore_mod.dll" };
 static const char* const SUBMODS_DIR_NAME = "dll_Submods";
 
 #define V2MOD_MAX_PLUGINS 16
@@ -119,15 +119,19 @@ void LoadV2Mods(const char* modFolderRaw)
         return;
     }
 
-    char path[MAX_PATH];
-    _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\%s", modFolder, MOD_DLL_NAME);
-    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES)
+    // Both names are accepted (v2dll_mod.dll is the original one); a mod may ship either or both.
+    bool found = false;
+    for (size_t i = 0; i < sizeof(MOD_DLL_NAMES) / sizeof(MOD_DLL_NAMES[0]); ++i)
     {
-        Log("ModLoader: %s has no %s (normal)", modFolder, MOD_DLL_NAME);
-        return;                         // this mod has no plugin DLL: normal
+        char path[MAX_PATH];
+        _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\%s", modFolder, MOD_DLL_NAMES[i]);
+        if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES)
+            continue;
+        found = true;
+        LoadPluginDll(path, modFolder);
     }
-
-    LoadPluginDll(path, modFolder);
+    if (!found)
+        Log("ModLoader: %s has no v2dll_mod.dll / ccore_mod.dll (normal)", modFolder);   // this mod has no plugin DLL: normal
 }
 
 static int __cdecl CmpNames(const void* a, const void* b)
@@ -137,7 +141,7 @@ static int __cdecl CmpNames(const void* a, const void* b)
 
 void LoadV2Submods()
 {
-    // <V2DLL>\dll_Submods\*.dll, in alphabetical order. Nothing to configure: drop a
+    // <z_CreatineCore>\dll_Submods\*.dll, in alphabetical order. Nothing to configure: drop a
     // DLL in the folder and it is loaded at startup (after all built-in patches).
     // Rename it to *.dll.off (or move it out) to disable it.
     char dir[MAX_PATH];

@@ -1,7 +1,7 @@
 // vasalle_color.cpp - en el mapa politico, los vasallos se pintan con su propio color
 // mezclado con el color de su senor (ultimo senor de la cadena de vasallaje).
 //
-// Ajustes en v2dll_settings.ini (los lee V2TechButton.cpp):
+// Ajustes en creatinecore_settings.ini (los lee V2TechButton.cpp):
 //   ENABLE_VASSAL_COLORS=1      activa la funcion
 //   VASSAL_COLOR_PERCENT=65     peso del color del senor (0..100). 65 = 35% color original
 //                               del vasallo + 65% color del senor. Con 0 no se instala nada;
@@ -23,7 +23,7 @@
 #include <float.h>
 #include <string.h>
 #include <stdint.h>
-#include "V2DLL_Shared.h"
+#include "CCore_Shared.h"
 
 bool InstallVassalColors(int percent);
 

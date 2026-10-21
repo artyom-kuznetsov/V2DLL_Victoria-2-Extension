@@ -1,9 +1,9 @@
 
 ### dll_Submods
-Every `*.dll` in `V2DLL\dll_Submods\` is loaded at startup (alphabetical order, after all built-in patches), whichever mod is running.
+Every `*.dll` in `z_CreatineCore\dll_Submods\` is loaded at startup (alphabetical order, after all built-in patches), whichever mod is running.
 No settings are needed. A submod can export `V2Mod_Init` (it then receives the API from `V2ModAPI.h`) or just do its work in `DllMain`.
 To disable one, rename it (e.g. `x.dll.off`) or move it out of the folder. Submods that need mod files (a `.gui`, textures) still read those from the running mod.
-Old installs: if `V2DLL\v2dll_settings.ini` is missing but `v2dll_settings.ini` exists next to v2game.exe, it is copied once.
+Old installs: if `z_CreatineCore\creatinecore_settings.ini` is missing but `creatinecore_settings.ini` exists next to v2game.exe, it is copied once.
   
 # Feature overview
 ## Explaining each option in the .ini file
@@ -37,10 +37,10 @@ The "Command army" button on a satellite is always available (vanilla: only whil
 ### Economic
 #### 1. TRADE_PRICE_DELTA_PERCENTUAL 
 Prices shift by 0.25% of the base price instead of flat 0.01 per day.
-Goods that must keep the flat step can be listed in `common/defines_v2dll.txt` (made by balticšprott).
+Goods that must keep the flat step can be listed in `common/defines_ccore.txt` (made by balticšprott).
 #### 2. TRADE_PRICE_DELTA_EXPONENTIAL 
 Enables exponential price shifts instead of flat or percentual. INCOMPATIBLE with №1 (made by vesper).
-Goods that must keep the flat step can be listed in `common/defines_v2dll.txt`.
+Goods that must keep the flat step can be listed in `common/defines_ccore.txt`.
 #### 3. TRADE_MAX_PRICE_20X_MULTIPLIER
 Just changes the price ceiling from x5 of base price to x20 of it.  
 Note: an overflow might occur that will break your game if prices of some factory inputs go beyond its max savings. I recommend increasing MAX_FACTORY_MONEY_SAVE define if you are using this (made by balticšprott).
@@ -61,12 +61,12 @@ Can work together with FACTORY_COLONIAL_ALLOW_LOCAL_SUPPLY (made by balticšprot
 Factory will transfer its savings to capitalists in region when closed. Money will be wasted if there are none (made by balticšprott).
 #### 11. PATCH_FACTORY_AUTO_CLOSE_UNPROFITABLE
 Unsubsidized unprofitable factories (income minus goods cost is negative, salaries are not included)
-will be automatically closed after 60 days (configurable in `<mod>/common/defines_v2dll.txt`) (made by balticšprott).
+will be automatically closed after 60 days (configurable in `<mod>/common/defines_ccore.txt`) (made by balticšprott).
 #### 12. FACTORY_AI_SPAM_FIX
 AI countries expand an existing factory only if enough of its jobs are filled with workers.
 Fixes vanilla AI expanding factories to ridiculous levels for no reason (made by balticšprott).
 #### 13. FACTORY_FORCE_MIN_WAGE 
-Factories will be forced to pay a minimum wage of X pounds per 10K workers (configurable in `<mod>/common/defines_v2dll.txt`) (made by balticšprott).
+Factories will be forced to pay a minimum wage of X pounds per 10K workers (configurable in `<mod>/common/defines_ccore.txt`) (made by balticšprott).
 #### 14. FACTORY_AI_FACTORY_PRIORITY_RULESWAP 
 AI will manage factory priotities if economic policy has `factory_priority = no` instead of `delete_factory_if_no_input = yes` (made by balticšprott).
 #### 15. POP_CARD_NEEDS_AFFECTED_BY_NEEDS_MODIFIERS_FIX
@@ -76,7 +76,7 @@ Budget payments to pops will scale with pop need modifiers (made by balticšprot
 #### 17. POP_FIX_NEEDS_MODIFIERS
 Fixes pop need modifiers, they now do exactly what you expect (some of them were switched up) (made by balticšprott).
 #### 18. ENABLE_MINTING
-Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common\defines_v2dll.txt` inside your mod folder. 
+Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common\defines_ccore.txt` inside your mod folder. 
 `minting_inc` label in `country_budget.gui` will display the income (made by balticšprott).
   
 ### UI 
@@ -89,7 +89,7 @@ Adds support for a few new buttons:
 #### 2. ENABLE_DECISION_FILTER 
 Hides abovementioned decisions from the regular decision menu (basically I'm decluttering dec menu by adding new buttons for some decs) (made by balticšprott).
 #### 4. ENABLE_VERSION_LABEL 
-Changes version label in main menu to `V2 v3.04 + V2DLL v*` (made by balticšprott).
+Changes version label in main menu to `V2 v3.04 + CreatineCore v*` (made by balticšprott).
 #### 6. HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES 
 Hides factories with "limit_by_local_supply = yes" from factory construction menu if there is no required supply in the region (made by balticšprott).
 #### 7. HIDE_RAW_GOODS_FILTER
@@ -123,6 +123,9 @@ The "Total income" row of the budget window did not include tariff income. This 
 Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. With this patch, real needs fulfillment is displayed (made by balticšprott).
 #### 15. ENABLE_VASSAL_COLORS=1 // VASSAL_COLOR_PERCENT=80
 Satellite colour will be closer to its overlord colour by set percent. 100 = take overlord colour, 0 = keep original colour (made by maxioten).
+#### 16. FACTORY_MAINTENANCE_DISPLAY_FIX=1
+Fixes mismatch between factory maintenance displayed in factory tooltip and trade good window.
+This is not just a cosmetic fix - it stops factories from stockpiling more than they need daily.
   
   
 ### Miscellaneous
@@ -141,10 +144,10 @@ Fixes miscellaneous crashes when opening tech tab (made by balticšprott).
 #### 7. PATCH_SUPPLY_SOURCE_NULL_CHECK
 Prevents game from crashing in miscellaneous scenarios with "limit_by_local_supply = yes" factories (made by balticšprott).
 #### 8. PATCH_AI_NAVAL_BASE_LIMIT
-When enabled, an AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of one state (`<mod>\common\defines_v2dll.txt`, default 1, `0` = no limit). The vanilla AI builds a naval base in every port province. The player and capitalists are not limited.  
+When enabled, an AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of one state (`<mod>\common\defines_ccore.txt`, default 1, `0` = no limit). The vanilla AI builds a naval base in every port province. The player and capitalists are not limited.  
 You don't need this if your mod only allows one naval base per state (made by balticšprott).
 #### 9. LOAD_DLL_FROM_MOD_FOLDER
-V2DLL will load `v2dll_mod.dll` in the mod folder. In case you want to add new patches for your mod independently (made by maxioten).
+CreatineCore will load `v2dll_mod.dll` in the mod folder. In case you want to add new patches for your mod independently (made by maxioten).
   
   
 ### Script Extensions
@@ -213,10 +216,10 @@ railroad = {
 ```
 #### 3. ENABLE_EVENT_SOUNDS
 Enables playing sounds on certain events. Like the super-events. 
-Read `V2DLL\watch\music.txt` file for more information (made by maxioten). The same `watch\music.txt` + `sound\` pair inside a running mod folder is also read and takes priority over the one in `V2DLL\`.
+Read `z_CreatineCore\watch\music.txt` file for more information (made by maxioten). The same `watch\music.txt` + `sound\` pair inside a running mod folder is also read and takes priority over the one in `z_CreatineCore\`.
 #### 3. POP_SALARY_ADDITIONAL_MULTIPLIER
 Scriptable increases of all pop income sources after taxes are withdrawn (pops get +income% from thin air).  
-Can be a constant increase or be a per-country modifier, configure in `<mod>/common\defines_v2dll.txt`.  
+Can be a constant increase or be a per-country modifier, configure in `<mod>/common\defines_ccore.txt`.  
 Used to keep pops consuming goods and combat endgame economy crisis.  
 Comes with `pop_income_modifier` for technologies and inventions, change `RGO_INPUT_TECH` localization to give the modifier a name.  
 Can't be negative (you can't cut pop's salary, only raise it) (made by balticšprott).
@@ -237,6 +240,12 @@ The effect tooltip uses the localisation key `MOVE_POP_AMOUNT_EFFECT`, you shoul
 Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by this patch.
 Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
   
+#### 5. POP_BUILD_INFRASTRUCTURE_RULE
+Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt` like `pop_build_factory`).
+`pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
+Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` next to `pop_build_factory`.
+Give it a name by changing the `RULE_POP_OPEN_FACTORY_INVEST` localization (the rule takes over the old, unused `pop_open_factory_invest` key, which stops working) (made by balticšprott).
+
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
 Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).
@@ -282,6 +291,6 @@ Crash log :) (made by av213238).
 #### 5. ENABLE_CRASH_DUMP
 Creates Windows memory dump on game crash (made by av213238).
 #### 6. FACTORY_EXPAND_TRACE
-On by default. Observer only, changes nothing in the game: writes `Logs\v2dll_expand.log`, one line each time a factory starts to expand (date, country and factory type, level, how many of its workers are employed, the same for the whole state), separately for capitalist projects and for direct expansions by countries (AI or player). Used to find out how oversized, understaffed factories come about.
+Removed. The factory expansion observer is no longer part of the code: there is no such key and `Logs\v2dll_expand.log` is never written.
 #### 7. PATCH_STATE_SAVINGS_CAP / STATE_SAVINGS_CAP_POUNDS 
 Caps state savings to fix repeating desyncs in MP (made by balticšprott).

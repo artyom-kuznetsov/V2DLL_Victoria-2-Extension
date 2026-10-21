@@ -1,0 +1,10 @@
+Whatever .dll you put here will be launched together along with creatinecore.
+You can use this if you want to add some patches yourself.
+
+DLLs also can be launched from a mod folder.
+Quoting readme:
+9. LOAD_DLL_FROM_MOD_FOLDER
+CreatineCore will load `v2dll_mod.dll` in the mod folder. In case you want to add new patches for your mod independently.
+
+How to get submods? Maybe you can find some on the internet.
+How to make a submod? Well, if you have no idea about it - show AI the CreatineCore repo folder and tell it you want to do a patch of your own. :)

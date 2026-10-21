@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "V2DLL_Shared.h"
+#include "CCore_Shared.h"
 
 // Debug log goes through the main file's DEBUG_LOG setting.
 #define LogDbg(...) do { if (V2_DebugLogEnabled()) Log(__VA_ARGS__); } while (0)
@@ -733,7 +733,7 @@ bool MovePopBlockEnabled()
     return g_moveEnabled;
 }
 
-// Called by the shared effect-factory hook (V2DLL_AssimilateBlock.cpp) after every effect
+// Called by the shared effect-factory hook (CCore_AssimilateBlock.cpp) after every effect
 // is created; only a CMovePopEffect with a "{" value is read here.
 void CaptureMovePopBlock(void* effect, void* ctx, int keyId, int token)
 {

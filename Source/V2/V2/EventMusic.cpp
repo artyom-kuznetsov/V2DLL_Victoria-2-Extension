@@ -32,7 +32,7 @@ static void EventMusicLog(const char* fmt, ...)
 {
     if (!g_eventMusicLogging) return;
     wchar_t exe[MAX_PATH] = {};
-    // The log sits next to this DLL (V2DLL\Logs, shared with the core); if the DLL is
+    // The log sits next to this DLL (z_CreatineCore\Logs, shared with the core); if the DLL is
     // not found by address, fall back to the game folder.
     HMODULE self = NULL;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -154,7 +154,7 @@ static void SfxBuildRoots()
         LocalFree(argv);
     }
     for (int i=count-1;i>=0;--i) SfxAddRoot(mods[i]);
-    // Lowest priority: the V2DLL folder itself (V2DLL\watch\music.txt + V2DLL\sound\*.wav), for sounds
+    // Lowest priority: the CreatineCore folder itself (z_CreatineCore\watch\music.txt + z_CreatineCore\sound\*.wav), for sounds
     // that belong to no particular mod.
     {
         HMODULE self = NULL;
