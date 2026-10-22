@@ -138,12 +138,12 @@ Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. W
 Satellite colour will be closer to its overlord colour by set percent. 100 = take overlord colour, 0 = keep original colour (made by maxioten).
 #### 16. FACTORY_MAINTENANCE_DISPLAY_FIX
 Trade window and factory window now show the same real consumption of maintenance goods (`efficiency` in production types): base x level x (1 + factory_maintenance), without the throughput multiplier (made by balticšprott).
-  
 #### 17. GOODS_NEED_TOTAL
-Goods card (`trade_flow`) gets a third total, "Required": government and factory needs of the shown country for this good (factory need from the same statistics as the "Used" column, so Required is never below Used) plus the needs of buildings with `goods_consumption` (budget expenses). Population is not included. Needs `total_need_text` / `total_need_value` in `trade_flow.gui` and the `TRADE_FLOW_TOTAL_NEED` localisation key; works for any country (made by balticšprott).
-  
+Goods card (`trade_flow`) gets a third total, "Required": government and factory needs of the shown country for this good (factory need from the same statistics as the "Used" column) 
+plus the needs of buildings with `goods_consumption` (budget expenses). Needs `total_need_text` / `total_need_value` in `trade_flow.gui` and the `TRADE_FLOW_TOTAL_NEED` localisation key (made by balticšprott).
 #### 18. TRADE_WINDOW_REAL_POP_NEEDS
-The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand the engine really builds for pops (with life/everyday/luxury and strata need modifiers), not the vanilla simplified estimate. Values are the demand of the last finished day; before the first day passes the vanilla numbers stay (made by balticšprott).
+The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand pops within the country have, not the vanilla simplified estimate. 
+This does not calculate for money pops have, thus needs still do not reflect real demand (made by balticšprott).
   
 ### Miscellaneous
 #### 1. PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH 
@@ -256,12 +256,11 @@ The moved pop is never merged into a pop of another type, culture or religion in
 The effect tooltip uses the localisation key `MOVE_POP_AMOUNT_EFFECT`, you should add it to your mod's localization.
 Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by this patch.
 Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
-  
 #### 5. POP_BUILD_INFRASTRUCTURE_RULE
 Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt`).
 `pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
 Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` to your economic policies/reforms before enabling (made by balticšprott).
-
+  
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
 Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).
