@@ -17,6 +17,13 @@ const char* V2_OwnDir();                              // folder z_CreatineCore\ 
 bool   InstallAssimilateBlock();
 bool   InstallEffectFactoryHook();       // shared router of the block-form script effects
 
+// --- defined in CCore_IfElseOperators.cpp ---
+typedef void(__fastcall* tCoreEffectFactory)(void* self, void* edx, void* ctx, int keyId);
+bool   InstallIfElseOperators();
+bool   CaptureIfElseOperator(void* self, void* edx, void* ctx, int keyId,
+                                tCoreEffectFactory originalFactory);
+void   IfElseOperatorBeforeFactory(void* self);
+
 // --- defined in CCore_PopMergeIdentity.cpp ---
 bool   InstallMovePopBlock();
 bool   InstallPopMergeIdentity();

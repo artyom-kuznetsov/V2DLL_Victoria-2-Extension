@@ -26,6 +26,7 @@
   <ItemGroup>
     <ClCompile Include="V2TechButton.cpp" />
     <ClCompile Include="CCore_AssimilateBlock.cpp" />
+    <ClCompile Include="CCore_IfElseOperators.cpp" />
     <ClCompile Include="CCore_PopMergeIdentity.cpp" />
     <ClCompile Include="CCore_ModLoader.cpp" />
     <ClCompile Include="vasalle_color.cpp" />

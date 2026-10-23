@@ -23,5 +23,8 @@
     <ClCompile Include="V2TechButton.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="CCore_IfElseOperators.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
