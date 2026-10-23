@@ -2,7 +2,7 @@
 
 Reference for every patch in CreatineCore (`z_CreatineCore\creatinecore.dll`, started by the `dinput8.dll` proxy, for Victoria 2 `v2game.exe`): what each one touches in memory, how it is applied, which `creatinecore_settings.ini` key controls it and what it does.
 
-* DLL version documented: **4.61** (`MOD_VERSION` in `Source/V2/V2/V2TechButton.cpp`).
+* DLL version documented: **5.121** (`MOD_VERSION` in `Source/V2/V2/V2TechButton.cpp`).
 * Source moved 2026-09-30 to `I:\Vic2_DLL\CreatineCore - Victoria 2 Extension` (git remote `CreatineCore---Victoria-2-Extension`); the old `I:\Vic2_DLL\balticsprott_CreatineCore` checkout no longer holds the source.
 * Target binary: `v2game.exe` (32-bit x86, preferred image base `0x400000`, ASLR on).
 * Verification: before this file was written, a script checked the cited bytes against the on-disk `v2game.exe` — all 22 byte-patch rows (address, length, *expect* bytes), 33 hook-site byte sequences, every redirected `call` / `jnz` target, the topbar vftable slots and every cited resume address (must be an instruction boundary). Behavioural descriptions come from the source comments and code, not from a runtime trace.
@@ -555,7 +555,12 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 
 ## 6a. Script extensions (`ini` category "Script Extensions")
 
-### 6a.1 `ENABLE_MOVE_POP_BLOCK` - VSLOT x2 + effect-factory detour + HOOK, on (added 5.98)
+### 6a.1 `ENABLE_IF_ELSE_OPERATORS` - CK2-style if/else operators, on (added 5.121)
+* **What.** Supports `if = { limit = { ... } <effects> }`, consecutive `else_if = { limit = { ... } <effects> }`, and `else = { <effects> }` in event and decision effect lists. The first matching branch runs; an ordinary effect ends the chain. An orphan `else_if` is treated as `if`. Branch effects execute in the original scope. Implementation: `CCore_IfElseOperators.cpp`, using the native block parser and a same-scope child-effect executor.
+* **Limit.** The any-country carrier tooltip is suppressed; branch conditions and child effects are not composed into a replacement tooltip.
+* **Config.** `ENABLE_IF_ELSE_OPERATORS` (ini, default on). Keep this setting identical among multiplayer players because it changes effect parsing.
+
+### 6a.2 `ENABLE_MOVE_POP_BLOCK` - VSLOT x2 + effect-factory detour + HOOK, on (added 5.98)
 
 * **What.** `move_pop = { where = <province_id> amount = <0..1> }` (block form of the vanilla `move_pop = <id>`). Code: `CCore_PopMergeIdentity.cpp`; the effect-factory router is shared with `ENABLE_ASSIMILATE_BLOCK` (`CCore_AssimilateBlock.cpp`, `InstallEffectFactoryHook`, detour of `FUN_00876B30` at RVA `0x476B30`, 6 bytes `55 8B EC 83 E4 F8`). After the factory built a `CMovePopEffect` (vtable `0xA2BF44`) for a `{` value, `CaptureMovePopBlock` reads the block and stores `where`/`amount` per effect object; `where * 1000` goes into `effect+0x20`, as the vanilla effect expects.
 * **Execute** (vtable slot 11, `FUN_00897140`, RVA `0x497140`): for `amount < 1` a new pop of the same type is created in the source province (`FUN_004B8D30`, attributes copied by `FUN_00955A00`), the share (money, bank, con/mil fractions) is split off, the source keeps `size - n` (jobs freed by the shrink are re-hired through `FUN_004EE780` like in the assimilate block), then the vanilla executor moves the temporary pop. `amount = 1` goes straight to the vanilla executor. A block that was not captured and has no valid destination is ignored (otherwise it would move to province 0).

@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.120"
+#define MOD_VERSION "5.121"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -183,6 +183,8 @@ struct Settings
     bool assimilateBlock             = true;
     // move_pop = { where = province_id amount = 0..1 } plus identity-safe insertion.
     bool movePopBlock                = true;
+    // CK2-style if / else_if / else blocks in event and decision effects.
+    bool ifElseOperators          = true;
     // Load the running mod's v2dll_mod.dll if it has one (see V2ModAPI.h).
     bool loadDllFromModFolder                  = true;
 
@@ -4789,6 +4791,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "ENABLE_ASSIMILATE_BLOCK") == 0)          { g_settings.assimilateBlock             = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
+    if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
     if (_stricmp(key, "LOAD_DLL_FROM_MOD_FOLDER") == 0)                      { g_settings.loadDllFromModFolder                  = v; return; }
 
     if (_stricmp(key, "COMBAT_ROLL_MIN") == 0) { g_settings.combatRollMin = atoi(value); return; }
@@ -4997,6 +5000,7 @@ static void WriteDefaultSettings(const char* path)
         "; Script Extensions\n"
         "ENABLE_ASSIMILATE_BLOCK=%d\n"
         "ENABLE_MOVE_POP_BLOCK=%d\n"
+        "ENABLE_IF_ELSE_OPERATORS=%d\n"
         "ENABLE_EVENT_SOUNDS=%d\n"
         "BUILDING_GOODS_CONSUMPTION=%d\n"
         "POP_SALARY_ADDITIONAL_MULTIPLIER=%d\n"
@@ -5004,6 +5008,7 @@ static void WriteDefaultSettings(const char* path)
         "\n",
         (int)g_settings.assimilateBlock,
         (int)g_settings.movePopBlock,
+        (int)g_settings.ifElseOperators,
         (int)g_settings.EventSounds,
         (int)g_settings.goodsConsumption,
         (int)g_settings.popSalaryAdditionalMultiplier,
@@ -22632,8 +22637,7 @@ static int PopSalaryComputeTenths(void* country)
 
 // ВРЕМЕННАЯ ПРОБА (карточка товара, "Может быть использовано"): какие типы производства движок считает
 // потребляющими товар. Критерий окна (FUN_00477AD0 -> FUN_004DE580): вход типа (type+0x6C, слот-байт type+0x2C+товар)
-// > 0 или содержание (type+0xD8, слот-байт type+0x98+товар) > 0. Пишет в лог типы-кандидаты для опиума и угля.
-// Из общего дневного хука страны (CountryDailyHook).
+// > 0 или содержание (type+0xD8, слот-байт type+0x98+товар) > 0. Пишет в лог типы-кандидаты для опиума и угля.// Из общего дневного хука страны (CountryDailyHook).
 static void PopSalaryDailyUpdate(void* country)
 {
     if (!g_popSalReady || !country)
@@ -26919,6 +26923,9 @@ static bool Install()
 
     if (g_settings.movePopBlock)
         InstallMovePopBlock();
+
+    if (g_settings.ifElseOperators)
+        InstallIfElseOperators();
 
     if (g_settings.goodsIconsAsSeparateFiles)
         InstallGoodsIcons();

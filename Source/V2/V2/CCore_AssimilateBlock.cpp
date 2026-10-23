@@ -702,6 +702,10 @@ static void ParseAssimilateBlock(void* effect, void* ctx)
 
 static void __fastcall EffectFactoryHook(void* self, void* edx, void* ctx, int keyId)
 {
+    if (CaptureIfElseOperator(self, edx, ctx, keyId, g_origEffectFactory))
+        return;
+    IfElseOperatorBeforeFactory(self);
+
     g_origEffectFactory(self, edx, ctx, keyId);
     if (!g_assimEnabled && !MovePopBlockEnabled())
         return;
