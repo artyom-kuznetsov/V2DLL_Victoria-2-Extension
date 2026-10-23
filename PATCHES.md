@@ -395,6 +395,12 @@ Pays a factory's stored money to the capitalists of its state whenever it is clo
 * **Hook.** Same site as the wage-floor part of 4.11. The thunk keeps the original instructions (`add esi,[esp+0x28] / mov eax,edx / adc eax,edi`, cost*1000 = `EDI:[esp+0x28]`) and adds `FactoryBudgetExtra(factory, costLo, costHi)` for subsidized, open factories: the wage floor (FACTORY_FORCE_MIN_WAGE) plus, if yesterday `0 < r < 1`, `min(spent / r, 3 * cost) - cost` (cost of the full purchase minus the base cost). The money is only lent: purchases are still capped by the real cost, the rest stays in the factory (a subsidized factory pays no owners), the import markup returns to the treasury as tariff income.
 * **Config.** `FACTORY_SUBSIDY_COVERS_TARIFF` (ini, Economic, default on). Hook is installed when this or FACTORY_FORCE_MIN_WAGE is on. Log line `FactorySubsidy: ...`.
 
+### 4.26 `FACTORY_DELETE_CLOSED` - hook before the deletion test in `FUN_004808D0` (VA `0x4815A3`, 5 bytes `80 7C 24 4B 00`; resume `0x4815A8` `0F 84 8A 00`; jump into the vanilla tail `0x4815F9`), on (added 5.121, war condition removed 5.124)
+
+* **Vanilla.** `FUN_004808D0` (daily country pass) deletes a factory (`FUN_0052E900` -> `FUN_004D0320`) when the flag `[esp+0x4B]` is set (human: rule `delete_factory_if_no_input`, country `+0xB18`; AI: `country+0x67C == 0`), `+0x188` (closed) is 0, `level <= 0` or stop counter `+0x184 >= 11`, state factory count (`state+0x68`) is above `MIN_NUM_FACTORIES_PER_STATE_BEFORE_DELETING_LASSIEZ_FAIRE` (`DAT_013f35f8` = defines `+0x34` / 1000), `level == 1` or (`level == 0` and `+0x17C == 0`), the state is fully controlled by its owner (`FUN_004D35F0` -> `[esp+0xC8] == 1000`), and either the state has 8 factories or at least `NUM_CLOSED_FACTORIES_PER_STATE_LASSIEZ_FAIRE` (`DAT_013f35fc`) candidates were seen before. Closed factories are rejected at `0x4815BE` and `0x4815C7`, and they skip the finance tick, so they are never deleted.
+* **Hook.** Runs once per day per factory. Open factory: a leftover closed-days mark is cleared. Closed factory with the rule on (human: `delete_factory_if_no_input`; AI: always, the vanilla `country+0x67C` condition is not used; it is set by `FUN_00517AF0` when the country has a relation entry with `+0x34 != 0`, apparently a war): days closed are counted in `+0x178` (saved as `unprofitable_days`) as `1000000000 + days`; the vanilla finance tick does not run for closed factories, and `FactoryAutoCloseCheck` resets a mark it finds on an open factory. When `days >= factory_closed_delete_days`, the state has more factories than the minimum and is fully controlled, the hook jumps to the vanilla tail `0x4815F9` (ECX = factory count), which applies the `NUM_CLOSED_...` limit and deletes.
+* **Config.** `FACTORY_DELETE_CLOSED` (ini, Economic, default on), `factory_closed_delete_days` (common\defines_ccore.txt, default 90, 0 = off). Log line `FactoryDeleteClosed: ...`; each deletion goes to the debug log.
+
 ## 5. UI patches
 
 ### 5.1 `ENABLE_BUTTONS` — VSLOT ×4 + button glue, on
@@ -423,7 +429,7 @@ Shows total population (adult male ×4) in three drawing sites. Each site is a 6
 
 ### 5.4 `ENABLE_VERSION_LABEL` — HOOK, on
 * **Site:** `0x233826` (VA `0x633826`), 12 bytes: `push 8; mov edi,0Fh; push 0xE0764C` (length of the original label, a register load, and the pointer to the original string `0xA0764C`, which is checked before patching) in the main-menu label builder; resume `0x233832`.
-* **Cave:** `push <len>; push <ptr to "V2 v3.04 + CreatineCore v4.29">; mov edi,0Fh; jmp resume`.
+* **Cave:** `push <len>; push <ptr to "V2 v3.04 + CreatineCore MTK v6.0">; mov edi,0Fh; jmp resume`.
 
 ### 5.5 `FACTORY_ALLOW_CONSTRUCTION_IN_COLONIAL` — HOOK, on
 * **Site:** `0x2F424B` (VA `0x6F424B`) — 10 bytes `7E 08 3B F3 0F 84 89 00 00 00` (`jle +8; cmp esi,ebx; je skip`) in the factory-list refresher `FUN_006F3E70`. Only the first two bytes are checked; the rest is rewritten.

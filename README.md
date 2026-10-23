@@ -1,4 +1,4 @@
-**CreatineCore - Modding Extension** *(previously known as V2DLL//Unofficial Patch v3.05)* is a DLL-mod that brings more modding options and fixes to vanilla Victoria II.
+**CreatineCore - Modding Toolkit** *(previously known as V2DLL//Unofficial Patch v3.05)* is a DLL-mod that brings more modding options and fixes to vanilla Victoria II.
 CC features a lot of new tweaks and script extensions, as well as previously existing modifications, known as .exe-patches.
 Along with modding tools, CC has a lot of performance and stability patches - most importantly, fixed multiplayer FPS and improved game speed. Also, it can fix some desyncs.
 
@@ -84,13 +84,16 @@ Budget payments to pops will scale with pop need modifiers (made by balticšprot
 #### 17. POP_FIX_NEEDS_MODIFIERS
 Fixes pop need modifiers, they now do exactly what you expect (some of them were switched up) (made by balticšprott).
 #### 18. ENABLE_MINTING
-Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common\defines_ccore.txt` inside your mod folder. 
+Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common/defines_ccore.txt` inside your mod folder. 
 `minting_inc` label in `country_budget.gui` will display the income (made by balticšprott).
 #### 19. FACTORY_MAINTENANCE_IGNORE_THROUGHPUT
 Factories buy maintenance goods (`efficiency` in production types) in the amount they really consume, without the throughput multiplier. Vanilla bought base x level x throughput every day but consumed only base x level, so the stock grew every day when throughput was above 100% (made by balticšprott).
 #### 20. FACTORY_SUBSIDY_COVERS_TARIFF
 Tariffs make factories spend more money and subsidy does not calculate for that ==> Factory can't work on 100% efficiency.  
 This fix makes subsidies cover tariff expenses (made by balticšprott).
+#### 21. FACTORY_DELETE_CLOSED
+Closed factories will be deleted in X days (set in `<mod>/common/defines_ccore.txt`) if country has `delete_factory_if_no_input = yes` in `issues.txt`. 
+Prevents AI from being stuck with closed factories filling their factory slots. Also allows AI to delete closed factories during war. Factories in occupied states won't get deleted.
   
 ### UI 
 #### 1. ENABLE_BUTTONS 
@@ -102,7 +105,7 @@ Adds support for a few new buttons:
 #### 2. ENABLE_DECISION_FILTER 
 Hides abovementioned decisions from the regular decision menu (basically I'm decluttering dec menu by adding new buttons for some decs) (made by balticšprott).
 #### 4. ENABLE_VERSION_LABEL 
-Changes version label in main menu to `V2 v3.04 + CreatineCore v*` (made by balticšprott).
+Changes version label in main menu to `V2 v3.04 + CreatineCore MTK v*` (made by balticšprott).
 #### 6. HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES 
 Hides factories with "limit_by_local_supply = yes" from factory construction menu if there is no required supply in the region (made by balticšprott).
 #### 7. HIDE_RAW_GOODS_FILTER
@@ -138,13 +141,11 @@ Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. W
 Satellite colour will be closer to its overlord colour by set percent. 100 = take overlord colour, 0 = keep original colour (made by maxioten).
 #### 16. FACTORY_MAINTENANCE_DISPLAY_FIX
 Trade window and factory window now show the same real consumption of maintenance goods (`efficiency` in production types): base x level x (1 + factory_maintenance), without the throughput multiplier (made by balticšprott).
-  
 #### 17. GOODS_NEED_TOTAL
-Goods card (`trade_flow`) gets a third total, "Required": government and factory needs of the shown country for this good (factory need from the same statistics as the "Used" column)
+Goods card (`trade_flow`) gets a third total, "Required": government and factory needs of the shown country for this good (factory need from the same statistics as the "Used" column) 
 plus the needs of buildings with `goods_consumption` (budget expenses). Needs `total_need_text` / `total_need_value` in `trade_flow.gui` and the `TRADE_FLOW_TOTAL_NEED` localisation key (made by balticšprott).
-  
 #### 18. TRADE_WINDOW_REAL_POP_NEEDS
-The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand pops within the country have, not the vanilla simplified estimate.
+The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand pops within the country have, not the vanilla simplified estimate. 
 This does not calculate for money pops have, thus needs still do not reflect real demand (made by balticšprott).
   
 ### Miscellaneous
@@ -258,12 +259,10 @@ The moved pop is never merged into a pop of another type, culture or religion in
 The effect tooltip uses the localisation key `MOVE_POP_AMOUNT_EFFECT`, you should add it to your mod's localization.
 Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by this patch.
 Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
-  
 #### 5. POP_BUILD_INFRASTRUCTURE_RULE
 Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt`).
 `pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
 Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` to your economic policies/reforms before enabling (made by balticšprott).
-
 #### 6. ENABLE_IF_ELSE_OPERATORS
 Adds `if`, `else_if`, and `else` block operators for use in event and decision effects, replacing the well-known 'If emulation' method using `random_owner = { limit = { owner = condition } owner = { effect } }`.
 
@@ -283,7 +282,7 @@ else = {
 }
 ```
 (made by COUNTRY_ADJ)
-
+  
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
 Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).

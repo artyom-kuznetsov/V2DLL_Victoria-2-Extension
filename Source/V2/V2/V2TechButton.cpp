@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "5.121"
+#define MOD_VERSION "6.0"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -119,6 +119,10 @@ struct Settings
     // фабрика докупала только часть сырья (+0x1E0 < 1) и застревала на этом уровне. Если вчера фабрика
     // получила долю r < 1, цель субсидии поднимается до стоимости полной потребности (затраты / r).
     bool factorySubsidyCoversTariff = true;
+    // FACTORY_DELETE_CLOSED: при правиле delete_factory_if_no_input = yes (и у ИИ) закрытая фабрика
+    // (+0x188) удаляется через factory_closed_delete_days дней (defines_ccore.txt). В ваниле закрытые
+    // исключены из удаления, поэтому остаются навсегда.
+    bool factoryDeleteClosed = true;
     // PATCH_NEEDS_HONEST_UI: доли выполнения потребностей попа на экране (подсказки, окно
     // попа) умножаются на фактическое покрытие общего пула денег типа попа. Только вид.
     bool patchNeedsHonestUi          = true;
@@ -4705,6 +4709,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_AI_NAVAL_BASE_LIMIT") == 0)       { g_settings.patchAiNavalBaseLimit       = v; return; }
     if (_stricmp(key, "FACTORY_FORCE_MIN_WAGE") == 0)          { g_settings.factoryForceMinWage         = v; return; }
     if (_stricmp(key, "FACTORY_SUBSIDY_COVERS_TARIFF") == 0) { g_settings.factorySubsidyCoversTariff = v; return; }
+    if (_stricmp(key, "FACTORY_DELETE_CLOSED") == 0)        { g_settings.factoryDeleteClosed = v; return; }
     if (_stricmp(key, "PATCH_NEEDS_HONEST_UI") == 0)           { g_settings.patchNeedsHonestUi          = v; return; }
     if (_stricmp(key, "FACTORY_AI_FACTORY_PRIORITY_RULESWAP") == 0)  { g_settings.factoryAiFactoryPriorityRuleSwap  = v; return; }
     if (_stricmp(key, "POP_CARD_NEEDS_AFFECTED_BY_NEEDS_MODIFIERS_FIX") == 0) { g_settings.popCardNeedsAffectedByNeedsModifiersFix      = v; return; }
@@ -4918,6 +4923,7 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_MINTING=%d\n"
         "FACTORY_MAINTENANCE_IGNORE_THROUGHPUT=%d\n"
         "FACTORY_SUBSIDY_COVERS_TARIFF=%d\n"
+        "FACTORY_DELETE_CLOSED=%d\n"
         "\n",
         (int)g_settings.tradePriceDeltaPercentual,
         (int)g_settings.tradePriceDeltaExponential,
@@ -4936,7 +4942,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.popFixNeedsModifiers,
         (int)g_settings.minting,
         (int)g_settings.factoryMaintenanceIgnoreThroughput,
-        (int)g_settings.factorySubsidyCoversTariff);
+        (int)g_settings.factorySubsidyCoversTariff,
+        (int)g_settings.factoryDeleteClosed);
 
     fprintf(f,
         "; UI\n"
@@ -8072,7 +8079,7 @@ static bool InstallVersionLabel()
     }
 
     sprintf_s(g_versionLabel, sizeof(g_versionLabel),
-        "V2 v3.04 + CreatineCore v%s", MOD_VERSION);
+        "V2 v3.04 + CreatineCore MTK v%s", MOD_VERSION);
 
     unsigned len = (unsigned)strlen(g_versionLabel);
 
@@ -8601,6 +8608,9 @@ static int  g_defFactoryCloseDays = 60;
 // фабрику (PATCH_AI_EXPAND_STAFFING), 0 = без ограничения.
 static int  g_defAiExpandMinStaffing = 90;
 static bool g_defAiExpandKeySeen = false;
+// factory_closed_delete_days: через сколько дней закрытая фабрика удаляется (FACTORY_DELETE_CLOSED), 0 = не удалять.
+static int  g_defClosedDeleteDays = 90;
+static bool g_defClosedDeleteKeySeen = false;
 // ai_naval_base_max_provinces_per_state: в скольких провинциях региона ИИ может
 // иметь морскую базу (PATCH_AI_NAVAL_BASE_LIMIT), 0 = без ограничения.
 static int  g_defAiNavalBaseMax = 1;
@@ -8683,6 +8693,12 @@ static void DefinesApplyLine(const char* key, const char* value)
         int d = atoi(value);
         g_defFactoryCloseDays = d < 0 ? 0 : (d > 36500 ? 36500 : d);
     }
+    else if (_stricmp(key, "factory_closed_delete_days") == 0)
+    {
+        int d = atoi(value);
+        g_defClosedDeleteDays = d < 0 ? 0 : (d > 36500 ? 36500 : d);
+        g_defClosedDeleteKeySeen = true;
+    }
     else if (_stricmp(key, "ai_factory_expand_min_staffing") == 0)
     {
         int d = atoi(value);
@@ -8730,6 +8746,18 @@ static const char* const AI_EXPAND_DEFINES_BLOCK =
     "# huge levels with almost no workers. Capitalists already need about 90 percent in vanilla.\n"
     "# 0 = no limit (vanilla AI behaviour).\n"
     "ai_factory_expand_min_staffing = %d\n";
+
+static const char* const CLOSED_DELETE_DEFINES_BLOCK =
+    "\n"
+    "# --- Deleting closed factories (FACTORY_DELETE_CLOSED in creatinecore_settings.ini) ---\n"
+    "# Where the national rule delete_factory_if_no_input = yes applies (and for AI countries), a\n"
+    "# factory that has been closed for this many days in a row is deleted. The game itself never\n"
+    "# deletes closed factories. The usual deletion limits still apply: the state must be fully\n"
+    "# under its owner's control, must have more factories than\n"
+    "# MIN_NUM_FACTORIES_PER_STATE_BEFORE_DELETING_LASSIEZ_FAIRE (defines.lua), and the first\n"
+    "# NUM_CLOSED_FACTORIES_PER_STATE_LASSIEZ_FAIRE such factories of a state are kept.\n"
+    "# 0 = closed factories are never deleted (vanilla).\n"
+    "factory_closed_delete_days = %d\n";
 
 static const char* const AI_NAVAL_DEFINES_BLOCK =
     "\n"
@@ -8832,6 +8860,16 @@ static void EnsureCCoreDefines()
                 Log("defines_ccore: в '%s' дописан ai_factory_expand_min_staffing = %d", g_defPath, g_defAiExpandMinStaffing);
             }
         }
+        if (!g_defClosedDeleteKeySeen)
+        {
+            FILE* cf = 0;
+            if (fopen_s(&cf, g_defPath, "a") == 0 && cf)
+            {
+                fprintf(cf, CLOSED_DELETE_DEFINES_BLOCK, g_defClosedDeleteDays);
+                fclose(cf);
+                Log("defines_ccore: в '%s' дописан factory_closed_delete_days = %d", g_defPath, g_defClosedDeleteDays);
+            }
+        }
         if (!g_defAiNavalBaseKeySeen)
         {
             FILE* nf = 0;
@@ -8920,6 +8958,7 @@ static void EnsureCCoreDefines()
         "minting_formula = %s\n",
         g_defFactoryCloseDays, g_defMintingFormula);
     fprintf(f, AI_EXPAND_DEFINES_BLOCK, g_defAiExpandMinStaffing);
+    fprintf(f, CLOSED_DELETE_DEFINES_BLOCK, g_defClosedDeleteDays);
     fprintf(f, AI_NAVAL_DEFINES_BLOCK, g_defAiNavalBaseMax);
     {
         char val[32];
@@ -21057,6 +21096,9 @@ static const int FAC_OFF_STOP_CNT  = 0x184;
 static const int FAC_OFF_CLOSED    = 0x188;
 static const int FAC_TYPE_DEF_OFF  = 0x12C;
 static const int FAC_STOP_DAYS     = 11;
+// FACTORY_DELETE_CLOSED считает дни закрытия в +0x178 (сохраняется как unprofitable_days):
+// FAC_CLOSED_MARK + дни. У открытой фабрики метка сбрасывается в 0.
+static const int FAC_CLOSED_MARK   = 1000000000;
 
 static DWORD g_facFinanceResume       = 0;
 static DWORD g_facCounterResume       = 0;
@@ -21311,6 +21353,11 @@ static int __cdecl FactoryAutoCloseCheck(void* factory)
             return 0;
 
         int loss = *(int*)(f + FAC_OFF_LOSS_DAYS);
+        if (loss >= FAC_CLOSED_MARK)
+        {
+            *(int*)(f + FAC_OFF_LOSS_DAYS) = 0;
+            return 0;
+        }
         if (loss < days)
             return 0;
 
@@ -22637,7 +22684,8 @@ static int PopSalaryComputeTenths(void* country)
 
 // ВРЕМЕННАЯ ПРОБА (карточка товара, "Может быть использовано"): какие типы производства движок считает
 // потребляющими товар. Критерий окна (FUN_00477AD0 -> FUN_004DE580): вход типа (type+0x6C, слот-байт type+0x2C+товар)
-// > 0 или содержание (type+0xD8, слот-байт type+0x98+товар) > 0. Пишет в лог типы-кандидаты для опиума и угля.// Из общего дневного хука страны (CountryDailyHook).
+// > 0 или содержание (type+0xD8, слот-байт type+0x98+товар) > 0. Пишет в лог типы-кандидаты для опиума и угля.
+// Из общего дневного хука страны (CountryDailyHook).
 static void PopSalaryDailyUpdate(void* country)
 {
     if (!g_popSalReady || !country)
@@ -23260,6 +23308,116 @@ static bool InstallPriorityByRule()
     g_prioAutoResume = g_base + RVA_PRIO_AUTO_RESUME;
     return WriteJmpSite(RVA_PRIO_AUTO_SITE, SIG, sizeof(SIG), 5,
         RVA_PRIO_AUTO_RESUME, RESUME, sizeof(RESUME), (void*)&PrioAutoThunk, "FactoryPriorityByRule");
+}
+
+// ---------------------------------------------------------------
+// FACTORY_DELETE_CLOSED (5.114): удаление закрытых фабрик при delete_factory_if_no_input = yes.
+//
+// Тот же проход FUN_004808D0, что выше: после "call FUN_004F3900" (VA 0x4815A3) ваниль проверяет
+// флаг [esp+0x4B] (правило включено / ИИ), затем кандидата на удаление: НЕ закрыта (+0x188 == 0) и
+// (level <= 0 или счётчик остановки +0x184 >= 11). Закрытые отсеиваются дважды (0x4815BE, 0x4815C7),
+// а у закрытых фабрик не идёт финансовый тик, поэтому они не удаляются никогда.
+// Хук на 0x4815A3 (раз в день на фабрику): у открытой фабрики сбрасывает метку дней закрытия, у
+// закрытой при действующем правиле (человек: delete_factory_if_no_input, ИИ: всегда, даже на войне)
+// считает дни в +0x178. Когда дней >= factory_closed_delete_days
+// и выполнены остальные условия ванили (фабрик в стейте больше DAT_013f35f8, стейт целиком под
+// контролем владельца: [esp+0xC8] == 1000), прыгаем в общий хвост ванили 0x4815F9: там же лимит
+// NUM_CLOSED_FACTORIES_PER_STATE и вызов FUN_0052E900 (удаление).
+// ---------------------------------------------------------------
+
+static const DWORD RVA_CLOSED_DEL_SITE      = 0x815A3;
+static const DWORD RVA_CLOSED_DEL_RESUME    = 0x815A8;
+static const DWORD RVA_CLOSED_DEL_TAIL      = 0x815F9;
+static const DWORD RVA_STATE_MIN_FACTORIES  = 0xFF35F8;   // DAT_013f35f8 = MIN_NUM_FACTORIES_PER_STATE_BEFORE_DELETING / 1000
+static DWORD g_closedDelResume = 0;
+static DWORD g_closedDelTail   = 0;
+
+// Правило удаления для закрытых фабрик страны стейта: у человека - delete_factory_if_no_input
+// (страна+0xB18), у ИИ - всегда. Ваниль отключает удаление у ИИ, пока страна воюет
+// (страна+0x67C), здесь этого условия нет.
+static bool ClosedDeleteRuleOn(unsigned char* state)
+{
+    int idx = *(int*)(state + 0x5C);
+    if (CountryHumanFlag(idx) == 0)
+        return true;
+    unsigned char* country = (unsigned char*)GetCountryPtr(idx);
+    return country && *(country + 0xB18) != 0;
+}
+
+// frame = esp оригинала в точке хука, factory = ESI, state = EDI. 1 = идти на удаление.
+static int __cdecl ClosedFactoryDeleteCheck(unsigned char* frame, unsigned char* f, unsigned char* state)
+{
+    __try
+    {
+        int* loss = (int*)(f + FAC_OFF_LOSS_DAYS);
+        if (*(f + FAC_OFF_CLOSED) == 0)
+        {
+            if (*loss >= FAC_CLOSED_MARK)
+                *loss = 0;
+            return 0;
+        }
+
+        int days = g_defClosedDeleteDays;
+        if (!g_settings.factoryDeleteClosed || days <= 0 || !ClosedDeleteRuleOn(state))
+            return 0;
+
+        if (*loss < FAC_CLOSED_MARK)
+            *loss = FAC_CLOSED_MARK + 1;
+        else if (*loss < FAC_CLOSED_MARK + 100000)
+            ++*loss;
+        if (*loss - FAC_CLOSED_MARK < days)
+            return 0;
+
+        if (*(int*)(state + 0x68) <= *(int*)(g_base + RVA_STATE_MIN_FACTORIES))
+            return 0;
+        if (*(int*)(frame + 0xC8) != 1000)
+            return 0;
+
+        char who[64];
+        FacDescribe(f, who, sizeof(who));
+        FacLog("FactoryDeleteClosed: [%s] фабрика %p, стейт %p, уровень %d, закрыта %d дн. - удаляется",
+            who, f, state, *(int*)(f + FAC_OFF_LEVEL), *loss - FAC_CLOSED_MARK);
+        return 1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+    return 0;
+}
+
+__declspec(naked) static void ClosedFactoryDeleteThunk()
+{
+    __asm {
+        mov eax, esp
+        pushad
+        push edi
+        push esi
+        push eax
+        call ClosedFactoryDeleteCheck
+        add esp, 12
+        mov dword ptr [esp + 28], eax
+        popad
+        test eax, eax
+        jnz go_delete
+        cmp byte ptr [esp + 0x4B], 0
+        jmp dword ptr [g_closedDelResume]
+    go_delete:
+        mov ecx, dword ptr [edi + 0x68]
+        jmp dword ptr [g_closedDelTail]
+    }
+}
+
+static bool InstallClosedFactoryDelete()
+{
+    static const unsigned char SIG[5]    = { 0x80, 0x7C, 0x24, 0x4B, 0x00 };
+    static const unsigned char RESUME[4] = { 0x0F, 0x84, 0x8A, 0x00 };
+    g_closedDelResume = g_base + RVA_CLOSED_DEL_RESUME;
+    g_closedDelTail   = g_base + RVA_CLOSED_DEL_TAIL;
+    bool ok = WriteJmpSite(RVA_CLOSED_DEL_SITE, SIG, sizeof(SIG), 5,
+        RVA_CLOSED_DEL_RESUME, RESUME, sizeof(RESUME), (void*)&ClosedFactoryDeleteThunk, "FactoryDeleteClosed");
+    Log("FactoryDeleteClosed: %s (удаление через %d дн., factory_closed_delete_days в common\\defines_ccore.txt, 0 = выкл)",
+        ok ? "установлено" : "НЕ установлено", g_defClosedDeleteDays);
+    return ok;
 }
 
 // ---------------------------------------------------------------
@@ -26878,6 +27036,9 @@ static bool Install()
 
     if (g_settings.factoryAiFactoryPriorityRuleSwap)
         InstallPriorityByRule();
+
+    if (g_settings.factoryDeleteClosed && g_defClosedDeleteDays > 0)
+        InstallClosedFactoryDelete();
 
     if (g_settings.popFixNeedsModifiers)
         InstallFixStrataNeedsMods();

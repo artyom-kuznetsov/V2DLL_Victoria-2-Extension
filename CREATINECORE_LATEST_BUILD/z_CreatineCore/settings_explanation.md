@@ -82,6 +82,10 @@ Factories buy maintenance goods (`efficiency` in production types) in the amount
 Tariffs make factories spend more money and subsidy does not calculate for that ==> Factory can't work on 100% efficiency.  
 This fix makes subsidies cover tariff expenses (made by balticšprott).
   
+#### 21. FACTORY_DELETE_CLOSED
+Where the national rule delete_factory_if_no_input = yes applies (for AI countries always, also during a war), a factory closed for factory_closed_delete_days days in a row (common\defines_ccore.txt, 0 = off) is deleted. The game itself never deletes closed factories.
+The usual deletion limits still apply: the state must be fully under its owner's control (no occupied province), must have more factories than MIN_NUM_FACTORIES_PER_STATE_BEFORE_DELETING_LASSIEZ_FAIRE, and the first NUM_CLOSED_FACTORIES_PER_STATE_LASSIEZ_FAIRE dead factories of a state are kept (both in defines.lua).
+
 ### UI 
 #### 1. ENABLE_BUTTONS 
 Adds support for a few new buttons:  
@@ -92,7 +96,7 @@ Adds support for a few new buttons:
 #### 2. ENABLE_DECISION_FILTER 
 Hides abovementioned decisions from the regular decision menu (basically I'm decluttering dec menu by adding new buttons for some decs) (made by balticšprott).
 #### 4. ENABLE_VERSION_LABEL 
-Changes version label in main menu to `V2 v3.04 + CreatineCore v*` (made by balticšprott).
+Changes version label in main menu to `V2 v3.04 + CreatineCore MTK v*` (made by balticšprott).
 #### 6. HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES 
 Hides factories with "limit_by_local_supply = yes" from factory construction menu if there is no required supply in the region (made by balticšprott).
 #### 7. HIDE_RAW_GOODS_FILTER
