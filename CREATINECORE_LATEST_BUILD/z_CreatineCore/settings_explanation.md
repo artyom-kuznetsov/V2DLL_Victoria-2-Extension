@@ -33,24 +33,6 @@ If enabled, units from second row will be able to damage enemy's second row unit
 #### 11. ARMY_FIX_SATELLITE_COMMAND
 The "Command army" button on a satellite is always available (vanilla: only while you fight a war together), and the command over the satellite's armies is kept after peace is made (made by balticšprott).
 
-#### 12. ENABLE_UNIT_CULTURE_RECRUITMENT / ENABLE_UNIT_COLONIAL_RECRUITMENT
-Adds optional recruitment restrictions to land unit definitions in `common/units`.
-
-- `ENABLE_UNIT_CULTURE_RECRUITMENT` enables `primary_culture_only`, `accepted_culture_only`, and `non_accepted_only`.
-- `ENABLE_UNIT_COLONIAL_RECRUITMENT` enables `colonial_only` and `non_colonial_only`.
-
-The new culture rules distinguish primary culture, accepted non-primary cultures, and non-accepted non-primary cultures. They do not change the vanilla meaning of `primary_culture = yes`, which allows recruitment from both primary and accepted cultures. If neither new rule is present in a unit definition, there is no additional restriction. These rules apply to land units, not ships. Both settings default to `1`; set the corresponding key to `0` to disable that group of restrictions. Keep each setting identical for all players in a multiplayer game.
-
-Example:
-```txt
-infantry = {
-    type = land
-    non_colonial_only = yes
-}
-```
-
-To show the rule lines in tooltips, add the five recruitment localization keys listed in `PATCHES.md` to the active mod's localization file.
-  
 ### Economic
 #### 1. TRADE_PRICE_DELTA_PERCENTUAL 
 Prices shift by 0.25% of the base price instead of flat 0.01 per day.
@@ -293,6 +275,21 @@ else = {
 (made by COUNTRY_ADJ)
 #### 7. FIX_TECH_FACTORY_MAINTENANCE
 Adds support for `factory_maintenance = x` in technologies and inventions. Vanilla only supported it in modifiers and reforms.
+
+#### 8. ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES
+Enables optional recruitment restrictions for land-unit definitions in `common/units`: `primary_culture_only`, `accepted_culture_only`, `non_accepted_only`, `colonial_only`, and `non_colonial_only`.
+
+The culture rules distinguish primary culture, accepted non-primary cultures, and non-accepted non-primary cultures. They do not change the vanilla meaning of `primary_culture = yes`, which allows recruitment from both primary and accepted cultures. Colonial rules restrict recruitment to colonial or non-colonial provinces. If no custom rule is present in a unit definition, recruitment remains unrestricted by these rules. They apply to land units, not ships.
+
+This setting defaults to `1`; set `ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES=0` to disable all five custom rules. Keep the setting identical for all players in a multiplayer game. To show rule lines in tooltips, add the five recruitment localization keys listed in `PATCHES.md` to the active mod's localization file.
+
+Example:
+```txt
+infantry = {
+    type = land
+    non_colonial_only = yes
+}
+```
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
