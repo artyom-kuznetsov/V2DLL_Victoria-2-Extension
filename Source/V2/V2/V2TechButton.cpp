@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.10"
+#define MOD_VERSION "6.14"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -192,6 +192,8 @@ struct Settings
     bool assimilateBlock             = true;
     // Enable all custom culture and colonial-province unit recruitment rules.
     bool extendedUnitRecruitmentRules             = true;
+    // FIX_PROVINCE_FLAGS: has_province_flag trigger (CCore_ProvinceFlags.cpp).
+    bool fixProvinceFlags                         = true;
     // move_pop = { where = province_id amount = 0..1 } plus identity-safe insertion.
     bool movePopBlock                = true;
     // CK2-style if / else_if / else blocks in event and decision effects.
@@ -4805,6 +4807,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "ENABLE_ASSIMILATE_BLOCK") == 0)          { g_settings.assimilateBlock             = v; return; }
     if (_stricmp(key, "ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES") == 0) { g_settings.extendedUnitRecruitmentRules = v; return; }
+    if (_stricmp(key, "FIX_PROVINCE_FLAGS") == 0)           { g_settings.fixProvinceFlags = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
     if (_stricmp(key, "LOAD_DLL_FROM_MOD_FOLDER") == 0)                      { g_settings.loadDllFromModFolder                  = v; return; }
@@ -5027,6 +5030,7 @@ static void WriteDefaultSettings(const char* path)
         "POP_BUILD_INFRASTRUCTURE_RULE=%d\n"
         "FIX_TECH_FACTORY_MAINTENANCE=%d\n"
         "ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES=%d\n"
+        "FIX_PROVINCE_FLAGS=%d\n"
         "\n",
         (int)g_settings.assimilateBlock,
         (int)g_settings.movePopBlock,
@@ -5036,7 +5040,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.popSalaryAdditionalMultiplier,
         (int)g_settings.popBuildInfrastructureRule,
         (int)g_settings.fixTechFactoryMaintenance,
-        (int)g_settings.extendedUnitRecruitmentRules);
+        (int)g_settings.extendedUnitRecruitmentRules,
+        (int)g_settings.fixProvinceFlags);
 
     fprintf(f,
         "; Stability and Performance\n"
@@ -27852,6 +27857,9 @@ static bool Install()
 
     if (g_settings.extendedUnitRecruitmentRules)
         InstallExtendedUnitRecruitmentRules();
+
+    if (g_settings.fixProvinceFlags)
+        InstallProvinceFlags();
 
     if (g_settings.assimilateBlock)
         InstallAssimilateBlock();

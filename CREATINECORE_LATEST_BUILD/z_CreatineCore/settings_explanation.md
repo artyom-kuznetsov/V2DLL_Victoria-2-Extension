@@ -291,6 +291,10 @@ which allows both primary and accepted cultures.
 
 Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).
   
+
+#### 9. FIX_PROVINCE_FLAGS
+Adds the missing `has_province_flag = <name>` trigger (it was registered in the game but had no implementation, so it never worked and `set_province_flag` / `clr_province_flag` could not be checked). Use it in province scope, e.g. `any_owned_province = { limit = { has_province_flag = my_flag } ... }` or `726 = { limit = { has_province_flag = my_flag } ... }`. Province flags are set with `set_province_flag = <name>` and cleared with `clr_province_flag = <name>` in province scope; they are saved in the savegame like country flags.
+
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
 Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).
