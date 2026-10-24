@@ -29,6 +29,11 @@ static char      g_modDllPaths[V2MOD_MAX_PLUGINS][MAX_PATH];  // for the "load o
 static V2ModAPI  g_modApis[V2MOD_MAX_PLUGINS];
 static int       g_modPluginCount = 0;
 
+// Every plugin DLL (mod folders and dll_Submods) that loaded and did not refuse/crash in V2Mod_Init
+// (file names without ".dll", load order).
+static char      g_runningPlugins[V2MOD_MAX_PLUGINS][64];
+static int       g_runningPluginCount = 0;
+
 typedef int (__cdecl* tV2ModInit)(const V2ModAPI*);
 
 static int __cdecl ApiPatchSlot(uint32_t rvaVtable, int slotIndex,
@@ -54,7 +59,45 @@ static bool CallInit(tV2ModInit init, const V2ModAPI* api, int* result)
 // Loads one plugin DLL (absolute `dllPath`) and calls its V2Mod_Init.
 // `folder` is what the plugin sees in api->modFolder. A DLL that was already
 // loaded is skipped silently; a full slot table is logged.
-static void LoadPluginDll(const char* dllPath, const char* folder)
+// modFolder: for a plugin from a mod folder - that folder (its last component is shown in brackets), else NULL.
+static void NoteRunningPlugin(const char* dllPath, const char* modFolder)
+{
+    const char* name = strrchr(dllPath, '\\');
+    name = name ? name + 1 : dllPath;
+    if (g_runningPluginCount >= V2MOD_MAX_PLUGINS)
+        return;
+    char* dst = g_runningPlugins[g_runningPluginCount++];
+    char base[64];
+    strncpy_s(base, sizeof(base), name, _TRUNCATE);
+    size_t len = strlen(base);
+    if (len > 4 && _stricmp(base + len - 4, ".dll") == 0)
+        base[len - 4] = 0;
+    if (modFolder && modFolder[0])
+    {
+        char folder[MAX_PATH];
+        strncpy_s(folder, sizeof(folder), modFolder, _TRUNCATE);
+        size_t fl = strlen(folder);
+        while (fl > 0 && (folder[fl - 1] == '\\' || folder[fl - 1] == '/'))
+            folder[--fl] = 0;
+        const char* leaf = folder;
+        for (const char* p = folder; *p; ++p)
+            if (*p == '\\' || *p == '/')
+                leaf = p + 1;
+        _snprintf_s(dst, 64, _TRUNCATE, "%.34s (%.24s)", base, leaf);
+    }
+    else
+        strncpy_s(dst, 64, base, _TRUNCATE);
+}
+
+int V2_GetRunningPlugins(char names[][64], int maxCount)
+{
+    int n = g_runningPluginCount < maxCount ? g_runningPluginCount : maxCount;
+    for (int i = 0; i < n; ++i)
+        strcpy_s(names[i], 64, g_runningPlugins[i]);
+    return n;
+}
+
+static void LoadPluginDll(const char* dllPath, const char* folder, bool fromModFolder = false)
 {
     for (int i = 0; i < g_modPluginCount; ++i)
         if (!_stricmp(dllPath, g_modDllPaths[i]))
@@ -95,13 +138,18 @@ static void LoadPluginDll(const char* dllPath, const char* folder)
     {
         // Not an error: a plain patch DLL does its work in DllMain, which already ran.
         Log("ModLoader: %s loaded (no V2Mod_Init export: DllMain only)", dllPath);
+        NoteRunningPlugin(dllPath, fromModFolder ? folder : NULL);
         return;
     }
     int result = 0;
     if (!CallInit(init, api, &result))
         Log("ModLoader: %s crashed in V2Mod_Init", dllPath);
     else
+    {
         Log("ModLoader: %s -> %s", dllPath, result ? "ok" : "refused (returned 0)");
+        if (result)
+            NoteRunningPlugin(dllPath, fromModFolder ? folder : NULL);
+    }
 }
 
 void LoadV2Mods(const char* modFolderRaw)
@@ -128,7 +176,7 @@ void LoadV2Mods(const char* modFolderRaw)
         if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES)
             continue;
         found = true;
-        LoadPluginDll(path, modFolder);
+        LoadPluginDll(path, modFolder, true);
     }
     if (!found)
         Log("ModLoader: %s has no v2dll_mod.dll / ccore_mod.dll (normal)", modFolder);   // this mod has no plugin DLL: normal

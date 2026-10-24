@@ -95,7 +95,7 @@ Adds support for a few new buttons:
 #### 2. ENABLE_DECISION_FILTER 
 Hides abovementioned decisions from the regular decision menu (basically I'm decluttering dec menu by adding new buttons for some decs) (made by balticšprott).
 #### 4. ENABLE_VERSION_LABEL 
-Changes version label in main menu to `V2 v3.04 + CreatineCore MTK v*` (made by balticšprott).
+Changes version label in main menu to `V2 v3.04 + CreatineCore MTK v*`. Also lists the loaded plugin DLLs (made by balticšprott).
 #### 6. HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES 
 Hides factories with "limit_by_local_supply = yes" from factory construction menu if there is no required supply in the region (made by balticšprott).
 #### 7. HIDE_RAW_GOODS_FILTER
@@ -276,7 +276,7 @@ else = {
 ```
 (made by COUNTRY_ADJ)
 #### 7. FIX_TECH_FACTORY_MAINTENANCE
-Adds support for `factory_maintenance = x` in technologies and inventions. Vanilla only supported it in modifiers and reforms.
+Adds support for `factory_maintenance = x` in technologies and inventions. Vanilla only supported it in modifiers and reforms (made by balticšprott).
 #### 8. ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES
 Adds optional recruitment restrictions to land unit definitions in `common/units`. (made by COUNTRY_ADJ)
 - `primary_culture_only = yes` — recruit only from POPs of the country's primary culture.
@@ -290,7 +290,7 @@ which allows both primary and accepted cultures.
 
 Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).
 #### 9. FIX_PROVINCE_FLAGS
-With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games.
+With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games (made by balticšprott).
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 

@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.19"
+#define MOD_VERSION "6.23"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -561,7 +561,14 @@ void Log(const char* fmt, ...)
 
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(f, fmt, ap);
+    __try
+    {
+        vfprintf(f, fmt, ap);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        fprintf(f, "<bad log argument>");
+    }
     va_end(ap);
 
     fprintf(f, "\n");
@@ -9401,6 +9408,196 @@ static bool InstallCountryDailyCall();
 static tBudgetUpdate g_origBudgetUpdate = 0;
 static LONG g_mintUiLogged = 0;
 static LONG g_consUiLogged = 0;
+
+// ---------------------------------------------------------------
+// Список подгруженных плагинов (dll_Submods и v2dll_mod/ccore_mod из папок модов; у вторых в скобках - папка
+// мода) над подписью версии в главном меню (включается вместе с ENABLE_VERSION_LABEL). Новых GUI-элементов нет:
+// текст version_label становится многострочным (первый загруженный - ближе всего к версии, каждый следующий
+// выше, прямо над версией строка "- Loaded .dll Submods Above - "), а сам текстбокс поднимается на высоту
+// добавленных строк. Позиция и размеры лежат в "внутреннем" объекте текстбокса ([box+0xA0], найдено по дампу
+// живой памяти): +0x188/+0x18C = x/y из .gui (5, -25 для LOWER_LEFT), +0x190/+0x194 - копия, +0x1A0/+0x1A4 =
+// maxWidth/maxHeight; maxHeight тоже увеличиваем, иначе форматтер обрежет строки.
+//
+// Хук: общий хвост построения меню FUN_007599E0 (RVA 0x35A1A7, `mov ecx,[ebx+0x67C]` - ebx = окно меню,
+// [ebx+0x67C] = контейнер элементов; текст version_label к этому месту уже записан обеими ветками).
+// ---------------------------------------------------------------
+
+static const DWORD RVA_SUBMODS_HOOK   = 0x35A1A7;
+static const DWORD RVA_SUBMODS_RESUME = 0x35A1AD;
+static const int   SUBMOD_LABEL_LINES = 16;
+static const int   OFF_FRONTEND_CONTAINER = 0x67C;
+
+static LONG g_submodLabelLogs = 0;
+
+static void DumpDwords(const char* tag, const void* base, int from, int count)
+{
+    char line[256];
+    for (int i = 0; i < count; i += 8)
+    {
+        int n = 0;
+        n += _snprintf_s(line + n, sizeof(line) - n, _TRUNCATE, "%s +%03X:", tag, from + i * 4);
+        for (int j = i; j < i + 8 && j < count; ++j)
+            n += _snprintf_s(line + n, sizeof(line) - n, _TRUNCATE, " %08X", *(DWORD*)((char*)base + from + j * 4));
+        LogDbg("%s", line);
+    }
+}
+
+static void SafeClassName(void* obj, char* out, size_t cap)
+{
+    out[0] = 0;
+    __try
+    {
+        strncpy_s(out, cap, GetRTTIClassName(obj), _TRUNCATE);
+        for (char* p = out; *p; ++p)
+            if ((unsigned char)*p < 32 || (unsigned char)*p > 126)
+                *p = '?';
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        strcpy_s(out, cap, "(unreadable)");
+    }
+}
+
+static const char SUBMOD_LABEL_FOOTER[] = "- Loaded .dll Submods Above - ";
+static const int  SUBMOD_LINE_HEIGHT = 14;      // lineHeight из Arial12.fnt (шрифт version_label)
+static const int  INNER_POS_Y        = 0x18C;
+static const int  INNER_POS2_Y       = 0x194;   // копия позиции
+static const int  INNER_MAX_H        = 0x1A4;
+static const int  BOX_MAX_H          = 0x9C;
+static void* g_subLabelBox = 0;
+static int   g_subLabelOrigY = 0;
+
+static void __cdecl OnFrontendBuilt(void* self)
+{
+    __try
+    {
+        void* container = *(void**)((char*)self + OFF_FRONTEND_CONTAINER);
+        if (!container)
+            return;
+
+        static char names[16][64];
+        int n = V2_GetRunningPlugins(names, SUBMOD_LABEL_LINES);
+        if (n <= 0)
+            return;
+
+        char nameStore[32];
+        GStr name;
+        MakeStr(&name, nameStore, sizeof(nameStore), "version_label");
+        void* box = VCall1(container, VT_FIND_TEXTBOX, &name);
+        if (!box)
+            return;
+        char* inner = *(char**)((char*)box + OFF_TEXTBOX_INNER);
+        if (!inner)
+            return;
+
+        char cur[200];
+        strncpy_s(cur, sizeof(cur), GStrText((char*)box + OFF_TEXTBOX_STR), _TRUNCATE);
+        if (strstr(cur, SUBMOD_LABEL_FOOTER))
+            return;                                     // this text is already ours
+
+        // top -> bottom: newest plugin ... first plugin, footer, version
+        static char text[16 * 66 + 400];
+        int len = 0;
+        for (int i = n - 1; i >= 0; --i)
+            len += _snprintf_s(text + len, sizeof(text) - len, _TRUNCATE, "%s\n", names[i]);
+        len += _snprintf_s(text + len, sizeof(text) - len, _TRUNCATE, "%s\n%s", SUBMOD_LABEL_FOOTER, cur);
+        int lines = n + 2;
+
+        // raise the text box by the added lines (original position is kept for a re-used box)
+        int* py  = (int*)(inner + INNER_POS_Y);
+        int* py2 = (int*)(inner + INNER_POS2_Y);
+        if (box != g_subLabelBox)
+        {
+            g_subLabelBox = box;
+            g_subLabelOrigY = *py;
+        }
+        int y0 = g_subLabelOrigY;
+        if (y0 < -3000 || y0 > 3000)
+        {
+            Log("SubmodLabel: неожиданная позиция version_label y=%d - список не показываем", y0);
+            return;
+        }
+        bool copy = (*py2 == *py);
+        int newY = y0 - SUBMOD_LINE_HEIGHT * (lines - 1);
+        *py = newY;
+        if (copy)
+            *py2 = newY;
+        int needH = lines * SUBMOD_LINE_HEIGHT + 4;
+        if (*(int*)(inner + INNER_MAX_H) < needH)
+            *(int*)(inner + INNER_MAX_H) = needH;
+        if (*(int*)((char*)box + BOX_MAX_H) < needH)
+            *(int*)((char*)box + BOX_MAX_H) = needH;
+
+        static char textStore[sizeof(text) + 16];
+        GStr str;
+        MakeStr(&str, textStore, sizeof(textStore), text);
+        ((tStrAssign)(g_base + RVA_STR_ASSIGN))((char*)box + OFF_TEXTBOX_STR, 0, &str, 0, 0xFFFFFFFFu);
+        DWORD fn = g_base + RVA_TEXT_SETTEXT;
+        void* pStr = &str;
+        __asm {
+            push esi
+            push 0
+            push pStr
+            mov esi, inner
+            call fn
+            pop esi
+        }
+
+        if (InterlockedIncrement(&g_submodLabelLogs) <= 3)
+            LogDbg("SubmodLabel: %d плагин(ов), строк %d, y %d -> %d, maxHeight %d", n, lines, y0, newY, needH);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        static LONG s_fault = 0;
+        if (InterlockedIncrement(&s_fault) <= 3)
+            Log("SubmodLabel: исключение в хуке построения меню");
+    }
+}
+
+static bool InstallSubmodLabel()
+{
+    static const unsigned char SIG[6] = { 0x8B, 0x8B, 0x7C, 0x06, 0x00, 0x00 };   // mov ecx,[ebx+0x67C]
+    unsigned char* hook = (unsigned char*)(g_base + RVA_SUBMODS_HOOK);
+    if (memcmp(hook, SIG, sizeof(SIG)) != 0)
+    {
+        Log("SubmodLabel: сигнатура не совпала (%02X %02X %02X %02X %02X %02X) - не патчим",
+            hook[0], hook[1], hook[2], hook[3], hook[4], hook[5]);
+        return false;
+    }
+
+    unsigned char* cave = (unsigned char*)VirtualAlloc(0, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!cave)
+        return false;
+
+    int n = 0;
+    cave[n++] = 0x60;                                   // pushad
+    cave[n++] = 0x53;                                   // push ebx
+    cave[n++] = 0xE8;                                   // call OnFrontendBuilt
+    *(DWORD*)(cave + n) = (DWORD)(DWORD_PTR)&OnFrontendBuilt - (DWORD)(DWORD_PTR)(cave + n + 4);
+    n += 4;
+    cave[n++] = 0x83; cave[n++] = 0xC4; cave[n++] = 0x04;   // add esp,4
+    cave[n++] = 0x61;                                   // popad
+    memcpy(cave + n, SIG, sizeof(SIG));                 // mov ecx,[ebx+0x67C]
+    n += sizeof(SIG);
+    cave[n++] = 0xE9;                                   // jmp resume
+    *(DWORD*)(cave + n) = (g_base + RVA_SUBMODS_RESUME) - (DWORD)(DWORD_PTR)(cave + n + 4);
+    n += 4;
+
+    unsigned char patch[6];
+    patch[0] = 0xE9;
+    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)cave - ((DWORD)(DWORD_PTR)hook + 5);
+    patch[5] = 0x90;
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(hook, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    memcpy(hook, patch, sizeof(patch));
+    VirtualProtect(hook, sizeof(patch), oldProtect, &oldProtect);
+
+    Log("SubmodLabel: установлен на rva %06X, пещера %08X", RVA_SUBMODS_HOOK, (DWORD)(DWORD_PTR)cave);
+    return true;
+}
+
 
 static void SetBudgetBoxText(void* view, const char* boxName, long long fixedValue, LONG* logCounter,
                              const char* color = 0)
@@ -27734,7 +27931,10 @@ static bool Install()
 
 
     if (g_settings.versionLabel)
+    {
         InstallVersionLabel();
+        InstallSubmodLabel();
+    }
 
     if (g_settings.minting)
         InstallMinting();

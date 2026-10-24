@@ -42,3 +42,5 @@ void   CaptureMovePopBlock(void* effect, void* ctx, int keyId, int token);
 void   LoadV2Mods(const char* modFolder);
 // Loads every "<z_CreatineCore folder>\dll_Submods\*.dll" (creates the folder if missing).
 void   LoadV2Submods();
+// Names (no ".dll") of all plugin DLLs that are running (mod folders + dll_Submods), in load order; returns how many were copied.
+int    V2_GetRunningPlugins(char names[][64], int maxCount);
