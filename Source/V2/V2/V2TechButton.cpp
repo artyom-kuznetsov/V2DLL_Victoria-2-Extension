@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.4"
+#define MOD_VERSION "6.5"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -11122,38 +11122,27 @@ static bool InstallGoodsConsumption()
 // ---------------------------------------------------------------
 // Разброс броска в бою (COMBAT_ROLL_MIN..COMBAT_ROLL_MAX).
 //
-// Формула броска раньше была константой прямо в точке вызова:
-// FUN_0059ca40 (разрешение раунда боя) 4 раза вызывает генератор
-// случайных чисел и берёт остаток от деления на 10. Сторонний
-// Vic2_Roll_Changer.py (скрипт лежит в V2BDSM, не часть нашего DLL)
-// статически переписал exe: все 4 места вызова теперь зовут общую
-// подпрограмму в неиспользуемом хвосте секции .text (RVA 0x889113),
-// которая делает mov ecx,<модуль>; idiv ecx; add edx,<минимум>; ret -
-// подтверждено в Ghidra (get_xrefs_to на адрес пещеры даёт ровно эти
-// 4 вызова из FUN_0059ca40, а её result сохраняется в +0x30 у каждой
-// из двух сторон боя). Этот exe уже был пропатчен так на диапазон
-// 2-5 - мы просто переписываем модуль/минимум в той же пещере на
-// лету при каждом запуске, без изменения файла.
-//
-// Если exe НИКОГДА не патчился этим скриптом (пещеры нет, все 4
-// вызова всё ещё делают "cdq; mov ecx,0Ah; idiv ecx" инлайном) -
-// сигнатура не совпадёт, и мы это НЕ чиним: создание новой пещеры и
-// переброс 4 вызовов - отдельная задача, которую можно сделать тем
-// же скриптом или отдельным патчем позже.
+// FUN_0059ca40 (разрешение раунда боя) 4 раза вызывает генератор случайных чисел (FUN_009b7950, push 5)
+// и берёт остаток от деления на 10 прямо в коде: "cdq; mov ecx,0Ah; idiv ecx" (8 байт
+// 99 B9 0A 00 00 00 F7 F9, VA 0x59CA97 / 0x59CAAD / 0x59CB1B / 0x59CB31); остаток (edx) сразу
+// сохраняется в +0x30 стороны боя. В ванильном exe куб поэтому всегда 0-9.
+// Раньше DLL только переписывала константы в "пещере" (RVA 0x889113), которую в exe
+// заранее вставлял сторонний Vic2_Roll_Changer.py; на ванильном exe пещеры нет - патч молча
+// пропускался и куб оставался 0-9. Теперь DLL сама ставит подпрограмму в своей памяти и
+// заменяет каждые 8 байт на "call подпрограмма; nop x3":
+//     cdq; mov ecx,<модуль>; idiv ecx; add edx,<минимум>; ret      (результат: edx = MIN + rand % модуль)
+// Подпрограмма использует только eax/ecx/edx - так же, как исходные 8 байт. Старый путь (exe с
+// пещерой от скрипта) оставлен как запасной.
 // ---------------------------------------------------------------
 
 static const DWORD RVA_COMBAT_ROLL_CAVE = 0x889113;
+static const DWORD RVA_COMBAT_ROLL_SITES[4] = { 0x19CA97, 0x19CAAD, 0x19CB1B, 0x19CB31 };
+static const unsigned char COMBAT_ROLL_VANILLA[8] = { 0x99, 0xB9, 0x0A, 0x00, 0x00, 0x00, 0xF7, 0xF9 };
 
 // Байты 0-1 пещеры (изначально "F2 00") в сигнатуру не входят: это
-// хвост абсолютного адреса из ВАНИЛЬНОГО кода на этом месте (сам
-// скрипт-патчер его не трогал, начал писать только с байта 10 - B9),
-// и он остался под релокационной записью exe. Загрузчик Windows сам
-// правит эти 2 байта под дельту ASLR при каждом запуске (проверено
-// живьём: база 00FD0000 вместо предпочитаемой 00400000, дельта
-// 00BD0000 - и байты 0-1 стали AF 01 вместо F2 00, ровно на старшее
-// слово дельты). Байты 11..14 (модуль, mov ecx,imm32) и байт 19
-// (минимум, add edx,imm8) - тоже не в сигнатуре, но по другой причине:
-// это переменные данные, которые мы сами переписываем.
+// хвост абсолютного адреса из ВАНИЛЬНОГО кода на этом месте, и он остался
+// под релокационной записью exe (загрузчик правит их под ASLR). Байты 11..14
+// (модуль) и 19 (минимум) - данные, которые мы сами переписываем.
 static const unsigned char COMBAT_ROLL_PREFIX[9] =
 { 0xE9, 0x96, 0x5C, 0xE9, 0xFF, 0x00, 0x00, 0x00, 0xB9 };
 static const unsigned char COMBAT_ROLL_MID[4] = { 0xF7, 0xF9, 0x83, 0xC2 };
@@ -11168,22 +11157,69 @@ static bool InstallCombatRoll()
         return false;
     }
 
+    DWORD modulo = (DWORD)(g_settings.combatRollMax - g_settings.combatRollMin + 1);
+
+    // 1) ванильный exe: четыре инлайновых "cdq; mov ecx,0Ah; idiv ecx"
+    bool allVanilla = true;
+    for (int i = 0; i < 4; ++i)
+    {
+        if (memcmp((unsigned char*)(g_base + RVA_COMBAT_ROLL_SITES[i]), COMBAT_ROLL_VANILLA, sizeof(COMBAT_ROLL_VANILLA)) != 0)
+            allVanilla = false;
+    }
+    if (allVanilla)
+    {
+        if (modulo == 10 && g_settings.combatRollMin == 0)
+        {
+            Log("CombatRoll: диапазон 0..9 совпадает с ванильным - не патчим");
+            return true;
+        }
+
+        unsigned char* routine = (unsigned char*)VirtualAlloc(0, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (!routine)
+            return false;
+        int n = 0;
+        routine[n++] = 0x99;                                        // cdq
+        routine[n++] = 0xB9; *(DWORD*)(routine + n) = modulo; n += 4;   // mov ecx, modulo
+        routine[n++] = 0xF7; routine[n++] = 0xF9;                   // idiv ecx
+        routine[n++] = 0x81; routine[n++] = 0xC2;                   // add edx, min
+        *(DWORD*)(routine + n) = (DWORD)g_settings.combatRollMin; n += 4;
+        routine[n++] = 0xC3;                                        // ret
+
+        for (int i = 0; i < 4; ++i)
+        {
+            unsigned char* site = (unsigned char*)(g_base + RVA_COMBAT_ROLL_SITES[i]);
+            unsigned char patch[8];
+            patch[0] = 0xE8;
+            *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)routine - ((DWORD)(DWORD_PTR)site + 5);
+            patch[5] = patch[6] = patch[7] = 0x90;
+            DWORD oldProtect = 0;
+            if (!VirtualProtect(site, 8, PAGE_EXECUTE_READWRITE, &oldProtect))
+            {
+                Log("CombatRoll: VirtualProtect не удался на rva %06X", RVA_COMBAT_ROLL_SITES[i]);
+                return false;
+            }
+            memcpy(site, patch, 8);
+            VirtualProtect(site, 8, oldProtect, &oldProtect);
+            FlushInstructionCache(GetCurrentProcess(), site, 8);
+        }
+        Log("CombatRoll: ванильный exe, диапазон %d..%d (модуль=%u), 4 места вызова заменены",
+            g_settings.combatRollMin, g_settings.combatRollMax, modulo);
+        return true;
+    }
+
+    // 2) запасной путь: exe, пропатченный Vic2_Roll_Changer.py (общая пещера)
     unsigned char* cave = (unsigned char*)(g_base + RVA_COMBAT_ROLL_CAVE);
 
     if (memcmp(cave + 2, COMBAT_ROLL_PREFIX, sizeof(COMBAT_ROLL_PREFIX)) != 0 ||
         memcmp(cave + 15, COMBAT_ROLL_MID, sizeof(COMBAT_ROLL_MID)) != 0 ||
         cave[20] != 0xC3)
     {
-        Log("CombatRoll: пещера не найдена (exe не пропатчен Vic2_Roll_Changer.py?) - не патчим. "
-            "base=%08X rva=%08X байты: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X "
-            "%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-            g_base, RVA_COMBAT_ROLL_CAVE,
-            cave[0], cave[1], cave[2], cave[3], cave[4], cave[5], cave[6], cave[7], cave[8], cave[9], cave[10],
-            cave[11], cave[12], cave[13], cave[14], cave[15], cave[16], cave[17], cave[18], cave[19], cave[20]);
+        unsigned char* s0 = (unsigned char*)(g_base + RVA_COMBAT_ROLL_SITES[0]);
+        Log("CombatRoll: ни ванильные места вызова, ни пещера скрипта не найдены - не патчим. "
+            "base=%08X rva %06X байты: %02X %02X %02X %02X %02X %02X %02X %02X",
+            g_base, RVA_COMBAT_ROLL_SITES[0], s0[0], s0[1], s0[2], s0[3], s0[4], s0[5], s0[6], s0[7]);
         return false;
     }
-
-    DWORD modulo = (DWORD)(g_settings.combatRollMax - g_settings.combatRollMin + 1);
 
     DWORD oldProtect = 0;
     if (!VirtualProtect(cave, 21, PAGE_EXECUTE_READWRITE, &oldProtect))
@@ -11194,7 +11230,7 @@ static bool InstallCombatRoll()
 
     VirtualProtect(cave, 21, oldProtect, &oldProtect);
 
-    Log("CombatRoll: диапазон %d..%d (модуль=%u)",
+    Log("CombatRoll: exe с пещерой скрипта, диапазон %d..%d (модуль=%u)",
         g_settings.combatRollMin, g_settings.combatRollMax, modulo);
     return true;
 }

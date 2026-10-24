@@ -209,13 +209,12 @@ Without this, an army embarked on an ally's fleet comes back from a save **owned
 * **Logs:** `LoadRepair: [ПРИМЕНЕНО] армия … владелец флота X, по бригадам (N) владелец Y`.
 * **Status (v4.81):** user confirmed the EIC army stayed EIC after loading `TEST2`; no `[ПРИМЕНЕНО]` on the AI armies; still to confirm: no exile after a day, save→load round trip, and no false positives on a large mid-game save.
 
-### 4.3 `COMBAT_ENABLE_ROLL_CHANGES`, `COMBAT_ROLL_MIN`, `COMBAT_ROLL_MAX` — DATA, on (live: 0..4)
-* The exe on disk was pre-patched by the external `Vic2_Roll_Changer.py`: the four RNG calls in `FUN_0059CA40` now `call` one shared routine in the `.text` slack. The DLL only rewrites that routine's immediates at every launch; the file is not modified.
-* **Routine:** starts at `0x88911D`: `mov ecx,<modulo>; idiv ecx; add edx,<min>; ret`. Cave block starts at `0x889113` (its first two bytes are relocation-fixed and vary with ASLR).
-* **Callers (4 × `E8`)** at `0x19CA98`, `0x19CAAE`, `0x19CB1C`, `0x19CB32`; the result is stored at `+0x30` of each battle side.
-* **Written:** `modulo = MAX − MIN + 1` as the imm32 at `0x88911E` (4 bytes), `MIN` as the imm8 at `0x889126` (1 byte). Result = `MIN + rand % modulo`.
-* **Guard:** `cave[2..10]` = `E9 96 5C E9 FF 00 00 00 B9`, `cave[15..18]` = `F7 F9 83 C2`, `cave[20]` = `C3`. If the exe was never patched by the script the patch is skipped silently.
-* On the exe currently on disk: modulo 4, min 2 (range 2–5); the DLL changes it to modulo 5, min 0 in memory.
+### 4.3 `COMBAT_ENABLE_ROLL_CHANGES`, `COMBAT_ROLL_MIN`, `COMBAT_ROLL_MAX` — CODE, on (live: 0..4)
+* **Vanilla.** `FUN_0059CA40` (battle round) calls the RNG (`FUN_009B7950`, `push 5`) four times and takes the remainder inline: `cdq; mov ecx,0Ah; idiv ecx` (8 bytes `99 B9 0A 00 00 00 F7 F9`); `edx` goes to `+0x30` of each battle side. The vanilla die is 0-9. (Before 6.5 this patch only rewrote the constants of a "cave" that the external `Vic2_Roll_Changer.py` had put into the exe, so on a vanilla exe it silently did nothing.)
+* **Sites (4)** at VA `0x59CA97`, `0x59CAAD`, `0x59CB1B`, `0x59CB31` (RVA `0x19CA97`, `0x19CAAD`, `0x19CB1B`, `0x19CB31`). All four must match the vanilla bytes, otherwise nothing is patched.
+* **Patch.** Each site becomes `E8 rel32; 90 90 90` -> a routine the DLL allocates (`VirtualAlloc`, RWX): `cdq; mov ecx,<modulo>; idiv ecx; add edx,<min>; ret`, result `MIN + rand % modulo`, modulo = `MAX - MIN + 1`. Uses only `eax/ecx/edx`, like the original bytes. Range 0..9 = vanilla, not patched.
+* **Fallback.** An exe that was pre-patched by the script (cave at `0x889113`, guard `cave[2..10]` = `E9 96 5C E9 FF 00 00 00 B9`, `cave[15..18]` = `F7 F9 83 C2`, `cave[20]` = `C3`): the DLL rewrites the cave's modulo (`+11`) and minimum (`+19`) as before.
+* **Config.** `COMBAT_ENABLE_ROLL_CHANGES`, `COMBAT_ROLL_MIN` (0..127), `COMBAT_ROLL_MAX` (>= MIN). Must be identical for all multiplayer players. Log line `CombatRoll: ...`.
 
 ### 4.4 `TRADE_PRICE_DELTA_PERCENTUAL` — HOOK, on
 * **Site:** `0x82BA9` (VA `0x482BA9`) — `C1 FA 0F 8B F8` (`sar edx,0Fh; mov edi,eax`) inside the daily price update; `ECX:EAX` already holds the current price (int64, 2¹⁵ fixed point). Resume at `0x82BAE` (`sub edi,[delta]`).
