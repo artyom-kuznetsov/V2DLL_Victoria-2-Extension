@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.5"
+#define MOD_VERSION "6.9"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -149,6 +149,8 @@ struct Settings
     // показывать ВСЕ фабрики региона, а не только прошедшие фильтр
     // (см. InstallFilterShowAllInState).
     bool filterShowAllInState        = true;
+    // PRODUCTION_STATE_RGO_ICONS: иконки товаров ДП региона после названия в окне промышленности.
+    bool productionStateRgoIcons     = true;
     // Окно фабрик: фильтр товара срабатывает только на фабрики, которые
     // ПРОИЗВОДЯТ выбранный товар (оригинал засчитывал и потребителей
     // сырья) - регионы, где товар только потребляют, не показываются.
@@ -4791,6 +4793,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "HIDE_RAW_GOODS_PRODUCTION_FILTER_BUTTONS") == 0)            { g_settings.hideRawGoodsFilter          = v; return; }
     if (_stricmp(key, "GOODS_ICONS_AS_SEPARATE_FILES") == 0)               { g_settings.goodsIconsAsSeparateFiles                  = v; return; }
     if (_stricmp(key, "FILTER_SHOW_ALL_FACTORIES_IN_STATE") == 0) { g_settings.filterShowAllInState      = v; return; }
+    if (_stricmp(key, "PRODUCTION_STATE_RGO_ICONS") == 0)       { g_settings.productionStateRgoIcons     = v; return; }
     if (_stricmp(key, "FACTORY_FILTER_BY_PRODUCERS_ONLY") == 0)            { g_settings.factoryFilterByProducersOnly         = v; return; }
     if (_stricmp(key, "ENABLE_MUSIC_PLAYER") == 0)               { g_settings.enableMusicPlayer            = v; return; }
     if (_stricmp(key, "MUSIC_FAIR_RANDOM") == 0)                { g_settings.musicFairRandom             = v; return; }
@@ -4961,6 +4964,7 @@ static void WriteDefaultSettings(const char* path)
         "HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES=%d\n"
         "HIDE_RAW_GOODS_PRODUCTION_FILTER_BUTTONS=%d\n"
         "FILTER_SHOW_ALL_FACTORIES_IN_STATE=%d\n"
+        "PRODUCTION_STATE_RGO_ICONS=%d\n"
         "FACTORY_FILTER_BY_PRODUCERS_ONLY=%d\n"
         "ENABLE_MUSIC_PLAYER=%d\n"
         "GOODS_ICONS_AS_SEPARATE_FILES=%d\n"
@@ -4978,6 +4982,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.patchHideNoSupplyFactories,
         (int)g_settings.hideRawGoodsFilter,
         (int)g_settings.filterShowAllInState,
+        (int)g_settings.productionStateRgoIcons,
         (int)g_settings.factoryFilterByProducersOnly,
         (int)g_settings.enableMusicPlayer,
         (int)g_settings.goodsIconsAsSeparateFiles,
@@ -23340,6 +23345,288 @@ static bool InstallTechFactoryMaintenance()
 }
 
 // ---------------------------------------------------------------
+// PRODUCTION_STATE_RGO_ICONS (6.6): в окне промышленности (вкладка "Фабрики") после названия региона
+// рисуются иконки товаров добывающих производств (ДП) провинций региона.
+//
+// Строка региона - CStateFactoryInfoItem (конструктор FUN_006E6530, окно "state_info" из
+// country_production.gui). Обновляет её FUN_006E69D0(item, state, список1, список2) (stdcall, ret 0x10;
+// два вызова: VA 0x6F4279 и 0x6F74E3): ставит текст state_name (item+0x1110), число фабрик и т.д. После неё
+// наш хук (вызовы перенаправлены) по состоянию региона находит его провинции (state+0x48/+0x4C - vector<int>
+// id провинций, как в AiBuildBlocked), для каждой берёт тип ДП так же, как окно провинции (FUN_00740050):
+//     def = таблица описаний провинций (DAT_01258728 -> [0]) + id * 0xB0; тип = def+8 (производственный
+//     тип; null и DAT_01258734+0x10 = нет ДП); товар = [тип+0x80]; индекс товара = [товар+8];
+//     кадр иконки = индекс + 2 (как у goods_type провинции).
+// Повторы одного товара убираются, порядок - по индексу товара (= порядок goods.txt).
+// GUI: в окно state_info нужно добавить iconType rgo_icon_0..rgo_icon_15 (спрайт
+// GFX_resources_small_transparent). Хук находит их по имени (vtable окна +0x44), ставит кадр (иконка
+// vtable +0x48) и позицию (vtable +0x18, упакованные x|y<<16, как в патче фильтра товаров): первая иконка
+// сразу после текста названия (ширина по bmfont-метрикам cgothic_22.fnt), правая граница - до колонки
+// "Фабрики" (x=350); лишние/неподходящие иконки уводятся за экран (x=-1000). Нет иконок в GUI - ничего
+// не делаем (одна строка в лог). Только вид, симуляцию не трогаем.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_SRI_UPDATE_FN  = 0x2E69D0;
+static const DWORD RVA_SRI_SITES[2]   = { 0x2F4279, 0x2F74E3 };
+static const DWORD RVA_SRI_PROVDEFS   = 0xE58728;    // DAT_01258728 -> {defs base, ...}
+static const DWORD RVA_SRI_PRODMGR    = 0xE58734;    // DAT_01258734 (+0x10 = "нет типа")
+static const int   SRI_ITEM_ROOT      = 0x20;
+static const int   SRI_ITEM_NAMEBOX   = 0x1110;
+static const int   SRI_SLOTS          = 16;
+static const int   SRI_NAME_X         = 35;          // позиция state_name в state_info
+static const int   SRI_GAP            = 6;
+static const int   SRI_STEP           = 22;          // ширина иконки 20 + 2
+static const int   SRI_RIGHT_LIMIT    = 350;         // колонка "Фабрики" начинается с x=355
+static const int   SRI_ICON_Y         = 5;
+static const int   SRI_VT_ICON_FIND   = 0x44;
+static const int   SRI_VT_WINDOW_FIND = 0x6C;
+static const int   SRI_VT_ICON_FRAME  = 0x48;
+static const int   SRI_VT_SETPOS      = 0x18;
+
+static DWORD g_sriOrig = 0;
+static int   g_sriAdvance[256];
+static bool  g_sriFontTried = false;
+static bool  g_sriFontOk = false;
+static LONG  g_sriLogs = 0;
+static bool  g_sriNoIconsLogged = false;
+
+static void SriLoadFont()
+{
+    if (g_sriFontTried)
+        return;
+    g_sriFontTried = true;
+    for (int i = 0; i < 256; ++i)
+        g_sriAdvance[i] = 9;
+
+    char paths[2][MAX_PATH];
+    paths[0][0] = 0;
+    char folder[MAX_PATH];
+    if (ResolveModFolder(folder, sizeof(folder)))
+        _snprintf_s(paths[0], sizeof(paths[0]), _TRUNCATE, "%s\\gfx\\fonts\\cgothic_22.fnt", folder);
+    _snprintf_s(paths[1], sizeof(paths[1]), _TRUNCATE, "gfx\\fonts\\cgothic_22.fnt");
+
+    for (int p = 0; p < 2 && !g_sriFontOk; ++p)
+    {
+        if (!paths[p][0])
+            continue;
+        FILE* f = 0;
+        if (fopen_s(&f, paths[p], "r") != 0 || !f)
+            continue;
+        char line[512];
+        int chars = 0;
+        while (fgets(line, sizeof(line), f))
+        {
+            if (strncmp(line, "char ", 5) != 0)
+                continue;
+            const char* id = strstr(line, "id=");
+            const char* adv = strstr(line, "xadvance=");
+            if (!id || !adv)
+                continue;
+            int c = atoi(id + 3);
+            if (c >= 0 && c < 256)
+            {
+                g_sriAdvance[c] = atoi(adv + 9);
+                ++chars;
+            }
+        }
+        fclose(f);
+        if (chars > 32)
+        {
+            g_sriFontOk = true;
+            LogDbg("StateRgoIcons: шрифт cgothic_22: %d символов из %s", chars, paths[p]);
+        }
+    }
+    if (!g_sriFontOk)
+        Log("StateRgoIcons: cgothic_22.fnt не найден - ширина названия считается по 9 px на символ");
+}
+
+static int SriTextWidth(const char* text)
+{
+    int w = 0;
+    for (const unsigned char* p = (const unsigned char*)text; *p; ++p)
+        w += g_sriAdvance[*p];
+    return w;
+}
+
+static void* SriFindChild(void* host, int byteSlot, const char* name)
+{
+    char store[32];
+    GStr s;
+    MakeStr(&s, store, sizeof(store), name);
+    return VCall1(host, byteSlot, &s);
+}
+
+static bool SriCodePtrOk(void* obj, int byteSlot)
+{
+    void** vt = *(void***)obj;
+    DWORD fn = (DWORD)(DWORD_PTR)vt[byteSlot / 4];
+    return fn >= g_base && fn < g_base + g_imageSize;
+}
+
+static void SriPlace(void* icon, int x, int y)
+{
+    if (!SriCodePtrOk(icon, SRI_VT_SETPOS))
+        return;
+    DWORD packed = (DWORD)(unsigned short)(short)x | ((DWORD)(unsigned short)(short)y << 16);
+    VCall1(icon, SRI_VT_SETPOS, (void*)(DWORD_PTR)packed);
+}
+
+static void __cdecl StateRgoIcons(void* item, void* state)
+{
+    __try
+    {
+        void* root = *(void**)((char*)item + SRI_ITEM_ROOT);
+        void* nameBox = *(void**)((char*)item + SRI_ITEM_NAMEBOX);
+        if (!root || !nameBox || !state)
+            return;
+
+        void* wins[SRI_SLOTS];
+        void* icons[SRI_SLOTS];
+        int have = 0;
+        for (int i = 0; i < SRI_SLOTS; ++i)
+        {
+            char nm[32];
+            _snprintf_s(nm, sizeof(nm), _TRUNCATE, "rgo_slot_%d", i);
+            wins[i] = SriFindChild(root, SRI_VT_WINDOW_FIND, nm);
+            icons[i] = 0;
+            if (wins[i])
+            {
+                _snprintf_s(nm, sizeof(nm), _TRUNCATE, "rgo_slot_%d_icon", i);
+                icons[i] = SriFindChild(wins[i], SRI_VT_ICON_FIND, nm);
+                if (icons[i])
+                    ++have;
+            }
+        }
+        if (!have)
+        {
+            if (!g_sriNoIconsLogged)
+            {
+                g_sriNoIconsLogged = true;
+                Log("StateRgoIcons: в окне state_info нет windowType rgo_slot_0..%d с иконкой rgo_slot_N_icon - иконки не рисуем", SRI_SLOTS - 1);
+            }
+            return;
+        }
+
+        // товары ДП провинций региона (по индексу товара, без повторов)
+        bool present[128];
+        memset(present, 0, sizeof(present));
+        char* session = *(char**)(g_base + RVA_WORLD_PTR);
+        char* st = *(char**)(g_base + RVA_SRI_PROVDEFS);
+        char* defs = st ? *(char**)st : 0;
+        char* mgr = *(char**)(g_base + RVA_SRI_PRODMGR);
+        int* ids = *(int**)((char*)state + STATE_OFF_PROV_IDS);
+        int* idsEnd = *(int**)((char*)state + STATE_OFF_PROV_IDS + 4);
+        if (session && defs && ids && idsEnd >= ids && (idsEnd - ids) <= 512)
+        {
+            for (int* p = ids; p < idsEnd; ++p)
+            {
+                if ((unsigned)*p >= 20000)
+                    continue;
+                char* type = *(char**)(defs + (size_t)*p * 0xB0 + 8);
+                if (!type || (mgr && type == mgr + 0x10))
+                    continue;
+                char* goods = *(char**)(type + 0x80);
+                if (!goods)
+                    continue;
+                int idx = *(int*)(goods + 8);
+                if (idx >= 0 && idx < 126)
+                    present[idx] = true;
+            }
+        }
+
+        // ширина названия -> x первой иконки
+        SriLoadFont();
+        const char* nameText = GStrText((char*)nameBox + OFF_TEXTBOX_STR);
+        int x = SRI_NAME_X + SriTextWidth(nameText) + SRI_GAP;
+        const int x0 = x;
+
+        int slot = 0;
+        char listing[160];
+        listing[0] = 0;
+        for (int g = 0; g < 126 && slot < SRI_SLOTS; ++g)
+        {
+            if (!present[g])
+                continue;
+            if (x + SRI_STEP > SRI_RIGHT_LIMIT + 2)
+                break;
+            if (!icons[slot])
+            {
+                ++slot;
+                continue;
+            }
+            VCall1(icons[slot], SRI_VT_ICON_FRAME, (void*)(DWORD_PTR)(g + 2));
+            SriPlace(wins[slot], x, SRI_ICON_Y);
+            if (strlen(listing) < sizeof(listing) - 8)
+                _snprintf_s(listing + strlen(listing), sizeof(listing) - strlen(listing), _TRUNCATE, "%d ", g);
+            x += SRI_STEP;
+            ++slot;
+        }
+        for (; slot < SRI_SLOTS; ++slot)
+            if (wins[slot])
+                SriPlace(wins[slot], -1000, SRI_ICON_Y);
+
+        // первые вызовы - в обычный лог (диагностика "иконок нет на экране"): что нашли и что вернули
+        // позиция/кадр иконки обратно через CIcon getter (vtable +0x3C, RVA 0x246620)
+        if (InterlockedIncrement(&g_sriLogs) <= 4)
+        {
+            int provCount = (ids && idsEnd >= ids) ? (int)(idsEnd - ids) : -1;
+            int goodsCount = 0;
+            for (int g = 0; g < 126; ++g)
+                if (present[g])
+                    ++goodsCount;
+            void* w0 = wins[0];
+            void* i0 = icons[0];
+            if (w0 && i0)
+            {
+                void** vtw = *(void***)w0;
+                void** vti = *(void***)i0;
+                LogDbg("StateRgoIcons: окно vt[6]=%08X (центр.установщик %08X) значок vt[18]=%08X (ожидали %08X)",
+                    (DWORD)(DWORD_PTR)vtw[6], g_base + 0x5E3BA0, (DWORD)(DWORD_PTR)vti[18], g_base + 0x5C4410);
+            }
+            LogDbg("StateRgoIcons: регион '%s' item=%p окон-слотов=%d провинций=%d товаров=%d [%s] x0=%d (ширина названия=%d, шрифт %s)",
+                nameText, item, have, provCount, goodsCount, listing, x0, SriTextWidth(nameText), g_sriFontOk ? "ok" : "нет");
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        static LONG s_fault = 0;
+        if (InterlockedIncrement(&s_fault) <= 3)
+            Log("StateRgoIcons: исключение в хуке строки региона");
+    }
+}
+
+// call FUN_006E69D0(item, state, a3, a4) (stdcall, ret 0x10)
+__declspec(naked) static void StateRgoIconsThunk()
+{
+    __asm {
+        push dword ptr [esp + 0x10]
+        push dword ptr [esp + 0x10]
+        push dword ptr [esp + 0x10]
+        push dword ptr [esp + 0x10]
+        call dword ptr [g_sriOrig]
+        push eax
+        mov ecx, dword ptr [esp + 8]
+        mov edx, dword ptr [esp + 0xC]
+        push edx
+        push ecx
+        call StateRgoIcons
+        add esp, 8
+        pop eax
+        ret 0x10
+    }
+}
+
+static bool InstallStateRgoIcons()
+{
+    g_sriOrig = g_base + RVA_SRI_UPDATE_FN;
+    int ok = 0;
+    for (int i = 0; i < 2; ++i)
+        if (TechMaintRedirectCall(RVA_SRI_SITES[i], RVA_SRI_UPDATE_FN, (void*)&StateRgoIconsThunk, "иконки ДП региона"))
+            ++ok;
+    Log("StateRgoIcons: перенаправлено вызовов обновления строки региона %d из 2", ok);
+    return ok == 2;
+}
+
+// ---------------------------------------------------------------
 // DestroyCmdNullCheck (5.34): вылет в проверке команды "снести здание".
 //
 // FUN_0057CFD0 (проверка CDestroyStateBuildingCommand; создают её ИИ в
@@ -27424,6 +27711,9 @@ static bool Install()
 
     if (g_settings.filterShowAllInState || g_settings.factoryFilterByProducersOnly)
         InstallFilterShowAllInState();
+
+    if (g_settings.productionStateRgoIcons)
+        InstallStateRgoIcons();
 
     if (g_settings.enableRestartGameButton)
         InstallMenuCloseObserverHook();

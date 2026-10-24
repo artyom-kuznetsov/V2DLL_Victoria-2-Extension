@@ -449,6 +449,14 @@ Shows total population (adult male ×4) in three drawing sites. Each site is a 6
 * `FACTORY_FILTER_BY_PRODUCERS_ONLY`: the predicate matches only factories that **output** the chosen good (not those that merely consume it as input).
 * `FILTER_SHOW_ALL_FACTORIES_IN_STATE`: if any factory in the region passes, all of the region's factories are shown.
 
+### 5.8a `PRODUCTION_STATE_RGO_ICONS` - 2 redirected `call`s to `FUN_006E69D0` (RVA `0x2F4279`, `0x2F74E3`), on (added 6.6)
+
+* **What.** In the Factories tab, each state row (`CStateFactoryInfoItem`, window `state_info`) gets icons of the RGO goods of the state's provinces after the name. Display only.
+* **Engine map.** The row is built by `FUN_006E6530` (name box `item+0x1110`, window `item+0x20`) and refreshed by `FUN_006E69D0(item, state, list1, list2)` (stdcall, `ret 0x10`; two callers, VA `0x6F4279`, `0x6F74E3`). State province ids: `state+0x48/+0x4C` (`vector<int>`). The province RGO is read as the province window does (`FUN_00740050`, goods_type icon): province definition table `[[DAT_01258728]] + id*0xB0`, RGO production type at `+8` (null or `DAT_01258734+0x10` = none), goods object `[type+0x80]`, goods index `[goods+8]`, icon frame = index + 2.
+* **Hook.** `StateRgoIconsThunk` calls the original with the same four arguments, then `StateRgoIcons(item, state)`: finds the slot windows `rgo_slot_0..15` in the row window (vtable `+0x6C`) and their icons (`+0x44`), sets the frame (icon vtable `+0x48`) and moves the slot window (`+0x18`, packed `x | y<<16`, the same call the engine uses to place `factory_info` windows; icon vtable `+0x18` is Draw, not SetPosition - 6.6/6.7 called it by mistake and nothing moved): first icon at `35 + text width + 6` (text width from the bmfont metrics `gfx\fonts\cgothic_22.fnt`, sum of `xadvance` per cp1251 byte), step 22, last icon ends at x <= 350 (the Factories column starts at 355). Unused slots are moved to x = -1000. Goods are deduplicated and sorted by goods index (= goods.txt order).
+* **GUI.** `country_production.gui` of the mod needs `windowType` `rgo_slot_0` ... `rgo_slot_15` (size 20x16, `orientation = "CENTER"`, like `factory_info`), each with an `iconType` `rgo_slot_N_icon` (sprite `GFX_resources_small_transparent`) at 0,0, inside `state_info`; without them the hook logs one line and does nothing.
+* **Config.** `PRODUCTION_STATE_RGO_ICONS` (ini, UI, default on). Log lines `StateRgoIcons: ...`.
+
 ### 5.9 `ENABLE_MUSIC_PLAYER` — CALL ×3, VSLOT ×2, ENTRY ×1, on
 Adds the topbar music player: `button_fe_player_next`, `button_fe_player_pause` and the scrollbar `fe_player_volume_slider` (from `interface\topbar.gui`), two-way synced with the settings-window music slider.
 

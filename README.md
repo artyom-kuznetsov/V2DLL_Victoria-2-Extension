@@ -147,6 +147,9 @@ plus the needs of buildings with `goods_consumption` (budget expenses). Needs `t
 #### 18. TRADE_WINDOW_REAL_POP_NEEDS
 The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand pops within the country have, not the vanilla simplified estimate. 
 This does not calculate for money pops have, thus needs still do not reflect real demand (made by balticšprott).
+#### 19. PRODUCTION_STATE_RGO_ICONS
+Adds present RGO icons next to state name in production tab. Requires modification of `country_production.gui` file in order to work.
+Check `interface/Industry Tab Icons.gui.disabled` for instructions.
   
 ### Miscellaneous
 #### 1. PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH 
