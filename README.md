@@ -282,6 +282,21 @@ else = {
 }
 ```
 (made by COUNTRY_ADJ)
+
+#### 7. ENABLE_UNIT_CULTURE_RECRUITMENT / ENABLE_UNIT_COLONIAL_RECRUITMENT
+Adds optional recruitment restrictions to land unit definitions in `common/units`.
+
+`ENABLE_UNIT_CULTURE_RECRUITMENT=1` enables:
+
+- `primary_culture_only = yes` — recruit only from POPs of the country's primary culture.
+- `accepted_culture_only = yes` — recruit only from POPs of accepted cultures other than the primary culture.
+- `non_accepted_only = yes` — recruit only from POPs whose culture is neither primary nor accepted.
+
+These custom rules do not change the vanilla `primary_culture = yes` behavior, which allows both primary and accepted cultures. If no custom culture rule is specified for a unit, recruitment has no additional culture restriction.
+
+`ENABLE_UNIT_COLONIAL_RECRUITMENT=1` enables `colonial_only = yes` and `non_colonial_only = yes` in a land unit definition. These restrict recruitment to colonial or non-colonial provinces respectively. If neither key is specified, the unit can be recruited in either type of province.
+
+Both settings default to `1`; set one to `0` to disable its rules. Keep the settings identical for all players in a multiplayer game. Tooltip localization rows are in `Source/V2DLL_ExtendedUnitRecruitmentRules_SourceBundle/localisation/EXTENDED_UNIT_RECRUITMENT_RULES.csv.example`; copy them into the active mod's localization CSV.
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 

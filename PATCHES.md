@@ -101,6 +101,7 @@ Key | Default | Kind | Address(es) | Section
 `HIDE_RAW_GOODS_PRODUCTION_FILTER_BUTTONS` | on | HOOK ×2 | `0x2F1C30`, `0x2F1EC0` | 5
 `FILTER_SHOW_ALL_FACTORIES_IN_STATE`, `FACTORY_FILTER_BY_PRODUCERS_ONLY` | on, on | CALL ×2 | `0x2F41F7`, `0x2F7471` | 5
 `ENABLE_MOVE_POP_BLOCK` | on | VSLOT x2 + detour + HOOK | `0xA2BF44` slots 9/11, `0x476B30`, `0xB8ED2` | 6a.1
+`ENABLE_UNIT_CULTURE_RECRUITMENT`, `ENABLE_UNIT_COLONIAL_RECRUITMENT` | on, on | ENTRY ×5 | `0x1BA7E0`, `0x17D2F0`, `0x114030`, `0x1141D0`, `0x1BBAA0` | 6a.3
 `ENABLE_MUSIC_PLAYER` | on | CALL ×3, VSLOT ×2, ENTRY | see 5.9 | 5
 `GOODS_ICONS_AS_SEPARATE_FILES` | on (inert without `icon` keys) | ENTRY ×3 + IAT | `0x721F40`, `0x7206E0`, `0x7221E0`; IAT slot `0x88A424` | 5.11
 `PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH` | on | BYTE | `0x10C5DE` | 3
@@ -574,6 +575,12 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 * **Identity guard** (`PopMergeIdentity`, HOOK `0xB8ED2` in `FUN_004B8E80`, 8 bytes `84 C0 0F 84 9B 00 00 00`, continue `0xB8EDA`, separate-pop fallback `0xB8F75`): the vanilla move merges the arriving pop into any destination pop of its type; the hook makes it take the "create a new pop" path when type, culture or religion of the two real pops differ.
 * **Config.** `ENABLE_MOVE_POP_BLOCK` (ini, default on). It changes how scripts are parsed, so it must be the same for all players of a multiplayer game (it is part of the config fingerprint like the other ini keys). The block tooltip needs the localisation key `MOVE_POP_AMOUNT_EFFECT` (`$AMOUNT$`, `$WHERE$`) in the mod's localisation; the DLL does not add it.
 * **Log.** Install lines `MovePopAmount: ...`, `PopMergeIdentity: installed ...`; per-execution lines (`MovePopAmount: split ...`, `MovePopBlock: captured ...`) only with `DEBUG_LOG=1`.
+
+### 6a.3 `ENABLE_UNIT_CULTURE_RECRUITMENT` / `ENABLE_UNIT_COLONIAL_RECRUITMENT` — ENTRY hooks, on / on
+* **What.** Adds optional per-unit restrictions for land-unit recruitment, keyed by the unit name parsed from its definition. Culture rules are `primary_culture_only`, `accepted_culture_only`, and `non_accepted_only`; colonial rules are `colonial_only` and `non_colonial_only`. The custom culture categories are disjoint: accepted-only means accepted but not primary, and non-accepted means neither primary nor accepted. Vanilla `primary_culture = yes` is left unchanged.
+* **Eligibility hooks.** `CCore_ExtendedUnitRecruitmentRules.cpp` reads the source POP's culture and province/state, then checks the custom rules at the candidate-list predicate `0x114030`, can-build predicate `0x1141D0`, and construction-command executor `0x17D2F0`. This filters invalid choices from build lists and rejects a command if it bypasses the list. The unit parser hook at `0x1BA7E0` consumes the five new keys without passing them to the vanilla parser. Ships without these land-unit keys retain vanilla behavior.
+* **Tooltip.** The unit-definition tooltip hook at `0x1BBAA0` prepends localized rule lines. Localization keys are `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `NON_ACCEPTED_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, and `NON_COLONIAL_ONLY_RECRUITMENT`; example rows are in `Source/V2DLL_ExtendedUnitRecruitmentRules_SourceBundle/localisation/EXTENDED_UNIT_RECRUITMENT_RULES.csv.example`. If the tooltip hook cannot be installed or a key is missing, recruitment checks remain active and the corresponding tooltip line is omitted.
+* **Config.** `ENABLE_UNIT_CULTURE_RECRUITMENT` and `ENABLE_UNIT_COLONIAL_RECRUITMENT` (ini, both default on). Each setting independently enables its corresponding unit-definition keys. Keep both settings identical for all players in a multiplayer game.
 
 ## 7. Stability and performance
 

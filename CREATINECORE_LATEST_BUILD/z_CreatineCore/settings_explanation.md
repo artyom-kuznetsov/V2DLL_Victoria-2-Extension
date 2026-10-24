@@ -262,7 +262,7 @@ Adds optional recruitment restrictions to land unit definitions in `common/units
 - `ENABLE_UNIT_CULTURE_RECRUITMENT` enables `primary_culture_only`, `accepted_culture_only`, and `non_accepted_only`.
 - `ENABLE_UNIT_COLONIAL_RECRUITMENT` enables `colonial_only` and `non_colonial_only`.
 
-The new culture rules distinguish primary culture, accepted non-primary cultures, and non-accepted non-primary cultures. They do not change the vanilla meaning of `primary_culture = yes`, which allows recruitment from both primary and accepted cultures. If neither new rule is present in a unit definition, there is no additional restriction. These rules apply to land units, not ships.
+The new culture rules distinguish primary culture, accepted non-primary cultures, and non-accepted non-primary cultures. They do not change the vanilla meaning of `primary_culture = yes`, which allows recruitment from both primary and accepted cultures. If neither new rule is present in a unit definition, there is no additional restriction. These rules apply to land units, not ships. Both settings default to `1`; set the corresponding key to `0` to disable that group of restrictions. Keep each setting identical for all players in a multiplayer game.
 
 Example:
 ```txt
