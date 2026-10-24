@@ -49,8 +49,7 @@ __declspec(align(16)) static unsigned char g_candidateEligibilityTramp[32];
 __declspec(align(16)) static unsigned char g_canBuildUnitTramp[32];
 static bool g_installed = false;
 static bool g_tooltipInstalled = false;
-static bool g_extendedRecruitmentCultureEnabled = false;
-static bool g_extendedRecruitmentColonialEnabled = false;
+static bool g_extendedRecruitmentRulesEnabled = false;
 static volatile LONG g_tooltipLocalizationErrorLogged = 0;
 static volatile LONG g_tooltipAppendErrorLogged = 0;
 
@@ -264,7 +263,7 @@ static bool UnitTooltipInsertRuleLines(void* outString, BYTE flags)
 
     for (int i = 0; i < 5; ++i)
     {
-        bool enabled = (i < 3) ? g_extendedRecruitmentCultureEnabled : g_extendedRecruitmentColonialEnabled;
+        bool enabled = g_extendedRecruitmentRulesEnabled;
         if (enabled && (flags & bits[i]) && EnsureUnitRuleTooltipText(i))
             lineIndices[lineCount++] = i;
     }
@@ -426,11 +425,11 @@ static bool PopMeetsExtendedUnitRecruitmentRules(void* unit, void* pop)
         bool primaryOnly = (flags & RULE_PRIMARY_ONLY) != 0;
         bool acceptedOnly = (flags & RULE_ACCEPTED_ONLY) != 0;
         bool nonAcceptedOnly = (flags & RULE_NON_ACCEPTED_ONLY) != 0;
-        bool cultureRestricted = g_extendedRecruitmentCultureEnabled &&
+        bool cultureRestricted = g_extendedRecruitmentRulesEnabled &&
             (primaryOnly || acceptedOnly || nonAcceptedOnly);
         bool nonColonialOnly = (flags & RULE_NON_COLONIAL_ONLY) != 0;
         bool colonialOnly = (flags & RULE_COLONIAL_ONLY) != 0;
-        bool colonialRestricted = g_extendedRecruitmentColonialEnabled &&
+        bool colonialRestricted = g_extendedRecruitmentRulesEnabled &&
             (nonColonialOnly || colonialOnly);
         if (!cultureRestricted && !colonialRestricted)
             return true;
@@ -605,12 +604,11 @@ static void __fastcall ConstructUnitExecuteHook(void* self, void*)
     g_constructExecute(self);
 }
 
-bool InstallExtendedUnitRecruitmentRules(bool cultureEnabled, bool colonialEnabled)
+bool InstallExtendedUnitRecruitmentRules()
 {
     if (g_installed)
         return true;
-    g_extendedRecruitmentCultureEnabled = cultureEnabled;
-    g_extendedRecruitmentColonialEnabled = colonialEnabled;
+    g_extendedRecruitmentRulesEnabled = true;
 
     static const unsigned char PROLOGUE[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
     void* original = 0;

@@ -16,7 +16,7 @@ const char* V2_OwnDir();                              // folder z_CreatineCore\ 
 // --- defined in CCore_AssimilateBlock.cpp ---
 bool   InstallAssimilateBlock();
 bool   InstallEffectFactoryHook();       // shared router of the block-form script effects
-bool   InstallExtendedUnitRecruitmentRules(bool cultureEnabled, bool colonialEnabled);
+bool   InstallExtendedUnitRecruitmentRules();
 
 // --- defined in CCore_IfElseOperators.cpp ---
 typedef void(__fastcall* tCoreEffectFactory)(void* self, void* edx, void* ctx, int keyId);
