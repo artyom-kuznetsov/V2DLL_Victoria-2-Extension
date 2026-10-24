@@ -188,6 +188,11 @@ struct Settings
     // платит деньги, цены не двигаются).
     // assimilate = { culture = ... religion = ... amount = ... } (block form).
     bool assimilateBlock             = true;
+    // Restrict unit recruitment by the culture status of the source POP.
+    bool extendedUnitRecruitmentRulesCulture      = true;
+    // Restrict recruitment from colonial or non-colonial provinces when a
+    // unit defines colonial_only / non_colonial_only.
+    bool extendedUnitRecruitmentRulesColonial     = true;
     // move_pop = { where = province_id amount = 0..1 } plus identity-safe insertion.
     bool movePopBlock                = true;
     // CK2-style if / else_if / else blocks in event and decision effects.
@@ -4799,6 +4804,8 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "POP_BUILD_INFRASTRUCTURE_RULE") == 0)    { g_settings.popBuildInfrastructureRule = v; return; }
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "ENABLE_ASSIMILATE_BLOCK") == 0)          { g_settings.assimilateBlock             = v; return; }
+    if (_stricmp(key, "ENABLE_UNIT_CULTURE_RECRUITMENT") == 0) { g_settings.extendedUnitRecruitmentRulesCulture      = v; return; }
+    if (_stricmp(key, "ENABLE_UNIT_COLONIAL_RECRUITMENT") == 0) { g_settings.extendedUnitRecruitmentRulesColonial     = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
     if (_stricmp(key, "LOAD_DLL_FROM_MOD_FOLDER") == 0)                      { g_settings.loadDllFromModFolder                  = v; return; }
@@ -5011,6 +5018,8 @@ static void WriteDefaultSettings(const char* path)
     fprintf(f,
         "; Script Extensions\n"
         "ENABLE_ASSIMILATE_BLOCK=%d\n"
+        "ENABLE_UNIT_CULTURE_RECRUITMENT=%d\n"
+        "ENABLE_UNIT_COLONIAL_RECRUITMENT=%d\n"
         "ENABLE_MOVE_POP_BLOCK=%d\n"
         "ENABLE_IF_ELSE_OPERATORS=%d\n"
         "ENABLE_EVENT_SOUNDS=%d\n"
@@ -5020,6 +5029,8 @@ static void WriteDefaultSettings(const char* path)
         "FIX_TECH_FACTORY_MAINTENANCE=%d\n"
         "\n",
         (int)g_settings.assimilateBlock,
+        (int)g_settings.extendedUnitRecruitmentRulesCulture,
+        (int)g_settings.extendedUnitRecruitmentRulesColonial,
         (int)g_settings.movePopBlock,
         (int)g_settings.ifElseOperators,
         (int)g_settings.EventSounds,
@@ -27480,6 +27491,10 @@ static bool Install()
         InstallPopBuildInfrastructureRule();
 
     InstallGoodsConsumption();
+
+    if (g_settings.extendedUnitRecruitmentRulesCulture || g_settings.extendedUnitRecruitmentRulesColonial)
+        InstallExtendedUnitRecruitmentRules(g_settings.extendedUnitRecruitmentRulesCulture,
+            g_settings.extendedUnitRecruitmentRulesColonial);
 
     if (g_settings.assimilateBlock)
         InstallAssimilateBlock();
