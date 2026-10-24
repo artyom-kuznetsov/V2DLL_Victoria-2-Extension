@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.9"
+#define MOD_VERSION "6.10"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -5159,6 +5159,20 @@ static void LoadSettingsFrom(const char* path)
     fclose(f);
 }
 
+// "-mod=" в командной строке (без учёта регистра), начиная с from; 0 - больше нет.
+static const char* FindModArg(const char* from)
+{
+    if (!from)
+        return 0;
+    for (const char* p = from; *p; ++p)
+    {
+        if (p[0] == '-' && (p[1] == 'm' || p[1] == 'M') && (p[2] == 'o' || p[2] == 'O') &&
+            (p[3] == 'd' || p[3] == 'D') && p[4] == '=')
+            return p;
+    }
+    return 0;
+}
+
 // modArg apunta justo despues de "-mod=" (un argumento concreto de la linea de comandos).
 static bool ResolveModFolderAt(const char* modArg, char* outFolder, size_t outSize)
 {
@@ -5181,7 +5195,7 @@ static bool ResolveModFolderAt(const char* modArg, char* outFolder, size_t outSi
                 break;
             modFile[i++] = *modArg++;
         }
-        while (i > 0 && modFile[i - 1] == ' ')
+        while (i > 0 && (modFile[i - 1] == ' ' || modFile[i - 1] == '"'))
             --i;
     }
     modFile[i] = '\0';
@@ -5189,11 +5203,22 @@ static bool ResolveModFolderAt(const char* modArg, char* outFolder, size_t outSi
     if (modFile[0] == '\0')
         return false;
 
+    // Относительный путь из командной строки ("mod/Name.mod") - от папки игры, а не от текущей папки процесса
+    // (они совпадают не всегда: ярлык, лаунчер, "Рабочая папка").
     FILE* f = 0;
     if (fopen_s(&f, modFile, "r") != 0 || !f)
     {
-        Log("ResolveModFolder: не смог открыть %s (из командной строки)", modFile);
-        return false;
+        char gameDir[MAX_PATH];
+        GetGameDirectory(gameDir, sizeof(gameDir));
+        char alt[MAX_PATH * 2];
+        f = 0;
+        if (gameDir[0] && _snprintf_s(alt, sizeof(alt), _TRUNCATE, "%s\\%s", gameDir, modFile) > 0)
+            fopen_s(&f, alt, "r");
+        if (!f)
+        {
+            Log("ResolveModFolder: не смог открыть %s (из командной строки)", modFile);
+            return false;
+        }
     }
 
     bool found = false;
@@ -5231,7 +5256,7 @@ static bool ResolveModFolderAt(const char* modArg, char* outFolder, size_t outSi
 // Primer -mod= de la linea de comandos (lo usan los ajustes por mod).
 static bool ResolveModFolder(char* outFolder, size_t outSize)
 {
-    const char* modArg = strstr(GetCommandLineA(), "-mod=");
+    const char* modArg = FindModArg(GetCommandLineA());
     if (!modArg)
         return false;
     return ResolveModFolderAt(modArg + 5, outFolder, outSize);
@@ -5273,27 +5298,40 @@ static void LoadSettings()
     if (!g_settings.localModConfig)
         return;
 
-    char modFolder[MAX_PATH];
-    if (!ResolveModFolder(modFolder, sizeof(modFolder)))
+    // Все активные -mod= в порядке командной строки (лаунчер сортирует их по имени, поэтому "первый" мод -
+    // не обязательно тот, чей ini нужен): берём первый мод, в папке которого creatinecore_settings.ini уже лежит.
+    // Файл в моде сами НЕ создаём - его нужно скопировать вручную.
+    const char* cmd = GetCommandLineA();
+    int modsSeen = 0;
+    for (const char* arg = FindModArg(cmd); arg; arg = FindModArg(arg + 5))
     {
-        Log("LOCAL_MOD_CONFIG=1, но папку запущенного мода определить не "
-            "удалось (нет -mod= в командной строке или .mod не читается) - "
-            "использую %s", ROOT_PATH);
+        char modFolder[MAX_PATH];
+        if (!ResolveModFolderAt(arg + 5, modFolder, sizeof(modFolder)))
+            continue;
+        ++modsSeen;
+
+        char modPath[MAX_PATH * 2];
+        _snprintf_s(modPath, sizeof(modPath), _TRUNCATE, "%s\\creatinecore_settings.ini", modFolder);
+        if (GetFileAttributesA(modPath) == INVALID_FILE_ATTRIBUTES)
+        {
+            char gameDir[MAX_PATH];
+            GetGameDirectory(gameDir, sizeof(gameDir));
+            if (gameDir[0])
+                _snprintf_s(modPath, sizeof(modPath), _TRUNCATE, "%s\\%s\\creatinecore_settings.ini", gameDir, modFolder);
+        }
+        if (GetFileAttributesA(modPath) == INVALID_FILE_ATTRIBUTES)
+        {
+            Log("LOCAL_MOD_CONFIG=1: в папке мода '%s' нет creatinecore_settings.ini", modFolder);
+            continue;
+        }
+
+        Log("LOCAL_MOD_CONFIG=1: настройки берутся из %s", modPath);
+        LoadSettingsFrom(modPath);
         return;
     }
 
-    char modPath[MAX_PATH];
-    _snprintf_s(modPath, sizeof(modPath), _TRUNCATE, "%s\\creatinecore_settings.ini", modFolder);
-
-    if (GetFileAttributesA(modPath) == INVALID_FILE_ATTRIBUTES)
-    {
-        Log("LOCAL_MOD_CONFIG=1, но в папке мода нет creatinecore_settings.ini (%s) - "
-            "использую %s; чтобы настройки мода работали, скопируйте файл в папку мода", modPath, ROOT_PATH);
-        return;
-    }
-
-    Log("LOCAL_MOD_CONFIG=1: настройки берутся из %s", modPath);
-    LoadSettingsFrom(modPath);
+    Log("LOCAL_MOD_CONFIG=1, но creatinecore_settings.ini не найден ни в одном активном моде (модов в командной строке: %d) - "
+        "использую %s. Командная строка: %s", modsSeen, ROOT_PATH, cmd ? cmd : "");
 }
 
 
@@ -27896,7 +27934,7 @@ static bool Install()
         // mods seleccionados; no se recorre la carpeta mod\).
         const char* cmd = GetCommandLineA();
         int modsSeen = 0;
-        for (const char* p = strstr(cmd, "-mod="); p; p = strstr(p + 5, "-mod="))
+        for (const char* p = FindModArg(cmd); p; p = FindModArg(p + 5))
         {
             char modDir[MAX_PATH];
             if (ResolveModFolderAt(p + 5, modDir, sizeof(modDir)))

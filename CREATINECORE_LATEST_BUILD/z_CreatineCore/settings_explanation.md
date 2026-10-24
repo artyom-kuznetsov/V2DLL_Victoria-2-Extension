@@ -9,6 +9,7 @@ If the author did not provide his submod with settings, to disable one, rename i
 #### LOCAL_MOD_CONFIG
 This option allows to use different configurations for different installed mods. All you need to do
 is copy the .ini file to a mod folder, and launch the mod as usual.
+The mod's file is only used if it is already there (the game never creates it in the mod folder); settings missing from it keep the values of the main .ini. If several mods are active (several `-mod=` arguments), the first mod that has the file is used.
 
 ### Military
 #### 1. ALWAYS_ADD_WARGOALS 
