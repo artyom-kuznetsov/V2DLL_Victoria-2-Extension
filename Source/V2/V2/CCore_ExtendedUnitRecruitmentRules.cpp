@@ -7,7 +7,12 @@
 static const DWORD RVA_SUBUNIT_READ_PROPERTY = 0x1BA7E0;
 static const DWORD RVA_CONSTRUCT_UNIT_EXECUTE = 0x17D2F0;
 static const DWORD RVA_CANDIDATE_ELIGIBILITY = 0x114030;
-static const DWORD RVA_CAN_BUILD_UNIT = 0x1141D0;
+// FUN_005141D0 (can-build predicate). Its entry (first 26 bytes), the free-regiments call and the success
+// exit (RVA 0x114284) are signature-checked by the TGCX submod, so the entry is NOT patched: the filter sits at
+// 0x114269 (common point of every success path: "cmp [ecx+10Ch],0", ECX = province, ESI = unit, EDI = POP).
+static const DWORD RVA_CAN_BUILD_GATE = 0x114269;
+static const DWORD RVA_CAN_BUILD_GATE_RESUME = 0x114270;   // je success_exit
+static const DWORD RVA_CAN_BUILD_FAIL = 0x1142FD;          // pop edi / pop esi / xor al,al ... ret 8
 static const DWORD RVA_COUNTRIES_VECTOR = 0xE587E4;
 static const DWORD RVA_UNIT_DEFINITION_TOOLTIP = 0x1BBAA0; // FUN_005BBAA0
 static const DWORD RVA_STD_STRING_ASSIGN = 0x009350;
@@ -41,12 +46,12 @@ static tSubunitReadProperty g_readProperty = 0;
 static tConstructUnitExecute g_constructExecute = 0;
 static tUnitDefinitionTooltip g_unitDefinitionTooltip = 0;
 static void* g_candidateEligibility = 0;
-static void* g_canBuildUnit = 0;
+static DWORD g_canBuildGateResume = 0;
+static DWORD g_canBuildFail = 0;
 __declspec(align(16)) static unsigned char g_readPropertyTramp[32];
 __declspec(align(16)) static unsigned char g_constructExecuteTramp[32];
 __declspec(align(16)) static unsigned char g_unitTooltipTramp[32];
 __declspec(align(16)) static unsigned char g_candidateEligibilityTramp[32];
-__declspec(align(16)) static unsigned char g_canBuildUnitTramp[32];
 static bool g_installed = false;
 static bool g_tooltipInstalled = false;
 static bool g_extendedRecruitmentRulesEnabled = false;
@@ -516,42 +521,26 @@ __declspec(naked) static void CandidateEligibilityHook()
 
 // The native can-build predicate is also called while the Army Build list is
 // assembled. It receives the unit in ECX, its source POP in EAX, then country
-// and province as stack arguments. Filter the native result so invalid POPs
-// never become visible as buildable province/unit entries.
-__declspec(naked) static void CanBuildUnitHook()
+// and province as stack arguments. Every path that would return TRUE goes through
+// "cmp [ecx+10Ch],0" at 0x514269 (ECX = province, ESI = unit definition, EDI = source POP);
+// there we veto the unit if the recruitment rules reject this POP, so invalid POPs
+// never become visible as buildable province/unit entries (and the result is still
+// correct when the native function is called directly, e.g. by the TGCX submod).
+__declspec(naked) static void CanBuildGateHook()
 {
     __asm {
-        push eax                    // preserve source POP from the native EAX convention
-        push ebp
-        mov ebp, esp
-        push ebx
-        push esi
-        push edi
-        sub esp, 8
-        mov [ebp - 16], ecx         // unit definition
-
-        push dword ptr [ebp + 16]   // province
-        push dword ptr [ebp + 12]   // country
-        mov ecx, [ebp - 16]
-        mov eax, [ebp + 4]          // source POP
-        call dword ptr [g_canBuildUnit]
-        test eax, eax
-        jz can_build_done
-
-        push dword ptr [ebp + 4]    // source POP
-        push dword ptr [ebp - 16]   // unit definition
+        push ecx
+        push edi                    // source POP
+        push esi                    // unit definition
         call RecruitmentPredicateAllows
         add esp, 8
-        jmp can_build_done
-
-    can_build_done:
-        add esp, 8
-        pop edi
-        pop esi
-        pop ebx
-        pop ebp
-        add esp, 4                  // discard saved incoming EAX
-        ret 8
+        test al, al
+        pop ecx
+        jz rejected
+        cmp dword ptr [ecx + 0x10C], 0      // the instruction we replaced
+        jmp dword ptr [g_canBuildGateResume]
+    rejected:
+        jmp dword ptr [g_canBuildFail]
     }
 }
 
@@ -644,17 +633,33 @@ bool InstallExtendedUnitRecruitmentRules()
     }
     g_candidateEligibility = original;
 
-    static const unsigned char CAN_BUILD_SIG[8] =
-        { 0x55, 0x8B, 0xEC, 0x51, 0x53, 0x8B, 0x5D, 0x08 };
-    original = 0;
-    if (!StealToTrampoline(RVA_CAN_BUILD_UNIT, sizeof(CAN_BUILD_SIG), g_canBuildUnitTramp,
-            sizeof(g_canBuildUnitTramp), CAN_BUILD_SIG, (void*)&CanBuildUnitHook,
-            &original, "UnitCultureBuildList"))
+    // can-build filter: a plain jump at 0x114269 (7 bytes "cmp dword ptr [ecx+10Ch],0" -> jmp + 2 NOP)
+    static const unsigned char CAN_BUILD_GATE_ORIG[9] = { 0x83, 0xB9, 0x0C, 0x01, 0x00, 0x00, 0x00, 0x74, 0x12 };
     {
-        Log("ExtendedUnitRecruitmentRules: failed to hook can-build predicate");
-        return false;
+        unsigned char* gate = (unsigned char*)(g_base + RVA_CAN_BUILD_GATE);
+        if (memcmp(gate, CAN_BUILD_GATE_ORIG, sizeof(CAN_BUILD_GATE_ORIG)) != 0)
+        {
+            Log("ExtendedUnitRecruitmentRules: can-build gate bytes do not match (%02X %02X %02X %02X %02X %02X %02X %02X %02X)",
+                gate[0], gate[1], gate[2], gate[3], gate[4], gate[5], gate[6], gate[7], gate[8]);
+            return false;
+        }
+        g_canBuildGateResume = g_base + RVA_CAN_BUILD_GATE_RESUME;
+        g_canBuildFail = g_base + RVA_CAN_BUILD_FAIL;
+        unsigned char patch[7];
+        patch[0] = 0xE9;
+        *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)&CanBuildGateHook - ((DWORD)(DWORD_PTR)gate + 5);
+        patch[5] = patch[6] = 0x90;
+        DWORD old = 0;
+        if (!VirtualProtect(gate, sizeof(patch), PAGE_EXECUTE_READWRITE, &old))
+        {
+            Log("ExtendedUnitRecruitmentRules: failed to hook can-build predicate");
+            return false;
+        }
+        memcpy(gate, patch, sizeof(patch));
+        VirtualProtect(gate, sizeof(patch), old, &old);
+        FlushInstructionCache(GetCurrentProcess(), gate, sizeof(patch));
+        Log("ExtendedUnitRecruitmentRules: can-build filter at rva %06X (the function entry is left intact)", RVA_CAN_BUILD_GATE);
     }
-    g_canBuildUnit = original;
 
     // This prologue contains `push imm32`, whose immediate is an absolute
     // handler address and changes when Windows relocates v2game.exe. Validate
