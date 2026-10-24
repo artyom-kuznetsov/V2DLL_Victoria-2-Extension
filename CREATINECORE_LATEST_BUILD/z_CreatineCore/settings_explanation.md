@@ -256,6 +256,24 @@ Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `i
 `pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
 Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` to your economic policies/reforms before enabling (made by balticšprott).
 
+#### 6. ENABLE_UNIT_CULTURE_RECRUITMENT / ENABLE_UNIT_COLONIAL_RECRUITMENT
+Adds optional recruitment restrictions to land unit definitions in `common/units`.
+
+- `ENABLE_UNIT_CULTURE_RECRUITMENT` enables `primary_culture_only`, `accepted_culture_only`, and `non_accepted_only`.
+- `ENABLE_UNIT_COLONIAL_RECRUITMENT` enables `colonial_only` and `non_colonial_only`.
+
+The new culture rules distinguish primary culture, accepted non-primary cultures, and non-accepted non-primary cultures. They do not change the vanilla meaning of `primary_culture = yes`, which allows recruitment from both primary and accepted cultures. If neither new rule is present in a unit definition, there is no additional restriction. These rules apply to land units, not ships.
+
+Example:
+```txt
+infantry = {
+    type = land
+    non_colonial_only = yes
+}
+```
+
+The five custom tooltip keys are listed in `Source/V2DLL_ExtendedUnitRecruitmentRules_SourceBundle/localisation/EXTENDED_UNIT_RECRUITMENT_RULES.csv.example`. Copy those rows into the localization CSV of the active mod.
+
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
 Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).
@@ -304,4 +322,3 @@ Creates Windows memory dump on game crash (made by av213238).
 Caps state savings to fix repeating desyncs in MP (made by balticšprott).
 #### 7. MP_HOST_HUMAN_SYNC=1
 Should prevent one certain miscellanous desync issue. Not confirmed.
-  
