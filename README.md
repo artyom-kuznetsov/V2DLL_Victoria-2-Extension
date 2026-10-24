@@ -286,18 +286,16 @@ else = {
 Adds support for `factory_maintenance = x` in technologies and inventions. Vanilla only supported it in modifiers and reforms.
 #### 8. ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES
 Adds optional recruitment restrictions to land unit definitions in `common/units`. (made by COUNTRY_ADJ)
-
-`ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES=1` enables all five custom restrictions:
-
 - `primary_culture_only = yes` — recruit only from POPs of the country's primary culture.
 - `accepted_culture_only = yes` — recruit only from POPs of accepted cultures other than the primary culture.
 - `non_accepted_only = yes` — recruit only from POPs whose culture is neither primary nor accepted.
+- `colonial_only = yes` - unit only recruitable from colonial regions
+- `non_colonial_only = yes` - unit only recruitable from non-colonial regions
 
-These custom rules do not change the vanilla `primary_culture = yes` behavior, which allows both primary and accepted cultures. If no custom culture rule is specified for a unit, recruitment has no additional culture restriction.
+These custom rules do not change the vanilla `primary_culture = yes` behavior, 
+which allows both primary and accepted cultures.  
 
-`colonial_only = yes` and `non_colonial_only = yes` restrict recruitment to colonial or non-colonial provinces respectively. If neither key is specified, the unit can be recruited in either type of province.
-
-The setting defaults to `1`; set it to `0` to disable all five rules. Keep the setting identical for all players in a multiplayer game. To show the rule lines in tooltips, add the five recruitment localization keys listed in `PATCHES.md` to the active mod's localization file.
+Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 

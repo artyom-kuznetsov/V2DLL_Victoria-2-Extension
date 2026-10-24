@@ -9,7 +9,6 @@ If the author did not provide his submod with settings, to disable one, rename i
 #### LOCAL_MOD_CONFIG
 This option allows to use different configurations for different installed mods. All you need to do
 is copy the .ini file to a mod folder, and launch the mod as usual.
-The mod's file is only used if it is already there (the game never creates it in the mod folder); settings missing from it keep the values of the main .ini.
 
 ### Military
 #### 1. ALWAYS_ADD_WARGOALS 
@@ -32,7 +31,7 @@ If there are units with support stat in reserve during battle, they will be prio
 If enabled, units from second row will be able to damage enemy's second row units, 20% redirected from damage to the first row (made by balticšprott).
 #### 11. ARMY_FIX_SATELLITE_COMMAND
 The "Command army" button on a satellite is always available (vanilla: only while you fight a war together), and the command over the satellite's armies is kept after peace is made (made by balticšprott).
-
+  
 ### Economic
 #### 1. TRADE_PRICE_DELTA_PERCENTUAL 
 Prices shift by 0.25% of the base price instead of flat 0.01 per day.
@@ -275,21 +274,18 @@ else = {
 (made by COUNTRY_ADJ)
 #### 7. FIX_TECH_FACTORY_MAINTENANCE
 Adds support for `factory_maintenance = x` in technologies and inventions. Vanilla only supported it in modifiers and reforms.
-
 #### 8. ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES
-Enables optional recruitment restrictions for land-unit definitions in `common/units`: `primary_culture_only`, `accepted_culture_only`, `non_accepted_only`, `colonial_only`, and `non_colonial_only`.
+Adds optional recruitment restrictions to land unit definitions in `common/units`. (made by COUNTRY_ADJ)
+- `primary_culture_only = yes` — recruit only from POPs of the country's primary culture.
+- `accepted_culture_only = yes` — recruit only from POPs of accepted cultures other than the primary culture.
+- `non_accepted_only = yes` — recruit only from POPs whose culture is neither primary nor accepted.
+- `colonial_only = yes` - unit only recruitable from colonial regions
+- `non_colonial_only = yes` - unit only recruitable from non-colonial regions
 
-The culture rules distinguish primary culture, accepted non-primary cultures, and non-accepted non-primary cultures. They do not change the vanilla meaning of `primary_culture = yes`, which allows recruitment from both primary and accepted cultures. Colonial rules restrict recruitment to colonial or non-colonial provinces. If no custom rule is present in a unit definition, recruitment remains unrestricted by these rules. They apply to land units, not ships.
+These custom rules do not change the vanilla `primary_culture = yes` behavior, 
+which allows both primary and accepted cultures.  
 
-This setting defaults to `1`; set `ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES=0` to disable all five custom rules. Keep the setting identical for all players in a multiplayer game. To show rule lines in tooltips, add the five recruitment localization keys listed in `PATCHES.md` to the active mod's localization file.
-
-Example:
-```txt
-infantry = {
-    type = land
-    non_colonial_only = yes
-}
-```
+Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
@@ -339,3 +335,4 @@ Creates Windows memory dump on game crash (made by av213238).
 Caps state savings to fix repeating desyncs in MP (made by balticšprott).
 #### 7. MP_HOST_HUMAN_SYNC=1
 Should prevent one certain miscellanous desync issue. Not confirmed.
+  

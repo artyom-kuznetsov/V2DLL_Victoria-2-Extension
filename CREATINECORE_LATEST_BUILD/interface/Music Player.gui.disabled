@@ -1,4 +1,6 @@
-You can put this under "button_speedup" in topbar.gui
+if your mod already has modified topbar, you can copy this manually instead of figuring out how to port our modified "topbar.gui".
+
+You can put this under "button_speedup" in topbar.gui  
 
 		guiButtonType = {
 			name = "button_fe_player_pause"
