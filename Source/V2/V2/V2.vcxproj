@@ -28,6 +28,7 @@
     <ClCompile Include="CCore_AssimilateBlock.cpp" />
     <ClCompile Include="CCore_IfElseOperators.cpp" />
     <ClCompile Include="CCore_PopMergeIdentity.cpp" />
+    <ClCompile Include="CCore_ExtendedUnitRecruitmentRules.cpp" />
     <ClCompile Include="CCore_ModLoader.cpp" />
     <ClCompile Include="vasalle_color.cpp" />
     <ClCompile Include="minhook\src\buffer.c" />
@@ -137,7 +138,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
