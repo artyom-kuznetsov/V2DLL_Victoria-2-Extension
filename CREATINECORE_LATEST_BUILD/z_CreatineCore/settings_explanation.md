@@ -48,7 +48,7 @@ infantry = {
 }
 ```
 
-The five custom tooltip keys are listed in `Source/V2DLL_ExtendedUnitRecruitmentRules_SourceBundle/localisation/EXTENDED_UNIT_RECRUITMENT_RULES.csv.example`. Copy those rows into the localization CSV of the active mod.
+To show the rule lines in tooltips, add the five recruitment localization keys listed in `PATCHES.md` to the active mod's localization file.
   
 ### Economic
 #### 1. TRADE_PRICE_DELTA_PERCENTUAL 

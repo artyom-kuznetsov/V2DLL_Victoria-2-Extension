@@ -55,7 +55,7 @@ These custom rules do not change the vanilla `primary_culture = yes` behavior, w
 
 `ENABLE_UNIT_COLONIAL_RECRUITMENT=1` enables `colonial_only = yes` and `non_colonial_only = yes` in a land unit definition. These restrict recruitment to colonial or non-colonial provinces respectively. If neither key is specified, the unit can be recruited in either type of province.
 
-Both settings default to `1`; set one to `0` to disable its rules. Keep the settings identical for all players in a multiplayer game. Tooltip localization rows are in `Source/V2DLL_ExtendedUnitRecruitmentRules_SourceBundle/localisation/EXTENDED_UNIT_RECRUITMENT_RULES.csv.example`; copy them into the active mod's localization CSV.
+Both settings default to `1`; set one to `0` to disable its rules. Keep the settings identical for all players in a multiplayer game. To show the rule lines in tooltips, add the five recruitment localization keys listed in `PATCHES.md` to the active mod's localization file.
   
 ### Economic
 #### 1. TRADE_PRICE_DELTA_PERCENTUAL 
