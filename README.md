@@ -41,9 +41,8 @@ If there are units with support stat in reserve during battle, they will be prio
 If enabled, units from second row will be able to damage enemy's second row units, 20% redirected from damage to the first row (made by balticšprott).
 #### 11. ARMY_FIX_SATELLITE_COMMAND
 The "Command army" button on a satellite is always available (vanilla: only while you fight a war together), and the command over the satellite's armies is kept after peace is made (made by balticšprott).
-
 #### 12. ENABLE_UNIT_CULTURE_RECRUITMENT / ENABLE_UNIT_COLONIAL_RECRUITMENT
-Adds optional recruitment restrictions to land unit definitions in `common/units`.
+Adds optional recruitment restrictions to land unit definitions in `common/units`. (made by COUNTRY_ADJ)
 
 `ENABLE_UNIT_CULTURE_RECRUITMENT=1` enables:
 
