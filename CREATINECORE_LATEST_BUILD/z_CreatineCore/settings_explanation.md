@@ -9,7 +9,6 @@ If the author did not provide his submod with settings, to disable one, rename i
 #### LOCAL_MOD_CONFIG
 This option allows to use different configurations for different installed mods. All you need to do
 is copy the .ini file to a mod folder, and launch the mod as usual.
-The mod's file is only used if it is already there (the game never creates it in the mod folder); settings missing from it keep the values of the main .ini. If several mods are active (several `-mod=` arguments), the first mod that has the file is used.
 
 ### Military
 #### 1. ALWAYS_ADD_WARGOALS 
@@ -147,8 +146,8 @@ Check `interface/Industry Tab Icons.gui.disabled` for instructions.
 Removes plurality growth from average consciousness. In-game tooltip says otherwise though. So this patch removes this tooltip too (hi tgc) (made by balticšprott).
 #### 2. PATCH_CIVILIZE_NULL_CHECK
 Fixes a crash when a country that has factories civilizes (made by balticšprott).
-#### 3. PATCH_GRAPH_POINT_CLAMP
-Prevents the game from crashing from overflow I talked about in Economic №3 (doesn't prevent it from happening though) (made by balticšprott).
+#### 3. FIX_MEMORY_MISS_CRASHES
+Fixes known issues with memory misses caused by .dll patching. Please report if you experience any crashes with CCore that don't happen in vanilla.
 #### 4. PATCH_ALLOW_UNCIV_TECH_RESEARCH
 Allows non-ai uncivs to research tech. (made by maxioten).
 #### 5. MUSIC_FAIR_RANDOM
@@ -290,11 +289,9 @@ These custom rules do not change the vanilla `primary_culture = yes` behavior,
 which allows both primary and accepted cultures.  
 
 Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).
-  
-
 #### 9. FIX_PROVINCE_FLAGS
-Adds the missing `has_province_flag = <name>` trigger (it was registered in the game but had no implementation, so it never worked and `set_province_flag` / `clr_province_flag` could not be checked). Use it in province scope, e.g. `any_owned_province = { limit = { has_province_flag = my_flag } ... }` or `726 = { limit = { has_province_flag = my_flag } ... }`. Province flags are set with `set_province_flag = <name>` and cleared with `clr_province_flag = <name>` in province scope; they are saved in the savegame like country flags.
-
+With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games.
+  
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
 Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).

@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.15"
+#define MOD_VERSION "6.19"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -83,7 +83,6 @@ struct Settings
     // Два краша окна технологий на пустом "статусе" (сортировка списка и
     // иконка папки) - см. InstallTechCompareNullCheck / InstallTechFolderIconNullCheck.
     bool patchTechNullCheckFixes     = true;
-    bool patchGraphPointClamp        = false;
     bool factoryAllowConstructionInColonial     = true;
     bool patchHideNoSupplyFactories  = true;
     // Фабрики: накопления уходят владельцам при любом закрытии, а убыточная
@@ -194,6 +193,8 @@ struct Settings
     bool extendedUnitRecruitmentRules             = true;
     // FIX_PROVINCE_FLAGS: has_province_flag trigger (CCore_ProvinceFlags.cpp).
     bool fixProvinceFlags                         = true;
+    // FIX_MEMORY_MISS_CRASHES: dangling scope pointer of delayed events (CCore_DelayedEventFrom.cpp).
+    bool fixMemoryMissCrashes                     = true;
     // move_pop = { where = province_id amount = 0..1 } plus identity-safe insertion.
     bool movePopBlock                = true;
     // CK2-style if / else_if / else blocks in event and decision effects.
@@ -533,10 +534,20 @@ void Log(const char* fmt, ...)
     if (g_logCsInit)
         EnterCriticalSection(&g_logCs);
 
+    // Первая запись процесса затирает лог прошлого запуска ("w"), остальные дописывают. Если на этом ПК уже
+    // работает другой экземпляр игры (хост и клиент вместе), его лог не трогаем - иначе они по очереди
+    // затирали бы Install/Present друг друга: признак - именованный mutex, который держит первый процесс.
+    static bool s_modeKnown = false;
+    static bool s_truncate = false;
+    if (!s_modeKnown)
+    {
+        s_modeKnown = true;
+        HANDLE owner = CreateMutexW(NULL, FALSE, L"Local\\CreatineCore_v2dll_log_owner");
+        s_truncate = owner && GetLastError() != ERROR_ALREADY_EXISTS;   // handle stays open until the process ends
+    }
+
     FILE* f = 0;
-    // Всегда дописываем: хост и клиент на одном ПК иначе по очереди
-    // открывают файл на "w" и затирают Install/Present друг друга.
-    if (_wfopen_s(&f, g_logFile, L"a") != 0 || !f)
+    if (_wfopen_s(&f, g_logFile, s_truncate ? L"w" : L"a") != 0 || !f)
     {
         if (g_logCsInit)
             LeaveCriticalSection(&g_logCs);
@@ -544,6 +555,7 @@ void Log(const char* fmt, ...)
     }
 
     g_logStarted = true;
+    s_truncate = false;
 
     fprintf(f, "[%u] ", GetCurrentProcessId());
 
@@ -4688,7 +4700,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "PATCH_CIVILIZE_NULL_CHECK") == 0)       { g_settings.patchCivilizeNullCheck      = v; return; }
     if (_stricmp(key, "PATCH_SUPPLY_SOURCE_NULL_CHECK") == 0)  { g_settings.patchSupplySourceNullCheck  = v; return; }
     if (_stricmp(key, "PATCH_TECH_NULL_CHECK_FIXES") == 0)     { g_settings.patchTechNullCheckFixes     = v; return; }
-    if (_stricmp(key, "PATCH_GRAPH_POINT_CLAMP") == 0)         { g_settings.patchGraphPointClamp        = v; return; }
+    if (_stricmp(key, "FIX_MEMORY_MISS_CRASHES") == 0)         { g_settings.fixMemoryMissCrashes        = v; return; }
     if (_stricmp(key, "FACTORY_ALLOW_CONSTRUCTION_IN_COLONIAL") == 0)
     {
         g_settings.factoryAllowConstructionInColonial = v;
@@ -5001,7 +5013,7 @@ static void WriteDefaultSettings(const char* path)
         "; Miscellaneous\n"
         "PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH=%d\n"
         "PATCH_CIVILIZE_NULL_CHECK=%d\n"
-        "PATCH_GRAPH_POINT_CLAMP=%d\n"
+        "FIX_MEMORY_MISS_CRASHES=%d\n"
         "PATCH_ALLOW_UNCIV_TECH_RESEARCH=%d\n"
         "MUSIC_FAIR_RANDOM=%d\n"
         "PATCH_TECH_NULL_CHECK_FIXES=%d\n"
@@ -5011,7 +5023,7 @@ static void WriteDefaultSettings(const char* path)
         "\n",
         (int)FindExePatchEnabled("remove_consciousness_plurality_growth"),
         (int)g_settings.patchCivilizeNullCheck,
-        (int)g_settings.patchGraphPointClamp,
+        (int)g_settings.fixMemoryMissCrashes,
         (int)FindExePatchEnabled("allow_unciv_tech_research"),
         (int)g_settings.musicFairRandom,
         (int)g_settings.patchTechNullCheckFixes,
@@ -7423,123 +7435,6 @@ static void FormatOosDiag(char* buf, size_t cap)
 {
     sprintf_s(buf, cap, "first_oos=%s first_real=%s days_real=%d",
         g_firstOosBuf, g_firstRealOosBuf, DaysSinceFirstRealOos());
-}
-
-
-// ---------------------------------------------------------------
-// Переполнение буфера точек графика (0xc0000409 - сработала
-// GS-канарейка стека - сразу за ним 0xc0000005 по тому же адресу).
-//
-// FUN_009e0ef0 - отрисовка графика истории (открывается вместе с
-// окном бюджета). Для каждого сегмента истории код пишет ровно
-// [ESI] точек подряд в фиксированный локальный буфер, без проверки
-// [ESI] против вместимости буфера. Если у какого-то сегмента число
-// точек аномально велико (экономические значения ломают счётчик
-// записей истории - пользователь видел уходящие в минус числа
-// пошлин перед крахом), запись уходит за пределы буфера и разносит
-// стек.
-//
-// Патчим ровно точку первого чтения счётчика (rva 0x5E0FD6, 13
-// байт - перекрывает cmp dword[esi],1; mov [esp+0x20],esi; jl
-// rva 0x5E1159). Перед этим сравнением ограничиваем сам счётчик
-// в записи (dword [esi]) сверху безопасным значением GRAPH_CLAMP_MAX
-// - это временный UI-буфer графика, пересобираемый при каждом
-// обновлении окна, поэтому обрезка не влияет на реальную
-// экономическую статистику. Дальше воспроизводим оригинальные
-// cmp/mov/jl без изменений - работают уже с обрезанным значением.
-//
-// ВАЖНО (версия 2.54 всё равно упала с этим же клампом=150):
-// точный расчёт вместимости буфера по кадру стека функции -
-// SUB ESP,0x9BC в прологе, буфер начинается с ESP+0x90 (первая
-// запись пишет [ESI-4]..[ESI+0xB]), 3 push (EBX/ESI/EDI, 0xC байт)
-// уже вычтены из ESP до этого места. По 0x10 байт на точку
-// безопасный максимум = ((0x9BC-0xC) - 0x90) / 0x10 = 147 точек -
-// значение 150 переполняет буфер ровно на столько, чтобы
-// затереть сохранённый EBP/адрес возврата/параметры вызывающей
-// функции (ровно это и дало крах в MOV ECX,[EAX] на rva 5E1137,
-// где EAX = испорченный [EBP+0xC]). Взял 100 - заметный запас
-// от математического предела 147 на случай неточности в ручном
-// разборе кадра (выравнивание AND ESP,0xFFFFFFF8 даёт до 7 байт
-// неопределённости).
-// ---------------------------------------------------------------
-
-static const DWORD RVA_GRAPH_CLAMP_HOOK   = 0x5E0FD6;
-static const DWORD RVA_GRAPH_CLAMP_NORMAL = 0x5E0FE3;  // lea ecx,[esi+4]
-static const DWORD RVA_GRAPH_CLAMP_SKIP   = 0x5E1159;  // dec dword ptr[esp+0x28] (следующий сегмент)
-static const int   GRAPH_CLAMP_MAX = 100;
-
-static const unsigned char GRAPH_CLAMP_SIG[13] =
-{
-    0x83, 0x3E, 0x01,                   // cmp dword ptr[esi],1
-    0x89, 0x74, 0x24, 0x20,             // mov [esp+0x20],esi
-    0x0F, 0x8C, 0x76, 0x01, 0x00, 0x00  // jl rva 0x5E1159
-};
-
-static bool InstallGraphPointClamp()
-{
-    unsigned char* hook = (unsigned char*)(g_base + RVA_GRAPH_CLAMP_HOOK);
-
-    if (memcmp(hook, GRAPH_CLAMP_SIG, sizeof(GRAPH_CLAMP_SIG)) != 0)
-    {
-        Log("GraphPointClamp: сигнатура не совпала - не патчим");
-        return false;
-    }
-
-    unsigned char* cave = (unsigned char*)VirtualAlloc(
-        0, 48, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
-    if (!cave)
-        return false;
-
-    int n = 0;
-
-    cave[n++] = 0x81; cave[n++] = 0x3E;                     // cmp dword ptr[esi], GRAPH_CLAMP_MAX
-    *(DWORD*)(cave + n) = (DWORD)GRAPH_CLAMP_MAX; n += 4;
-
-    int jleAt = n;
-    cave[n++] = 0x7E; cave[n++] = 0x00;                     // jle skip_clamp (адрес допишем ниже)
-
-    cave[n++] = 0xC7; cave[n++] = 0x06;                     // mov dword ptr[esi], GRAPH_CLAMP_MAX
-    *(DWORD*)(cave + n) = (DWORD)GRAPH_CLAMP_MAX; n += 4;
-
-    int skipClampAt = n;
-    cave[jleAt + 1] = (unsigned char)(skipClampAt - (jleAt + 2));
-
-    // Воспроизводим перекрытые байты - теперь со значением,
-    // ограниченным сверху GRAPH_CLAMP_MAX.
-    cave[n++] = 0x83; cave[n++] = 0x3E; cave[n++] = 0x01;   // cmp dword ptr[esi],1
-    cave[n++] = 0x89; cave[n++] = 0x74; cave[n++] = 0x24; cave[n++] = 0x20;  // mov [esp+0x20],esi
-
-    int jgeAt = n;
-    cave[n++] = 0x7D; cave[n++] = 0x00;                     // jge continue (адрес допишем ниже)
-
-    cave[n++] = 0xE9;                                       // jmp far_skip (rva GRAPH_CLAMP_SKIP)
-    *(DWORD*)(cave + n) = (g_base + RVA_GRAPH_CLAMP_SKIP) - (DWORD)(cave + n + 4);
-    n += 4;
-
-    int continueAt = n;
-    cave[jgeAt + 1] = (unsigned char)(continueAt - (jgeAt + 2));
-
-    cave[n++] = 0xE9;                                       // jmp far_resume (rva GRAPH_CLAMP_NORMAL)
-    *(DWORD*)(cave + n) = (g_base + RVA_GRAPH_CLAMP_NORMAL) - (DWORD)(cave + n + 4);
-    n += 4;
-
-    unsigned char patch[13];
-    patch[0] = 0xE9;
-    *(DWORD*)(patch + 1) = (DWORD)(DWORD_PTR)cave - ((DWORD)hook + 5);
-    for (int i = 5; i < 13; ++i)
-        patch[i] = 0x90;
-
-    DWORD oldProtect = 0;
-    if (!VirtualProtect(hook, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect))
-        return false;
-
-    memcpy(hook, patch, sizeof(patch));
-    VirtualProtect(hook, sizeof(patch), oldProtect, &oldProtect);
-
-    Log("GraphPointClamp: установлен на rva %06X, максимум %d точек, пещера %08X",
-        RVA_GRAPH_CLAMP_HOOK, GRAPH_CLAMP_MAX, (DWORD)(DWORD_PTR)cave);
-    return true;
 }
 
 
@@ -27716,9 +27611,6 @@ static bool Install()
         InstallTechFolderIconNullCheck();
     }
 
-    if (g_settings.patchGraphPointClamp)
-        InstallGraphPointClamp();
-
     {
         // В 2.58 сканер временно ловил "Failed to create a graphics device"
         // при запуске - подтверждено A/B тестом (2.58 с широким сканом всех
@@ -27860,6 +27752,10 @@ static bool Install()
 
     if (g_settings.fixProvinceFlags)
         InstallProvinceFlags();
+
+    // Installed with the fix off too when DEBUG_LOG=1: the diagnostics show the vanilla behaviour.
+    if (g_settings.fixMemoryMissCrashes || V2_DebugLogEnabled())
+        InstallDelayedEventFrom(g_settings.fixMemoryMissCrashes);
 
     if (g_settings.assimilateBlock)
         InstallAssimilateBlock();

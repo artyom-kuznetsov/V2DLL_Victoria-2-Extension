@@ -106,7 +106,7 @@ Key | Default | Kind | Address(es) | Section
 `GOODS_ICONS_AS_SEPARATE_FILES` | on (inert without `icon` keys) | ENTRY ×3 + IAT | `0x721F40`, `0x7206E0`, `0x7221E0`; IAT slot `0x88A424` | 5.11
 `PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH` | on | BYTE | `0x10C5DE` | 3
 `PATCH_CIVILIZE_NULL_CHECK` | on (**forced on**; live ini says 0) | HOOK | `0x14248B` | 6
-`PATCH_GRAPH_POINT_CLAMP` | off | HOOK | `0x5E0FD6` | 6
+`FIX_MEMORY_MISS_CRASHES` | on | CALL x2 | `0x140A9E`, `0xB1FEE` | 5
 `PATCH_CHECKSUM_DRIFT_FIX` | off | BYTE | `0x1F8268` | 3
 `PATCH_ALLOW_UNCIV_TECH_RESEARCH` | off | BYTE | `0x3AA757` | 3
 `PATCH_ARISTOCRAT_INCOME_SHARE` | off | BYTE ×5 | `0xEEA2B` … `0xEEA3C` | 3
@@ -552,9 +552,8 @@ Both hooks fix a null "status" pointer (`invention+0x430`) in the technology win
 | Sort comparator `FUN_007A9070` | `0x3A918A` (VA `0x7A918A`) | 12 bytes (`mov eax,[edx+0x310]; mov edx,[ecx+0x310]`) | `pop esi; xor eax,eax` and jump to the epilogue `0x3A91A2` (return "not less"). | `0x3A9196` |
 | Folder builder `FUN_007ADB70` ("folder_icon") | `0x3ADE98` (VA `0x7ADE98`) | 15 bytes (three chained `mov ecx,[ecx+…]`) | `ecx` = pointer to a static empty C string. | `0x3ADEA7` |
 
-### 6.5 `PATCH_GRAPH_POINT_CLAMP` — HOOK, off
-* **Site:** `0x5E0FD6` (VA `0x9E0FD6`) — 13 bytes (`cmp dword [esi],1; mov [esp+0x20],esi; jl …`) in the history-graph renderer `FUN_009E0EF0` (opens with the budget window).
-* Cave clamps the per-segment point count `[esi]` to `GRAPH_CLAMP_MAX` (100; buffer safe maximum 147) before replaying the compare; `jl` target `0x5E1159`, resume `0x5E0FE3`. Guards against a stack buffer overflow (GS cookie `0xC0000409`).
+### 6.5 `PATCH_GRAPH_POINT_CLAMP` - removed in 6.19
+The history-graph point clamp (site `0x5E0FD6`) was dropped; its slot in the ini is taken by `FIX_MEMORY_MISS_CRASHES` (see 6a.6).
 
 ### 6.6 `PATCH_AI_NAVAL_BASE_LIMIT` — 3 CALL sites `0x457983`, `0x457D02`, `0x458282` (5.32, semantics fixed in 5.33, off by default since 5.46)
 An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of a state (default 1). Upgrading an existing base is not limited.
@@ -602,6 +601,13 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 * **Hook.** `HookTriggerFactory` passes every token through unchanged except `0x43B`, which it feeds to the original with the token `0x40A`; the object it creates (and parses: slot 9 copies the value string into `+0x1C`) is the last element of `this+8..this+0xC`; its vtable pointer is replaced by a copy of `0xE307E8` (RTTI pointer kept at `[-1]`) in which slot 6 (`Evaluate(ctx)`, `thiscall`, `ret 4`) reads the context like `has_province_modifier` (`FUN_008CDFC0`): `ctx+0x10` = province index, flag = container `Find(name)` (vtable slot 2) with `entry+0x1C != 0`; slot 10 (tooltip, `thiscall`, four stack arguments, the original ends with `ret 0x10`) builds its own text: its first stack argument is the **output** `std::string`, which the original constructs from `HAVE_COUNTRY_FLAG` / `HAVE_NOT_COUNTRY_FLAG` (third argument = negate) and flag name `this+0x1C`, and returns; the caller appends and destroys it, so it must hold a valid string. The replacement writes `has_province_flag '§Y<name>§W'` (`NOT ` prefix when negated) with the engine allocator for long names. Two earlier versions failed here: a stub with `ret 0xC` corrupted the stack (`C0000374`, 7.0) and a stub that left the output string uninitialised crashed in the string append (`C0000005` at `0x6B1636`, 6.12).
 * **Diagnostics.** Execute (slot 11) of the two effect classes is wrapped; with `DEBUG_LOG=1` the first 30 calls log province, flag name and the container state, the first 12 trigger evaluations are logged too.
 * **Config.** `FIX_PROVINCE_FLAGS` (ini, Script Extensions, default on). Log line `ProvinceFlags: ...` at start.
+
+### 6a.6 `FIX_MEMORY_MISS_CRASHES` - FROM in delayed events: 2 redirected `call`s to `FUN_008A88D0` (RVA `0x140A9E` in `FUN_00540A70`, RVA `0xB1FEE` in `FUN_004B1FC0`), on (source `CCore_DelayedEventFrom.cpp`)
+
+* **Bug.** `CEventScope` (vtable VA `0xE2C904`) stores a "canonical scope" pointer at `+0x24` (the active scope points to itself). Relation triggers read FROM through it: `FUN_008D9F20` does `idx = *(*(scope+0x24)+0x30)`, then `country+0xBE8[idx]` (`alliance_with` / `war_with` / `truce_with`, ...). `country_event`/`province_event` with `days = N` allocate a `CDelayedEvent` (`FUN_00540A70` country list `country+0x68`, `FUN_004B1FC0` province list `province+0x384`; 0x58 bytes, vtable VA `0xE2C858`) and copy the scope into its embedded scope at `+0xC` with `FUN_008A88D0` (`EAX` = destination, `ECX` = source, copies `+8..+0x3C` including `+0x24`). The copy therefore points at the stack object of the scheduling effect; when the event fires, the slot holds garbage and the trigger crashes (VA `0x8D9F77` / `0x8D9F7A`, stack: `CDelayedEvent -> CEvent -> CAIMTTHChance -> CMTTHModifier`). Reported with the January Uprising chain (`country_event 500001` -> `500002` with `days = 5`, options with `alliance_with = FROM` in `ai_chance`). Vanilla never uses such a trigger in a delayed event.
+* **Fix.** Both `call`s go to `ScopeCopyThunk`: it calls the original and then sets `[dest+0x24] = dest`, so the delayed event's scope is its own canonical scope (it holds a full copy of the data, FROM index at `+0x30` included). The other callers of `FUN_008A88D0` (stack copies while an event runs) are not touched.
+* **Diagnostics (6.17, DEBUG_LOG=1).** The hook is installed with the fix off as well, so the vanilla behaviour can be observed: when a delayed scope is copied it logs the source scope, the copy's canonical pointer and whether that pointer lies inside the live stack of the thread; `FUN_008A8120` (event run, entry hook, 6 bytes `55 8B EC 83 E4 F8`) logs, for every scope whose canonical pointer is not the scope itself, where it points, whether it lies in the live stack and what `[canonical+0x30]` holds at that moment.
+* **Config.** `FIX_MEMORY_MISS_CRASHES` (ini, Script Extensions, default on). Log line `DelayedEventFrom: 2 of 2 ...`.
 
 ## 7. Stability and performance
 

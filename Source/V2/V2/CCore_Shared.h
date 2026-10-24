@@ -21,6 +21,9 @@ bool   InstallExtendedUnitRecruitmentRules();
 // --- defined in CCore_ProvinceFlags.cpp ---
 bool   InstallProvinceFlags();
 
+// --- defined in CCore_DelayedEventFrom.cpp ---
+bool   InstallDelayedEventFrom(bool applyFix);
+
 // --- defined in CCore_IfElseOperators.cpp ---
 typedef void(__fastcall* tCoreEffectFactory)(void* self, void* edx, void* ctx, int keyId);
 bool   InstallIfElseOperators();
