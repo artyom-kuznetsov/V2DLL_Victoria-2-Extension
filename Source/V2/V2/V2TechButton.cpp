@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.0"
+#define MOD_VERSION "6.4"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -123,6 +123,9 @@ struct Settings
     // (+0x188) удаляется через factory_closed_delete_days дней (defines_ccore.txt). В ваниле закрытые
     // исключены из удаления, поэтому остаются навсегда.
     bool factoryDeleteClosed = true;
+    // FIX_TECH_FACTORY_MAINTENANCE: factory_maintenance в технологиях и изобретениях (ваниль этот ключ
+    // в них не знает), эффект плюсуется к модификатору страны в местах чтения движком.
+    bool fixTechFactoryMaintenance = true;
     // PATCH_NEEDS_HONEST_UI: доли выполнения потребностей попа на экране (подсказки, окно
     // попа) умножаются на фактическое покрытие общего пула денег типа попа. Только вид.
     bool patchNeedsHonestUi          = true;
@@ -326,8 +329,8 @@ struct Settings
     // timeval, структуру игры не трогаем. Независим от PATCH_MP_CLIENT_SLEEP.
     bool fixSfxMixerLag      = true;
 
-    // FIX_ARMY_WINDOW_LAG: алиас на patchSkipNestedIdle в HookIdleIngame
-    // (пропуск вложенного IdleInGame). Отдельный InstallFixArmyWindowLag
+    // FIX_ARMY_WINDOW_LAG: пропуск вложенного IdleInGame в HookIdleIngame, только пока выбраны
+    // юниты (без выбора вложенные кадры рисуются во время дневного тика, пропуск даёт статтеры). Отдельный InstallFixArmyWindowLag
     // НЕ ставим — LIVE уже хукает 254D80 через InstallWindowFps.
     bool patchFixArmyWindowLag = true;
 };
@@ -4710,6 +4713,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "FACTORY_FORCE_MIN_WAGE") == 0)          { g_settings.factoryForceMinWage         = v; return; }
     if (_stricmp(key, "FACTORY_SUBSIDY_COVERS_TARIFF") == 0) { g_settings.factorySubsidyCoversTariff = v; return; }
     if (_stricmp(key, "FACTORY_DELETE_CLOSED") == 0)        { g_settings.factoryDeleteClosed = v; return; }
+    if (_stricmp(key, "FIX_TECH_FACTORY_MAINTENANCE") == 0) { g_settings.fixTechFactoryMaintenance = v; return; }
     if (_stricmp(key, "PATCH_NEEDS_HONEST_UI") == 0)           { g_settings.patchNeedsHonestUi          = v; return; }
     if (_stricmp(key, "FACTORY_AI_FACTORY_PRIORITY_RULESWAP") == 0)  { g_settings.factoryAiFactoryPriorityRuleSwap  = v; return; }
     if (_stricmp(key, "POP_CARD_NEEDS_AFFECTED_BY_NEEDS_MODIFIERS_FIX") == 0) { g_settings.popCardNeedsAffectedByNeedsModifiersFix      = v; return; }
@@ -4863,6 +4867,7 @@ static void WriteDefaultSettings(const char* path)
         return;
 
     fprintf(f,
+        "; If set to 1, settings will be applied from creatinecore_settings.ini from the folder of your mod (you would need to copy over this file).\n"
         "LOCAL_MOD_CONFIG=%d\n"
         "\n",
         (int)g_settings.localModConfig);
@@ -5012,6 +5017,7 @@ static void WriteDefaultSettings(const char* path)
         "BUILDING_GOODS_CONSUMPTION=%d\n"
         "POP_SALARY_ADDITIONAL_MULTIPLIER=%d\n"
         "POP_BUILD_INFRASTRUCTURE_RULE=%d\n"
+        "FIX_TECH_FACTORY_MAINTENANCE=%d\n"
         "\n",
         (int)g_settings.assimilateBlock,
         (int)g_settings.movePopBlock,
@@ -5019,7 +5025,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.EventSounds,
         (int)g_settings.goodsConsumption,
         (int)g_settings.popSalaryAdditionalMultiplier,
-        (int)g_settings.popBuildInfrastructureRule);
+        (int)g_settings.popBuildInfrastructureRule,
+        (int)g_settings.fixTechFactoryMaintenance);
 
     fprintf(f,
         "; Stability and Performance\n"
@@ -5221,7 +5228,8 @@ static bool ResolveModFolder(char* outFolder, size_t outSize)
 }
 
 // Сначала общий z_CreatineCore\creatinecore_settings.ini (LOCAL_MOD_CONFIG).
-// Если включён - перечитываем из папки запущенного мода.
+// Если включён и в папке запущенного мода уже лежит creatinecore_settings.ini - перечитываем из него
+// (поверх общего). Сами в моде файл не создаём: его нужно скопировать вручную.
 static void LoadSettings()
 {
     static char ROOT_PATH[MAX_PATH];
@@ -5266,6 +5274,13 @@ static void LoadSettings()
 
     char modPath[MAX_PATH];
     _snprintf_s(modPath, sizeof(modPath), _TRUNCATE, "%s\\creatinecore_settings.ini", modFolder);
+
+    if (GetFileAttributesA(modPath) == INVALID_FILE_ATTRIBUTES)
+    {
+        Log("LOCAL_MOD_CONFIG=1, но в папке мода нет creatinecore_settings.ini (%s) - "
+            "использую %s; чтобы настройки мода работали, скопируйте файл в папку мода", modPath, ROOT_PATH);
+        return;
+    }
 
     Log("LOCAL_MOD_CONFIG=1: настройки берутся из %s", modPath);
     LoadSettingsFrom(modPath);
@@ -14939,6 +14954,27 @@ static LONG UsDelta(LONG after, LONG before)
     return d > 0 ? d : 0;
 }
 
+// FIX_ARMY_WINDOW_LAG пропускает вложенный IdleInGame только пока выбраны юниты (CInGameIdler+0xDA8 -
+// число выбранных; 1 = одна армия, >1 = несколько, как в UvFlushSinglePanel/UvHideDetailIfMulti).
+// Вложенный IdleInGame возникает внутри насоса сообщений (FUN_009DF2B0 из FUN_00685620): их зовут и
+// панель армии при выборе, и дневной тик сессии (FUN_006859C0, 11 вызовов насоса). Без выбора вложенные
+// кадры - это отрисовка во время дневного тика; если их пропускать, картинка замирает на всё время тика
+// (статтеры раз в игровой день независимо от окна армии).
+static bool ArmySelectionActive(void* idler)
+{
+    if (!idler)
+        return false;
+    __try
+    {
+        DWORD n = *(DWORD*)((char*)idler + 0xDA8);
+        return n >= 1 && n < 100000;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
 static void __fastcall HookIdleIngame(void* self, void* edx, int arg)
 {
     (void)edx;
@@ -14950,7 +14986,7 @@ static void __fastcall HookIdleIngame(void* self, void* edx, int arg)
     g_idleDepth++;
     if (g_idleDepth > g_idleDepthMax)
         g_idleDepthMax = g_idleDepth;
-    if (!outer && g_settings.patchFixArmyWindowLag)
+    if (!outer && g_settings.patchFixArmyWindowLag && ArmySelectionActive(self))
     {
         g_idleDepth--;
         return;
@@ -21478,6 +21514,7 @@ static const DWORD RVA_MAINT_USED_RESUME = 0xF5482;
 static const DWORD RVA_COUNTRY_LIST_PTR  = 0xE587E4; // DAT_012587e4; +4 = вектор стран
 
 static DWORD g_maintTipResume  = 0;
+static int __cdecl TechMaintModFor(void* country);   // factory_maintenance страны + технологии/изобретения
 static DWORD g_maintUsedResume = 0;
 static unsigned g_maintNeutralTp[6] = { 0x8000, 0, 0, 0, 0x8000, 0 };   // +0x100 = +0x110 = 1.0
 static long long g_maintRealDemand = 0;
@@ -21503,7 +21540,7 @@ static void __cdecl MaintRealDemand(unsigned char* fac, unsigned char* goodInfo)
         unsigned char* state = *(unsigned char**)(fac + 0x1C);
         unsigned char** countries = *(unsigned char***)(*(unsigned char**)(g_base + RVA_COUNTRY_LIST_PTR) + 4);
         unsigned char* country = countries[*(int*)(state + 0x5C)];
-        int mod = *(int*)(*(unsigned char**)(country + 0xA60) + 0x128);
+        int mod = TechMaintModFor(country);
         long long b = 0x8000 + ((long long)mod * 32768) / 1000;
         long long level = *(int*)(fac + 0x20);
         g_maintRealDemand = (amt * level * b) >> 15;
@@ -22897,6 +22934,368 @@ static bool InstallPopSalaryBonus()
         "industry_score=1000, total_population=4000000 -> %.1f %% (pop_salary_additional_multiplier в common\\defines_ccore.txt)",
         done, N, text, g_popSalRoot >= 0 ? "" : " (не используется)", g_popSalRoot >= 0 ? MintEval(g_popSalRoot, sample, 0) : 0.0);
     return done > 0;
+}
+
+// ---------------------------------------------------------------
+// FIX_TECH_FACTORY_MAINTENANCE (6.1): factory_maintenance в технологиях и изобретениях.
+//
+// Парсер технологий/изобретений (FUN_0056D450, виртуальный разбор ключей CTechnology; вызывается из
+// FUN_0056A330 в 0x56AC8D) знает только свои ключи (токены 0x2F9..0xA85: education_efficiency, tax_eff,
+// rgo_size...), у factory_maintenance (токен 0x62D, слот модификатора 37 = +0x128 блока страны
+// +0xA60) ветки нет - ключ молча отбрасывался. Поля CTechnology и суммарного объекта страны
+// (country+0xBCC, раскладка та же) фиксированные, добавить поле нельзя, поэтому значение хранится
+// во внешних таблицах DLL:
+//  * разбор: хук на call 0x56AC8D; для токена 0x62D читаем число движком (FUN_0098FB60, тысячные) и
+//    запоминаем по указателю технологии/изобретения; остальные токены - в штатную функцию;
+//  * суммирование: единственный вызов суммирующей функции FUN_0056C900(сумма, технология, масштаб)
+//    в FUN_00568DC0 (0x569088) - технология применяется к сумме страны (исследование, изобретение,
+//    загрузка, события): g_techMaintByCountry[страна] += значение * масштаб / 1000;
+//  * сброс: единственный вызов FUN_0056C480(сумма) в FUN_00568460 (0x568657), перед пересчётом всех
+//    технологий - обнуляем значение страны;
+//  * чтение: 6 мест движка читают [блок+0x128] (множитель содержания 1 + factory_maintenance:
+//    0x480ED1, 0x4844A2, 0x488200, 0x4F35A8, 0x6FE843, 0x71DED9) - вместо этого TechMaintModFor
+//    (блок + технологии);
+//  * подсказка: FUN_0056F850 (строки эффектов технологии/изобретения, один вызов 0x56BC0F в
+//    FUN_0056AEF0) - после неё дописываем строку "Содержание фабрик: +5.0%" (ключ локализации
+//    TECH_FACTORY_MAINTENANCE).
+// Всё считается из данных и действий игры, у всех игроков одинаково.
+// ---------------------------------------------------------------
+
+static const DWORD RVA_TM_PARSE_CALL   = 0x16AC8D;   // call FUN_0056D450 в FUN_0056A330
+static const DWORD RVA_TM_PARSE_FN     = 0x16D450;
+static const DWORD RVA_TM_NUMBER_FN    = 0x58FB60;   // FUN_0098FB60 (stdcall: узел значения, int* out) -> тысячные
+static const DWORD RVA_TM_AGGR_CALL    = 0x169088;   // call FUN_0056C900 в FUN_00568DC0
+static const DWORD RVA_TM_AGGR_FN      = 0x16C900;
+static const DWORD RVA_TM_RESET_CALL   = 0x168657;   // call FUN_0056C480 в FUN_00568460
+static const DWORD RVA_TM_RESET_FN     = 0x16C480;
+static const DWORD RVA_TM_TIP_CALL     = 0x16BC0F;   // call FUN_0056F850 в FUN_0056AEF0
+static const DWORD RVA_TM_TIP_FN       = 0x16F850;
+static const DWORD RVA_TM_OP_NEW       = 0x6AE9AF;   // FUN_00AAE9AF (cdecl, размер)
+static const DWORD RVA_TM_OP_DELETE    = 0x6AE91B;   // FUN_00AAE91B (cdecl, указатель)
+static const int   TM_TOKEN            = 0x62D;      // factory_maintenance
+static const int   TM_SUM_COUNTRY      = 0x2D8;      // суммарный объект -> страна
+static const int   TM_COUNTRY_SUM      = 0xBCC;      // страна -> суммарный объект
+static const int   TM_COUNTRY_INDEX    = 0x20;
+
+struct TechMaintEntry { void* key; int val; };
+static TechMaintEntry g_techMaintTech[1024];          // указатель технологии/изобретения -> значение (тысячные)
+static int  g_techMaintByCountry[1024];               // индекс страны -> сумма по её технологиям (тысячные)
+static int  g_techMaintParsed = 0;
+static int  g_techMaintMismatch = 0;
+static DWORD g_tmParseOrig = 0, g_tmAggrOrig = 0, g_tmResetOrig = 0, g_tmTipOrig = 0;
+static DWORD g_tmResume[6] = {};
+
+static int* TechMaintSlot(void* key, bool create)
+{
+    unsigned h = (((unsigned)(DWORD_PTR)key) >> 4) & 1023;
+    for (int n = 0; n < 1024; ++n)
+    {
+        TechMaintEntry& e = g_techMaintTech[(h + n) & 1023];
+        if (e.key == key)
+            return &e.val;
+        if (!e.key)
+        {
+            if (!create)
+                return 0;
+            e.key = key;
+            e.val = 0;
+            return &e.val;
+        }
+    }
+    return 0;
+}
+
+// Заменяет "mov eax,[country+0xA60]; mov eax,[eax+0x128]" во всех местах чтения движком.
+static int __cdecl TechMaintModFor(void* country)
+{
+    int mod = 0;
+    __try
+    {
+        mod = *(int*)(*(unsigned char**)((unsigned char*)country + 0xA60) + 0x128);
+        unsigned idx = *(unsigned*)((unsigned char*)country + TM_COUNTRY_INDEX);
+        if (idx < 1024)
+            mod += g_techMaintByCountry[idx];
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+    return mod;
+}
+
+static void __cdecl TechMaintParse(void* tech, void* ctx)
+{
+    __try
+    {
+        typedef int* (__stdcall* tNumber)(void*, int*);
+        int val = 0;
+        ((tNumber)(g_base + RVA_TM_NUMBER_FN))((unsigned char*)ctx + 0x228, &val);
+        int* slot = TechMaintSlot(tech, true);
+        if (slot)
+        {
+            *slot = val;
+            ++g_techMaintParsed;
+            LogDbg("TechMaint: factory_maintenance = %d (тысячные) у %p", val, tech);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static void __cdecl TechMaintApply(void* sum, void* tech, int scale)
+{
+    __try
+    {
+        int* v = TechMaintSlot(tech, false);
+        if (!v || !*v)
+            return;
+        unsigned char* country = *(unsigned char**)((unsigned char*)sum + TM_SUM_COUNTRY);
+        if (!country || *(void**)(country + TM_COUNTRY_SUM) != sum)
+        {
+            if (g_techMaintMismatch++ < 3)
+                Log("TechMaint: сумма %p не принадлежит стране %p - пропущено", sum, country);
+            return;
+        }
+        unsigned idx = *(unsigned*)(country + TM_COUNTRY_INDEX);
+        if (idx < 1024)
+        {
+            g_techMaintByCountry[idx] += (int)((long long)*v * scale / 1000);
+            LogDbg("TechMaint: страна %u += %d * %d / 1000 -> %d", idx, *v, scale, g_techMaintByCountry[idx]);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+static void __cdecl TechMaintReset(void* sum)
+{
+    __try
+    {
+        unsigned char* country = *(unsigned char**)((unsigned char*)sum + TM_SUM_COUNTRY);
+        if (!country || *(void**)(country + TM_COUNTRY_SUM) != sum)
+            return;
+        unsigned idx = *(unsigned*)(country + TM_COUNTRY_INDEX);
+        if (idx < 1024)
+            g_techMaintByCountry[idx] = 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// Дописать текст в конец std::string движка (раскладка: буфер/указатель 16 байт, _Mysize +0x10, _Myres +0x14);
+// при нехватке ёмкости буфер выделяется и освобождается движковыми operator new/delete.
+static void GStrAppend(void* str, const char* text)
+{
+    unsigned char* p = (unsigned char*)str;
+    unsigned size = *(unsigned*)(p + 0x10);
+    unsigned res = *(unsigned*)(p + 0x14);
+    unsigned n = (unsigned)strlen(text);
+    char* data = (res > 15) ? *(char**)p : (char*)p;
+    if (size + n <= res)
+    {
+        memcpy(data + size, text, n + 1);
+        *(unsigned*)(p + 0x10) = size + n;
+        return;
+    }
+    typedef void* (__cdecl* tOpNew)(unsigned);
+    typedef void  (__cdecl* tOpDelete)(void*);
+    unsigned newRes = size + n;
+    if (newRes < res + res / 2)
+        newRes = res + res / 2;
+    if (newRes < 31)
+        newRes = 31;
+    char* nb = (char*)((tOpNew)(g_base + RVA_TM_OP_NEW))(newRes + 1);
+    if (!nb)
+        return;
+    memcpy(nb, data, size);
+    memcpy(nb + size, text, n + 1);
+    if (res > 15)
+        ((tOpDelete)(g_base + RVA_TM_OP_DELETE))(data);
+    *(char**)p = nb;
+    *(unsigned*)(p + 0x14) = newRes;
+    *(unsigned*)(p + 0x10) = size + n;
+}
+
+static void __cdecl TechMaintTooltip(void* tech, void* out)
+{
+    __try
+    {
+        int* v = TechMaintSlot(tech, false);
+        if (!v || !*v || !out)
+            return;
+        const char* label = ConsLoc("TECH_FACTORY_MAINTENANCE", "Factory maintenance:");
+        char line[320];
+        double pct = *v / 10.0;
+        if (*v > 0)
+            _snprintf_s(line, sizeof(line), _TRUNCATE, "%s \xA7R+%.1f%%\xA7W\n", label, pct);
+        else
+            _snprintf_s(line, sizeof(line), _TRUNCATE, "%s \xA7G%.1f%%\xA7W\n", label, pct);
+        GStrAppend(out, line);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+// call FUN_0056D450(ctx, token) (thiscall, ecx = технология/изобретение, ret 8)
+__declspec(naked) static void TechMaintParseThunk()
+{
+    __asm {
+        mov eax, dword ptr [esp + 8]
+        cmp eax, 0x62D
+        jne orig
+        push edx
+        mov eax, dword ptr [esp + 8]
+        push eax
+        push ecx
+        call TechMaintParse
+        add esp, 8
+        pop edx
+        ret 8
+    orig:
+        jmp dword ptr [g_tmParseOrig]
+    }
+}
+
+// call FUN_0056C900(сумма, технология, масштаб) (stdcall, ret 0xC)
+__declspec(naked) static void TechMaintAggrThunk()
+{
+    __asm {
+        push ecx
+        push edx
+        mov eax, dword ptr [esp + 0x14]
+        push eax
+        mov eax, dword ptr [esp + 0x14]
+        push eax
+        mov eax, dword ptr [esp + 0x14]
+        push eax
+        call TechMaintApply
+        add esp, 0xC
+        pop edx
+        pop ecx
+        jmp dword ptr [g_tmAggrOrig]
+    }
+}
+
+// call FUN_0056C480(сумма) (stdcall, ret 4)
+__declspec(naked) static void TechMaintResetThunk()
+{
+    __asm {
+        push ecx
+        push edx
+        mov eax, dword ptr [esp + 0xC]
+        push eax
+        call TechMaintReset
+        add esp, 4
+        pop edx
+        pop ecx
+        jmp dword ptr [g_tmResetOrig]
+    }
+}
+
+// call FUN_0056F850(технология, строка, a3, a4) (stdcall, ret 0x10) -> eax = строка
+__declspec(naked) static void TechMaintTipThunk()
+{
+    __asm {
+        push dword ptr [esp + 0x10]
+        push dword ptr [esp + 0x10]
+        push dword ptr [esp + 0x10]
+        push dword ptr [esp + 0x10]
+        call dword ptr [g_tmTipOrig]
+        push eax
+        mov ecx, dword ptr [esp + 8]
+        push eax
+        push ecx
+        call TechMaintTooltip
+        add esp, 8
+        pop eax
+        ret 0x10
+    }
+}
+
+// Места чтения [блок+0xA60][+0x128]; страна в ebx / esi / eax.
+#define TM_READER_THUNK(name, reg, idx) \
+    __declspec(naked) static void name() \
+    { \
+        __asm { push ecx } \
+        __asm { push edx } \
+        __asm { push reg } \
+        __asm { call TechMaintModFor } \
+        __asm { add esp, 4 } \
+        __asm { pop edx } \
+        __asm { pop ecx } \
+        __asm { jmp dword ptr [g_tmResume + idx * 4] } \
+    }
+TM_READER_THUNK(TechMaintReadEbx0, ebx, 0)
+TM_READER_THUNK(TechMaintReadEbx1, ebx, 1)
+TM_READER_THUNK(TechMaintReadEsi2, esi, 2)
+TM_READER_THUNK(TechMaintReadEax3, eax, 3)
+TM_READER_THUNK(TechMaintReadEax4, eax, 4)
+TM_READER_THUNK(TechMaintReadEax5, eax, 5)
+#undef TM_READER_THUNK
+
+static bool TechMaintRedirectCall(DWORD rva, DWORD expectedFn, void* thunk, const char* what)
+{
+    unsigned char* call = (unsigned char*)(g_base + rva);
+    DWORD expectRel = (g_base + expectedFn) - ((DWORD)(DWORD_PTR)call + 5);
+    if (call[0] != 0xE8 || *(DWORD*)(call + 1) != expectRel)
+    {
+        Log("TechMaint: %s: call по rva %06X не совпал (%02X %02X %02X %02X %02X)", what, rva,
+            call[0], call[1], call[2], call[3], call[4]);
+        return false;
+    }
+    DWORD rel = (DWORD)(DWORD_PTR)thunk - ((DWORD)(DWORD_PTR)call + 5);
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(call + 1, 4, PAGE_EXECUTE_READWRITE, &oldProtect))
+        return false;
+    *(DWORD*)(call + 1) = rel;
+    VirtualProtect(call + 1, 4, oldProtect, &oldProtect);
+    return true;
+}
+
+static bool InstallTechFactoryMaintenance()
+{
+    g_tmParseOrig = g_base + RVA_TM_PARSE_FN;
+    g_tmAggrOrig  = g_base + RVA_TM_AGGR_FN;
+    g_tmResetOrig = g_base + RVA_TM_RESET_FN;
+    g_tmTipOrig   = g_base + RVA_TM_TIP_FN;
+
+    int ok = 0;
+    if (TechMaintRedirectCall(RVA_TM_PARSE_CALL, RVA_TM_PARSE_FN, (void*)&TechMaintParseThunk, "разбор ключа")) ++ok;
+    if (TechMaintRedirectCall(RVA_TM_AGGR_CALL, RVA_TM_AGGR_FN, (void*)&TechMaintAggrThunk, "суммирование")) ++ok;
+    if (TechMaintRedirectCall(RVA_TM_RESET_CALL, RVA_TM_RESET_FN, (void*)&TechMaintResetThunk, "сброс суммы")) ++ok;
+    if (TechMaintRedirectCall(RVA_TM_TIP_CALL, RVA_TM_TIP_FN, (void*)&TechMaintTipThunk, "подсказка")) ++ok;
+
+    // Чтение множителя содержания: пара "mov eax,[reg+0xA60]; mov eax,[eax+0x128]" (12 байт) либо одиночное
+    // "mov eax,[edi+0x128]" (6 байт, edi уже загружен); resume - первые байты следующей команды.
+    static const unsigned char PAIR_EBX[12] = { 0x8B, 0x83, 0x60, 0x0A, 0x00, 0x00, 0x8B, 0x80, 0x28, 0x01, 0x00, 0x00 };
+    static const unsigned char PAIR_EAX[12] = { 0x8B, 0x80, 0x60, 0x0A, 0x00, 0x00, 0x8B, 0x80, 0x28, 0x01, 0x00, 0x00 };
+    static const unsigned char SINGLE_EDI[6] = { 0x8B, 0x87, 0x28, 0x01, 0x00, 0x00 };
+    static const unsigned char RES_CMP[6] = { 0x3B, 0xB1, 0x60, 0x0B, 0x00, 0x00 };
+    static const unsigned char RES_CDQ[4] = { 0x99, 0x0F, 0xA4, 0xC2 };
+    static const unsigned char RES_MOV[4] = { 0x89, 0x55, 0xE8, 0x99 };
+    struct Site { DWORD rva; const unsigned char* sig; int sigLen; DWORD resume; const unsigned char* res; int resLen; void* thunk; };
+    const Site sites[6] = {
+        { 0x80ED1, PAIR_EBX,   12, 0x80EDD, RES_CMP, 6, (void*)&TechMaintReadEbx0 },
+        { 0x844A2, PAIR_EBX,   12, 0x844AE, RES_CDQ, 4, (void*)&TechMaintReadEbx1 },
+        { 0x88200, SINGLE_EDI, 6,  0x88206, RES_CDQ, 4, (void*)&TechMaintReadEsi2 },
+        { 0xF35A8, PAIR_EAX,   12, 0xF35B4, RES_CDQ, 4, (void*)&TechMaintReadEax3 },
+        { 0x2FE843, PAIR_EAX,  12, 0x2FE84F, RES_CDQ, 4, (void*)&TechMaintReadEax4 },
+        { 0x31DED9, PAIR_EAX,  12, 0x31DEE5, RES_MOV, 4, (void*)&TechMaintReadEax5 },
+    };
+    int readers = 0;
+    for (int i = 0; i < 6; ++i)
+    {
+        g_tmResume[i] = g_base + sites[i].resume;
+        if (WriteJmpSite(sites[i].rva, sites[i].sig, sites[i].sigLen, sites[i].sigLen, sites[i].resume,
+                sites[i].res, sites[i].resLen, sites[i].thunk, "TechMaint: чтение множителя"))
+            ++readers;
+    }
+    Log("TechMaint: хуки разбора/суммы/сброса/подсказки %d из 4, мест чтения %d из 6 (factory_maintenance в технологиях и изобретениях)",
+        ok, readers);
+    return ok == 4 && readers == 6;
 }
 
 // ---------------------------------------------------------------
@@ -27039,6 +27438,9 @@ static bool Install()
 
     if (g_settings.factoryDeleteClosed && g_defClosedDeleteDays > 0)
         InstallClosedFactoryDelete();
+
+    if (g_settings.fixTechFactoryMaintenance)
+        InstallTechFactoryMaintenance();
 
     if (g_settings.popFixNeedsModifiers)
         InstallFixStrataNeedsMods();

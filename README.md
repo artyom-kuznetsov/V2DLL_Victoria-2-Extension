@@ -258,7 +258,7 @@ any_pop = {
 The moved pop is never merged into a pop of another type, culture or religion in the destination (vanilla merges them). 
 The effect tooltip uses the localisation key `MOVE_POP_AMOUNT_EFFECT`, you should add it to your mod's localization.
 Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by this patch.
-Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
+Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by COUNTRY_ADJ).
 #### 5. POP_BUILD_INFRASTRUCTURE_RULE
 Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt`).
 `pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
@@ -282,6 +282,8 @@ else = {
 }
 ```
 (made by COUNTRY_ADJ)
+#### 7. FIX_TECH_FACTORY_MAINTENANCE
+Adds support for `factory_maintenance = x` in technologies and inventions. Vanilla only supported it in modifiers and reforms.
   
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 

@@ -9,6 +9,7 @@ If the author did not provide his submod with settings, to disable one, rename i
 #### LOCAL_MOD_CONFIG
 This option allows to use different configurations for different installed mods. All you need to do
 is copy the .ini file to a mod folder, and launch the mod as usual.
+The mod's file is only used if it is already there (the game never creates it in the mod folder); settings missing from it keep the values of the main .ini.
 
 ### Military
 #### 1. ALWAYS_ADD_WARGOALS 
@@ -74,18 +75,17 @@ Budget payments to pops will scale with pop need modifiers (made by balticšprot
 #### 17. POP_FIX_NEEDS_MODIFIERS
 Fixes pop need modifiers, they now do exactly what you expect (some of them were switched up) (made by balticšprott).
 #### 18. ENABLE_MINTING
-Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common\defines_ccore.txt` inside your mod folder. 
+Every country gets a new daily income called "minting", calculated from a formula you write in `<mod>/common/defines_ccore.txt` inside your mod folder. 
 `minting_inc` label in `country_budget.gui` will display the income (made by balticšprott).
 #### 19. FACTORY_MAINTENANCE_IGNORE_THROUGHPUT
 Factories buy maintenance goods (`efficiency` in production types) in the amount they really consume, without the throughput multiplier. Vanilla bought base x level x throughput every day but consumed only base x level, so the stock grew every day when throughput was above 100% (made by balticšprott).
 #### 20. FACTORY_SUBSIDY_COVERS_TARIFF
 Tariffs make factories spend more money and subsidy does not calculate for that ==> Factory can't work on 100% efficiency.  
 This fix makes subsidies cover tariff expenses (made by balticšprott).
-  
 #### 21. FACTORY_DELETE_CLOSED
-Where the national rule delete_factory_if_no_input = yes applies (for AI countries always, also during a war), a factory closed for factory_closed_delete_days days in a row (common\defines_ccore.txt, 0 = off) is deleted. The game itself never deletes closed factories.
-The usual deletion limits still apply: the state must be fully under its owner's control (no occupied province), must have more factories than MIN_NUM_FACTORIES_PER_STATE_BEFORE_DELETING_LASSIEZ_FAIRE, and the first NUM_CLOSED_FACTORIES_PER_STATE_LASSIEZ_FAIRE dead factories of a state are kept (both in defines.lua).
-
+Closed factories will be deleted in X days (set in `<mod>/common/defines_ccore.txt`) if country has `delete_factory_if_no_input = yes` in `issues.txt`. 
+Prevents AI from being stuck with closed factories filling their factory slots. Also allows AI to delete closed factories during war. Factories in occupied states won't get deleted.
+  
 ### UI 
 #### 1. ENABLE_BUTTONS 
 Adds support for a few new buttons:  
@@ -132,12 +132,12 @@ Fixes "100% needs fulfilled" in pops menu, when in reality it is not the case. W
 Satellite colour will be closer to its overlord colour by set percent. 100 = take overlord colour, 0 = keep original colour (made by maxioten).
 #### 16. FACTORY_MAINTENANCE_DISPLAY_FIX
 Trade window and factory window now show the same real consumption of maintenance goods (`efficiency` in production types): base x level x (1 + factory_maintenance), without the throughput multiplier (made by balticšprott).
-  
 #### 17. GOODS_NEED_TOTAL
-Goods card (`trade_flow`) gets a third total, "Required": government and factory needs of the shown country for this good (factory need from the same statistics as the "Used" column, so Required is never below Used) plus the needs of buildings with `goods_consumption` (budget expenses). Population is not included. Needs `total_need_text` / `total_need_value` in `trade_flow.gui` and the `TRADE_FLOW_TOTAL_NEED` localisation key; works for any country (made by balticšprott).
-  
+Goods card (`trade_flow`) gets a third total, "Required": government and factory needs of the shown country for this good (factory need from the same statistics as the "Used" column) 
+plus the needs of buildings with `goods_consumption` (budget expenses). Needs `total_need_text` / `total_need_value` in `trade_flow.gui` and the `TRADE_FLOW_TOTAL_NEED` localisation key (made by balticšprott).
 #### 18. TRADE_WINDOW_REAL_POP_NEEDS
-The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand the engine really builds for pops (with life/everyday/luxury and strata need modifiers), not the vanilla simplified estimate. Values are the demand of the last finished day; before the first day passes the vanilla numbers stay (made by balticšprott).
+The population "Need" column of the trade window (and the "Total needed" of the goods card) shows the full demand pops within the country have, not the vanilla simplified estimate. 
+This does not calculate for money pops have, thus needs still do not reflect real demand (made by balticšprott).
   
 ### Miscellaneous
 #### 1. PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH 
@@ -249,13 +249,33 @@ any_pop = {
 The moved pop is never merged into a pop of another type, culture or religion in the destination (vanilla merges them). 
 The effect tooltip uses the localisation key `MOVE_POP_AMOUNT_EFFECT`, you should add it to your mod's localization.
 Vanilla effects (`move_pop = provid`) work the same way, nothing is broken by this patch.
-Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by $COUNTRY_ADJ$).
-  
+Localization example: `MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.\n;X` (made by COUNTRY_ADJ).
 #### 5. POP_BUILD_INFRASTRUCTURE_RULE
 Adds a new reform rule `pop_build_infrastructure` (usable in `rules = { }` of `issues.txt`).
 `pop_build_factory` now controls only capitalists building factories; `pop_build_infrastructure` controls capitalists building everything else (railways and other province buildings).
 Without the new rule in your issues, capitalists will not build railways/infrastructure, so add `pop_build_infrastructure = yes/no` to your economic policies/reforms before enabling (made by balticšprott).
+#### 6. ENABLE_IF_ELSE_OPERATORS
+Adds `if`, `else_if`, and `else` block operators for use in event and decision effects, replacing the well-known 'If emulation' method using `random_owner = { limit = { owner = condition } owner = { effect } }`.
 
+Now it works as:
+```
+if = {
+    limit = { # condition }
+    # Commands to execute if the conditions match
+}
+else_if = {
+    limit = { # Other condition if previous didn't match }
+    # Commands to execute if the conditions match
+}
+else = {
+    limit = { # Additional conditions if all of the previous didn't match }
+    # Commands to execute
+}
+```
+(made by COUNTRY_ADJ)
+#### 7. FIX_TECH_FACTORY_MAINTENANCE
+Adds support for `factory_maintenance = x` in technologies and inventions. Vanilla only supported it in modifiers and reforms.
+  
 ### Stability and Performance
 #### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
 Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).
