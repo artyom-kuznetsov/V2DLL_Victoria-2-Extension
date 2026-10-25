@@ -9,7 +9,7 @@ static const DWORD RVA_CONSTRUCT_UNIT_EXECUTE = 0x17D2F0;
 static const DWORD RVA_CANDIDATE_ELIGIBILITY = 0x114030;
 // FUN_005141D0 (can-build predicate). Its entry (first 26 bytes), the free-regiments call and the success
 // exit (RVA 0x114284) are signature-checked by the TGCX submod, so the entry is NOT patched: the filter sits at
-// 0x114269 (common point of every success path: "cmp [ecx+10Ch],0", ECX = province, ESI = unit, EDI = POP).
+// 0x114269 (common point of every success path: "cmp [ecx+10Ch],0", ECX = province, EDI = POP).
 static const DWORD RVA_CAN_BUILD_GATE = 0x114269;
 static const DWORD RVA_CAN_BUILD_GATE_RESUME = 0x114270;   // je success_exit
 static const DWORD RVA_CAN_BUILD_FAIL = 0x1142FD;          // pop edi / pop esi / xor al,al ... ret 8
@@ -500,7 +500,9 @@ __declspec(naked) static void CandidateEligibilityHook()
         mov ecx, [ebp - 16]
         mov eax, [ebp + 4]          // source POP
         call dword ptr [g_candidateEligibility]
-        test eax, eax
+        // The native predicate returns a bool in AL; EAX's upper bits are
+        // unspecified on its failure paths.
+        test al, al
         jz candidate_done
 
         push dword ptr [ebp + 4]
@@ -522,16 +524,19 @@ __declspec(naked) static void CandidateEligibilityHook()
 // The native can-build predicate is also called while the Army Build list is
 // assembled. It receives the unit in ECX, its source POP in EAX, then country
 // and province as stack arguments. Every path that would return TRUE goes through
-// "cmp [ecx+10Ch],0" at 0x514269 (ECX = province, ESI = unit definition, EDI = source POP);
+// "cmp [ecx+10Ch],0" at 0x514269 (ECX = province, EDI = source POP);
 // there we veto the unit if the recruitment rules reject this POP, so invalid POPs
 // never become visible as buildable province/unit entries (and the result is still
 // correct when the native function is called directly, e.g. by the TGCX submod).
+// ESI starts as the unit definition but the native land path replaces it with
+// the number of regiments already linked to the POP. The original unit pointer
+// is saved at [EBP-4] by the function's "push ecx" prologue.
 __declspec(naked) static void CanBuildGateHook()
 {
     __asm {
         push ecx
         push edi                    // source POP
-        push esi                    // unit definition
+        push dword ptr [ebp - 4]    // unit definition saved by native prologue
         call RecruitmentPredicateAllows
         add esp, 8
         test al, al
