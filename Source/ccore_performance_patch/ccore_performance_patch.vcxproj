@@ -14,15 +14,15 @@
     <ClInclude Include="V2ModAPI.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="based_department_special_module.cpp" />
+    <ClCompile Include="ccore_performance_patch.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{c4a1d7e2-5b38-4f90-a6d1-3e72b9c05f18}</ProjectGuid>
-    <RootNamespace>based_department_special_module</RootNamespace>
+    <ProjectGuid>{7b3e9a41-2c85-4d6f-9e10-a8f5c2d71b36}</ProjectGuid>
+    <RootNamespace>ccore_performance_patch</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>based_department_special_module</ProjectName>
+    <ProjectName>ccore_performance_patch</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -41,7 +41,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <TargetName>based_department_special_module</TargetName>
+    <TargetName>ccore_performance_patch</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

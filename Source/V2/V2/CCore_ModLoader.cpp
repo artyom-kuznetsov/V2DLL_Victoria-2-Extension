@@ -2,11 +2,12 @@
 //
 // Two sources, both speaking the same V2ModAPI / V2Mod_Init interface:
 //
-//  1. "v2dll_mod.dll" in the folder of every active -mod= (LoadV2Mods).
-//     V2TechButton.cpp calls it once per active mod (command-line order) at
-//     the end of Install(). Every mod ships the same (empty) v2dll_mod.dll
-//     built from V2Mod_Template.cpp; a modder who wants custom logic rebuilds
-//     ONLY that DLL and drops it in the mod folder.
+//  1. Every "*.dll" in the folder of every active -mod= (LoadV2Mods; the folder
+//     itself, not its subfolders). V2TechButton.cpp calls it once per active
+//     mod (command-line order) at the end of Install(). "v2dll_mod.dll" and
+//     "ccore_mod.dll" go first, the rest alphabetically; creatinecore.dll itself is
+//     skipped, and a DLL byte-identical to an already loaded one is skipped too
+//     (e.g. tgcx.dll next to its copy v2dll_mod.dll).
 //
 //  2. Every "*.dll" in "<z_CreatineCore folder>\dll_Submods\" (LoadV2Submods), in
 //     alphabetical order and with no settings. Such a DLL may export V2Mod_Init
@@ -26,8 +27,11 @@ static const char* const SUBMODS_DIR_NAME = "dll_Submods";
 #define V2MOD_MAX_PLUGINS 16
 static char      g_modFolders[V2MOD_MAX_PLUGINS][MAX_PATH];   // api.modFolder points here
 static char      g_modDllPaths[V2MOD_MAX_PLUGINS][MAX_PATH];  // for the "load once" check
+static unsigned long long g_modDllHashes[V2MOD_MAX_PLUGINS];   // content hash of each loaded DLL
 static V2ModAPI  g_modApis[V2MOD_MAX_PLUGINS];
 static int       g_modPluginCount = 0;
+static DWORD     g_modImageLo[V2MOD_MAX_PLUGINS];   // image range of every loaded plugin (crash VEH filter)
+static DWORD     g_modImageHi[V2MOD_MAX_PLUGINS];
 
 // Every plugin DLL (mod folders and dll_Submods) that loaded and did not refuse/crash in V2Mod_Init
 // (file names without ".dll", load order).
@@ -48,6 +52,22 @@ static int __cdecl ApiStealToTrampoline(uint32_t rva, unsigned steal,
 {
     return StealToTrampoline((DWORD)rva, steal, tramp, trampSize, expect,
                              hook, orig, tag) ? 1 : 0;
+}
+
+// FNV-1a over the whole file (0 = unreadable).
+static unsigned long long HashFile(const char* path)
+{
+    HANDLE h = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE)
+        return 0;
+    unsigned long long hash = 1469598103934665603ULL;
+    static unsigned char buf[64 * 1024];
+    DWORD got = 0;
+    while (ReadFile(h, buf, sizeof(buf), &got, NULL) && got)
+        for (DWORD i = 0; i < got; ++i)
+            hash = (hash ^ buf[i]) * 1099511628211ULL;
+    CloseHandle(h);
+    return hash ? hash : 1;
 }
 
 static bool CallInit(tV2ModInit init, const V2ModAPI* api, int* result)
@@ -89,6 +109,15 @@ static void NoteRunningPlugin(const char* dllPath, const char* modFolder)
         strncpy_s(dst, 64, base, _TRUNCATE);
 }
 
+// True when `addr` lies inside the image of a loaded plugin DLL.
+bool V2_AddrInPlugin(DWORD addr)
+{
+    for (int i = 0; i < g_modPluginCount; ++i)
+        if (g_modImageLo[i] && addr >= g_modImageLo[i] && addr < g_modImageHi[i])
+            return true;
+    return false;
+}
+
 int V2_GetRunningPlugins(char names[][64], int maxCount)
 {
     int n = g_runningPluginCount < maxCount ? g_runningPluginCount : maxCount;
@@ -109,7 +138,16 @@ static void LoadPluginDll(const char* dllPath, const char* folder, bool fromModF
         return;
     }
 
+    unsigned long long hash = HashFile(dllPath);
+    for (int i = 0; hash && i < g_modPluginCount; ++i)
+        if (g_modDllHashes[i] == hash)
+        {
+            Log("ModLoader: %s is identical to %s, loaded once", dllPath, g_modDllPaths[i]);
+            return;
+        }
+
     int slot = g_modPluginCount;
+    g_modDllHashes[slot] = hash;
     strncpy_s(g_modFolders[slot], MAX_PATH, folder, _TRUNCATE);
     strncpy_s(g_modDllPaths[slot], MAX_PATH, dllPath, _TRUNCATE);
 
@@ -132,6 +170,12 @@ static void LoadPluginDll(const char* dllPath, const char* folder, bool fromModF
         Log("ModLoader: cannot load %s (error %lu)", dllPath, GetLastError());
         return;
     }
+    {
+        IMAGE_DOS_HEADER* dos = (IMAGE_DOS_HEADER*)m;
+        IMAGE_NT_HEADERS32* nt = (IMAGE_NT_HEADERS32*)((unsigned char*)m + dos->e_lfanew);
+        g_modImageLo[slot] = (DWORD)(DWORD_PTR)m;
+        g_modImageHi[slot] = (DWORD)(DWORD_PTR)m + nt->OptionalHeader.SizeOfImage;
+    }
     tV2ModInit init = (tV2ModInit)GetProcAddress(m, "V2Mod_Init");
     if (!init) init = (tV2ModInit)GetProcAddress(m, "_V2Mod_Init");
     if (!init)
@@ -152,6 +196,11 @@ static void LoadPluginDll(const char* dllPath, const char* folder, bool fromModF
     }
 }
 
+static int __cdecl CmpNames(const void* a, const void* b)
+{
+    return _stricmp((const char*)a, (const char*)b);
+}
+
 void LoadV2Mods(const char* modFolderRaw)
 {
     // One call per active mod. The .mod file gives a path relative to the game
@@ -167,24 +216,59 @@ void LoadV2Mods(const char* modFolderRaw)
         return;
     }
 
-    // Both names are accepted (v2dll_mod.dll is the original one); a mod may ship either or both.
-    bool found = false;
+    // v2dll_mod.dll / ccore_mod.dll first (the original plugin names), then every other *.dll of the folder
+    // alphabetically. Subfolders are not searched.
+    static char names[V2MOD_MAX_PLUGINS][MAX_PATH];
+    int count = 0;
     for (size_t i = 0; i < sizeof(MOD_DLL_NAMES) / sizeof(MOD_DLL_NAMES[0]); ++i)
     {
         char path[MAX_PATH];
         _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\%s", modFolder, MOD_DLL_NAMES[i]);
-        if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES)
-            continue;
-        found = true;
+        if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES && count < V2MOD_MAX_PLUGINS)
+            strncpy_s(names[count++], MAX_PATH, MOD_DLL_NAMES[i], _TRUNCATE);
+    }
+    int firstOther = count;
+
+    char pattern[MAX_PATH];
+    _snprintf_s(pattern, sizeof(pattern), _TRUNCATE, "%s\\*.dll", modFolder);
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                continue;
+            size_t len = strlen(fd.cFileName);
+            if (len < 5 || _stricmp(fd.cFileName + len - 4, ".dll") != 0)
+                continue;                                   // "*.dll" also matches a.dllx through 8.3 names
+            if (!_stricmp(fd.cFileName, "creatinecore.dll"))
+                continue;                                   // never load ourselves again
+            bool listed = false;
+            for (int i = 0; i < firstOther; ++i)
+                if (!_stricmp(names[i], fd.cFileName))
+                    listed = true;
+            if (listed)
+                continue;
+            if (count >= V2MOD_MAX_PLUGINS)
+            {
+                Log("ModLoader: %s has more than %d DLLs, the rest is skipped", modFolder, V2MOD_MAX_PLUGINS);
+                break;
+            }
+            strncpy_s(names[count++], MAX_PATH, fd.cFileName, _TRUNCATE);
+        } while (FindNextFileA(h, &fd));
+        FindClose(h);
+    }
+    qsort(names + firstOther, count - firstOther, MAX_PATH, CmpNames);
+
+    for (int i = 0; i < count; ++i)
+    {
+        char path[MAX_PATH];
+        _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\%s", modFolder, names[i]);
         LoadPluginDll(path, modFolder, true);
     }
-    if (!found)
-        Log("ModLoader: %s has no v2dll_mod.dll / ccore_mod.dll (normal)", modFolder);   // this mod has no plugin DLL: normal
-}
-
-static int __cdecl CmpNames(const void* a, const void* b)
-{
-    return _stricmp((const char*)a, (const char*)b);
+    if (!count)
+        Log("ModLoader: %s has no DLLs (normal)", modFolder);   // this mod has no plugin DLL: normal
 }
 
 void LoadV2Submods()

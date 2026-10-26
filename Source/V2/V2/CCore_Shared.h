@@ -44,3 +44,5 @@ void   LoadV2Mods(const char* modFolder);
 void   LoadV2Submods();
 // Names (no ".dll") of all plugin DLLs that are running (mod folders + dll_Submods), in load order; returns how many were copied.
 int    V2_GetRunningPlugins(char names[][64], int maxCount);
+// True when `addr` lies inside the image of a loaded plugin DLL (their __try-caught exceptions are not crashes).
+bool   V2_AddrInPlugin(DWORD addr);

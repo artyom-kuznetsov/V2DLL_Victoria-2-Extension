@@ -1,7 +1,7 @@
-# based_department_special_module
+# ccore_baltic_personal_patches
 
-CreatineCore submod. Put `based_department_special_module.dll` into `z_CreatineCore\dll_Submods\`; on the first start it
-creates `based_department_special_module.ini` next to itself.
+CreatineCore submod. Put `ccore_baltic_personal_patches.dll` into `z_CreatineCore\dll_Submods\`; on the first start it
+creates `ccore_baltic_personal_patches.ini` next to itself.
 
 ## What it changes
 
@@ -45,5 +45,5 @@ All players of a multiplayer game must use the same DLL and ini.
 
 ## Build
 
-`based_department_special_module.vcxproj` (Win32, v145, same as `V2Mod.vcxproj`); `V2ModAPI.h` is a copy of
+`ccore_baltic_personal_patches.vcxproj` (Win32, v145, same as `V2Mod.vcxproj`); `V2ModAPI.h` is a copy of
 `Source\V2\V2\V2ModAPI.h` and must stay identical.

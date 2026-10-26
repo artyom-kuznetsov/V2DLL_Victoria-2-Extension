@@ -1,4 +1,4 @@
-// based_department_special_module.cpp - CreatineCore submod (dll_Submods\based_department_special_module.dll).
+// ccore_baltic_personal_patches.cpp - CreatineCore submod (dll_Submods\ccore_baltic_personal_patches.dll).
 //
 // National focuses that support a pop type (national_focus.txt, promotion_focus: "aristocrats = 0.20" ...)
 // work like this in vanilla Victoria II:
@@ -23,7 +23,7 @@
 //   P5  0x55BA02..0x55BA57  demotion target:  same
 // Each site is verified against the original bytes first; a mismatch skips that patch.
 //
-// Settings: based_department_special_module.ini next to this DLL (created on first start).
+// Settings: ccore_baltic_personal_patches.ini next to this DLL (created on first start).
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,7 +51,7 @@ static void Log(const char* fmt, ...)
     _vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
     va_end(ap);
     if (g_api && g_api->Log)
-        g_api->Log("based_department_special_module: %s", buf);
+        g_api->Log("ccore_baltic_personal_patches: %s", buf);
 }
 
 // ---------------------------------------------------------------

@@ -160,7 +160,7 @@ Prevents game from crashing in miscellaneous scenarios with "limit_by_local_supp
 When enabled, an AI country founds naval bases in at most `ai_naval_base_max_provinces_per_state` provinces of one state (`<mod>\common\defines_ccore.txt`, default 1, `0` = no limit). The vanilla AI builds a naval base in every port province. The player and capitalists are not limited.  
 You don't need this if your mod only allows one naval base per state (made by balticšprott).
 #### 9. LOAD_DLL_FROM_MOD_FOLDER
-CreatineCore will load `ccore_mod.dll` in the mod folder. In case you want to add new patches for your mod independently (made by maxioten).
+CreatineCore will load any .dll from an active mod. In case you want to add new patches for your mod independently (made by maxioten).
   
   
 ### Script Extensions
@@ -293,35 +293,12 @@ Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RE
 With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games (made by balticšprott).
   
 ### Stability and Performance
-#### 1. PATCH_FPU_FORTRESS / PATCH_D3D_FPU_PRESERVE 
-Fixes some float math errors related to different GPU/Drivers (fixes some of desync cases) (made by av213238).
-#### 2. PATCH_THREAD_FPU_PIN
-Fixes some math errors related to multi-threading (fixes some of desync cases) (made by av213238).
-#### 3. PATCH_HEAP_LFH
-Decreases RAM fragmentation over long game sessions (might decrease RAM usage) (made by av213238).
-#### 4. ENGINE_WORKER_THREADS
-Set to 0 to automatically use all available threads. This will improve performance. 
-In theory, might reduce desync probability if all lobby participants have the same setting.
-Note that performance will be closer to terrible with several instances of the game launched simultaneously (made by av213238).
-#### 5. PATCH_POP_QUANTIZE / POP_QUANTIZE_KEEP_BITS
-Rouns up microscopic pop attributes (money, savings, etc) that you would never even see in game. 
-Might decrease related desync probability and improve performance a bit (rounds up to 12 bits by default, vanilla is 15) (made by av213238).
-#### 6. REMOVE_SLEEPERS
-Removes sleepers, that artificially reduce FPS but improve FPS stability (they are not necessary for modern PCs) (made by av213238).
-#### 8. PATCH_D3D_NO_VSYNC
-Force disables VSYNC. Disabling may cause freezes and stutters. (made by av213238).
-#### 9. D3D_FPS_LIMIT
-FPS Limiter. Set to 0 to disable (made by av213238).
-#### 10. FIX_SFX_MIXER_LAG
-Fixes behaviour where game constantly tries to access sound mixer for no reason. Enable `REMOVE_SLEEPERS` above. (made by av213238).
-#### 11. FIX_ARMY_WINDOW_LAG
-Fixes stutters while one or several armies are selected (made by av213238).
-#### 12. PATCH_HIGH_PRIORITY
-Prioritizes the game process. Supposed a marginal performance gain (made by av213238).
-#### 13. PATCH_COMPRESS_FLAG_CACHE
+#### 1. PATCH_COMPRESS_FLAG_CACHE
 Compresses flag cache to reduce RAM usage (made by wyrm).
-#### 14. PATCH_PREFETCH_POPS, PATCH_CULL_DECISION_CHECKS, PATCH_CULL_CB_CHECKS, PATCH_PREFETCH_RELATIONS, PATCH_PREFETCH_AI_RELATIONS, PATCH_FAST_AI_QUEUE, PATCH_PARALLEL_DECISIONS, PATCH_PARALLEL_EVENTS
+#### 2. PATCH_PREFETCH_POPS, PATCH_CULL_DECISION_CHECKS, PATCH_CULL_CB_CHECKS, PATCH_PREFETCH_RELATIONS, PATCH_PREFETCH_AI_RELATIONS, PATCH_FAST_AI_QUEUE, PATCH_PARALLEL_DECISIONS, PATCH_PARALLEL_EVENTS
 Some of the performance patches made by wyrm. Should improve game speed, especially on heavy mods.
+#### ccore_performance_patch.dll
+Our own performance patch is now treated as a submod; go to `z_CreatineCore/dll_Submods/ccore_performance_patch.ini` for configuration
   
 ### Diagnostics 
 #### 1. ENABLE_LOG 
