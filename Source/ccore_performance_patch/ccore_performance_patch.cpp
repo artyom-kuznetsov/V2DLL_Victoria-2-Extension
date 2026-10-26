@@ -41,6 +41,7 @@ static char    g_iniPath[MAX_PATH];
 
 struct PerfSettings
 {
+    int enabled              = 1;
     int patchFpuFortress     = 1;
     int patchD3dFpuPreserve  = 1;
     int patchHeapLfh         = 1;
@@ -85,6 +86,9 @@ static void WriteDefaultIni()
         "; ccore_performance_patch.dll settings. These change the simulation or the engine timing, so every player\n"
         "; of a multiplayer game must use the same values (creatinecore.dll hashes them into the config fingerprint).\n"
         "\n"
+        "; 0 = module does nothing (no patch below is applied)\n"
+        "ENABLE=%d\n"
+        "\n"
         "; FPU control word pinned at the start of the main loop\n"
         "PATCH_FPU_FORTRESS=%d\n"
         "; D3DCREATE_FPU_PRESERVE for the D3D9 device\n"
@@ -114,7 +118,7 @@ static void WriteDefaultIni()
         "\n"
         "; extra diagnostic lines in v2dll.log\n"
         "DEBUG_LOG=%d\n",
-        g_cfg.patchFpuFortress, g_cfg.patchD3dFpuPreserve, g_cfg.patchHeapLfh, g_cfg.patchThreadFpuPin,
+        g_cfg.enabled, g_cfg.patchFpuFortress, g_cfg.patchD3dFpuPreserve, g_cfg.patchHeapLfh, g_cfg.patchThreadFpuPin,
         g_cfg.engineWorkerThreads, g_cfg.patchPopQuantize, g_cfg.popQuantizeKeepBits, g_cfg.removeSleepers,
         g_cfg.patchD3dNoVsync, g_cfg.d3dFpsLimit, g_cfg.fixSfxMixerLag, g_cfg.patchHighPriority, g_cfg.fixArmyWindowLag,
         g_cfg.debugLog);
@@ -125,7 +129,8 @@ static void ApplyKey(const char* key, const char* value)
 {
     int v = atoi(value);
     int b = v != 0;
-    if      (_stricmp(key, "PATCH_FPU_FORTRESS") == 0)      g_cfg.patchFpuFortress = b;
+    if      (_stricmp(key, "ENABLE") == 0)                  g_cfg.enabled = b;
+    else if (_stricmp(key, "PATCH_FPU_FORTRESS") == 0)      g_cfg.patchFpuFortress = b;
     else if (_stricmp(key, "PATCH_D3D_FPU_PRESERVE") == 0)  g_cfg.patchD3dFpuPreserve = b;
     else if (_stricmp(key, "PATCH_HEAP_LFH") == 0)          g_cfg.patchHeapLfh = b;
     else if (_stricmp(key, "PATCH_THREAD_FPU_PIN") == 0)    g_cfg.patchThreadFpuPin = b;
@@ -178,11 +183,11 @@ static char g_cfgLines[1024];
 static const char* BuildConfigLines()
 {
     _snprintf_s(g_cfgLines, sizeof(g_cfgLines), _TRUNCATE,
-        "PATCH_FPU_FORTRESS=%d\nPATCH_D3D_FPU_PRESERVE=%d\nPATCH_HEAP_LFH=%d\nPATCH_THREAD_FPU_PIN=%d\n"
+        "ENABLE=%d\nPATCH_FPU_FORTRESS=%d\nPATCH_D3D_FPU_PRESERVE=%d\nPATCH_HEAP_LFH=%d\nPATCH_THREAD_FPU_PIN=%d\n"
         "ENGINE_WORKER_THREADS=%d\nPATCH_POP_QUANTIZE=%d\nPOP_QUANTIZE_KEEP_BITS=%d\nREMOVE_SLEEPERS=%d\n"
         "MP_CLIENT_SLEEP_MS=%d\nMAIN_LOOP_SLEEP_MS=%d\nPATCH_D3D_NO_VSYNC=%d\nD3D_FPS_LIMIT=%d\n"
         "FIX_SFX_MIXER_LAG=%d\nPATCH_HIGH_PRIORITY=%d\nFIX_ARMY_WINDOW_LAG=%d\nDEBUG_LOG=%d\n",
-        g_cfg.patchFpuFortress, g_cfg.patchD3dFpuPreserve, g_cfg.patchHeapLfh, g_cfg.patchThreadFpuPin,
+        g_cfg.enabled, g_cfg.patchFpuFortress, g_cfg.patchD3dFpuPreserve, g_cfg.patchHeapLfh, g_cfg.patchThreadFpuPin,
         g_cfg.engineWorkerThreads, g_cfg.patchPopQuantize, g_cfg.popQuantizeKeepBits, g_cfg.removeSleepers,
         g_cfg.mpClientSleepMs, g_cfg.mainLoopSleepMs, g_cfg.patchD3dNoVsync, g_cfg.d3dFpsLimit,
         g_cfg.fixSfxMixerLag, g_cfg.patchHighPriority, g_cfg.fixArmyWindowLag, g_cfg.debugLog);
@@ -5877,6 +5882,11 @@ extern "C" __declspec(dllexport) int __cdecl V2Mod_Init(const V2ModAPI* api)
     _snprintf_s(g_iniPath, sizeof(g_iniPath), _TRUNCATE, "%s.ini", dll);
 
     LoadIni();
+    if (!g_cfg.enabled)
+    {
+        Log("ccore_performance_patch: disabled (ENABLE=0 in %s)", g_iniPath);
+        return 1;
+    }
     Log("ccore_performance_patch: install, settings from %s", g_iniPath);
     InstallAll();
     return 1;

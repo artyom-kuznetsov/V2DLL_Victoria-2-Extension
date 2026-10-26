@@ -150,7 +150,9 @@ This does not calculate for money pops have, thus needs still do not reflect rea
 #### 19. PRODUCTION_STATE_RGO_ICONS
 Adds present RGO icons next to state name in production tab. Requires modification of `country_production.gui` file in order to work.
 Check `interface/Industry Tab Icons.gui.disabled` for instructions.
-  
+#### 20. FACTORY_LACK_ICON_DEBOUNCE_MS
+Stops factory input goods from flashing red (as if there is a shortage) during a day-tick if there is no actual shortage (made by balticšprott).
+
 ### Miscellaneous
 #### 1. PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH 
 Removes plurality growth from average consciousness. In-game tooltip says otherwise though. So this patch removes this tooltip too (hi tgc) (made by balticšprott).

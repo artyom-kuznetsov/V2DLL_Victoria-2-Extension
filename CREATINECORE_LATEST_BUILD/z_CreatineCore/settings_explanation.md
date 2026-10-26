@@ -141,6 +141,9 @@ This does not calculate for money pops have, thus needs still do not reflect rea
 Adds present RGO icons next to state name in production tab. Requires modification of `country_production.gui` file in order to work.
 Check `interface/Industry Tab Icons.gui.disabled` for instructions.
   
+#### 20. FACTORY_LACK_ICON_DEBOUNCE_MS
+In the production tab the red backing of a factory's input goods icon (lack of the goods) is shown only if the lack lasts at least this many milliseconds (0 = vanilla). Fixes a one-frame flash of red icons on all factories that appeared on some days, when the window was drawn between the production and the purchase steps of the daily tick. Only the look changes.
+
 ### Miscellaneous
 #### 1. PATCH_REMOVE_CONSCIOUSNESS_PLURALITY_GROWTH 
 Removes plurality growth from average consciousness. In-game tooltip says otherwise though. So this patch removes this tooltip too (hi tgc) (made by balticšprott).
@@ -298,7 +301,7 @@ Compresses flag cache to reduce RAM usage (made by wyrm).
 #### 2. PATCH_PREFETCH_POPS, PATCH_CULL_DECISION_CHECKS, PATCH_CULL_CB_CHECKS, PATCH_PREFETCH_RELATIONS, PATCH_PREFETCH_AI_RELATIONS, PATCH_FAST_AI_QUEUE, PATCH_PARALLEL_DECISIONS, PATCH_PARALLEL_EVENTS
 Some of the performance patches made by wyrm. Should improve game speed, especially on heavy mods.
 #### ccore_performance_patch.dll
-Our own performance patch is now treated as a submod; go to `z_CreatineCore/dll_Submods/ccore_performance_patch.ini` for configuration
+Our own performance patch is now treated as a submod; go to `z_CreatineCore/dll_Submods/ccore_performance_patch.ini` for configuration (`ENABLE=0` there turns the whole module off)
   
 ### Diagnostics 
 #### 1. ENABLE_LOG 

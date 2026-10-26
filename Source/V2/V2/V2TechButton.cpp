@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.29"
+#define MOD_VERSION "6.36"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -122,6 +122,10 @@ struct Settings
     // (+0x188) удаляется через factory_closed_delete_days дней (defines_ccore.txt). В ваниле закрытые
     // исключены из удаления, поэтому остаются навсегда.
     bool factoryDeleteClosed = true;
+    // FACTORY_LACK_ICON_DEBOUNCE_MS: красная подложка входа в окне промышленности показывается, только если
+    // нехватка держится не меньше стольких миллисекунд (0 = как в ванили). Дневной тик идёт несколько кадров:
+    // сначала производство обнуляет запас, потом закупка его пополняет, и окно успевало нарисовать красное.
+    int  factoryLackIconDebounceMs = 150;
     // FIX_TECH_FACTORY_MAINTENANCE: factory_maintenance в технологиях и изобретениях (ваниль этот ключ
     // в них не знает), эффект плюсуется к модификатору страны в местах чтения движком.
     bool fixTechFactoryMaintenance = true;
@@ -4643,6 +4647,12 @@ static void ApplySetting(const char* key, const char* value)
             g_settings.patchParallelEvents = 0;
         return;
     }
+    if (_stricmp(key, "FACTORY_LACK_ICON_DEBOUNCE_MS") == 0)
+    {
+        int ms = atoi(value);
+        g_settings.factoryLackIconDebounceMs = ms < 0 ? 0 : (ms > 2000 ? 2000 : ms);
+        return;
+    }
     if (_stricmp(key, "VASSAL_COLOR_PERCENT") == 0)
     {
         int pct = atoi(value);
@@ -4679,6 +4689,8 @@ static void ApplySetting(const char* key, const char* value)
         SetExePatchEnabled("build_factory_ignore_colonial_1", v);
         SetExePatchEnabled("build_factory_ignore_colonial_2", v);
         SetExePatchEnabled("build_factory_button_enable_ignore_colonial", v);
+        return;
+    }
     if (_stricmp(key, "ALWAYS_ADD_WARGOALS") == 0)              { SetExePatchEnabled("always_add_wargoals", v); return; }
 
     if (_stricmp(key, "FACTORY_ALLOW_UNCIV_CONSTRUCTION") == 0)
@@ -4687,8 +4699,6 @@ static void ApplySetting(const char* key, const char* value)
         SetExePatchEnabled("build_factory_checklist_uncivilized_own", v);
         SetExePatchEnabled("build_factory_checklist_uncivilized_other", v);
         SetExePatchEnabled("build_factory_ignore_uncivilized_can_build", v);
-        return;
-    }
         return;
     }
     if (_stricmp(key, "HIDE_UNAVAILABLE_LIMIT_BY_SUPPLY_FACTORIES") == 0) { g_settings.patchHideNoSupplyFactories = v; return; }
@@ -4920,6 +4930,7 @@ static void WriteDefaultSettings(const char* path)
         "FACTORY_MAINTENANCE_DISPLAY_FIX=%d\n"
         "GOODS_NEED_TOTAL=%d\n"
         "TRADE_WINDOW_REAL_POP_NEEDS=%d\n"
+        "FACTORY_LACK_ICON_DEBOUNCE_MS=%d\n"
         "\n",
         (int)g_settings.buttons,
         (int)g_settings.decisionFilter,
@@ -4937,7 +4948,8 @@ static void WriteDefaultSettings(const char* path)
         g_settings.vassalColorPercent,
         (int)g_settings.factoryMaintenanceDisplayFix,
         (int)g_settings.goodsNeedTotal,
-        (int)g_settings.tradeRealPopNeeds);
+        (int)g_settings.tradeRealPopNeeds,
+        g_settings.factoryLackIconDebounceMs);
 
     fprintf(f,
         "; Miscellaneous\n"
@@ -16234,6 +16246,128 @@ static void __cdecl FactoryInlineCounterObserve(void* factory)
     }
 }
 
+// ВРЕМЕННАЯ ДИАГНОСТИКА (6.32): сколько фабрик игрока в каждый день имеют долю закупки +0x1E0 < 1
+// (значок нехватки сырья в окне). Раз в день пишет итог по предыдущему дню (первые 500 дней).
+// FACTORY_LACK_ICON_DEBOUNCE_MS (6.36): красная подложка входов в окне промышленности (FUN_006E3540).
+//
+// Условие красной подложки (VA 0x6E3820..0x6E38D7): запас фабрики +0x70[...] < потребность +0xC8[...] x
+// коэффициент +0x208 x 0.95. Дневной тик идёт несколько кадров (замер: запас 0 -> запас = потребности за
+// ~60 мс), сначала производство обнуляет запас, затем закупка его пополняет, поэтому окно иногда рисовало
+// красное на 3-4 кадра у всех фабрик сразу. Хуки на обе ветки решения (0x6E38D9 красная, 0x6E38F1 обычная):
+// красная показывается, только если нехватка держится не меньше заданного времени, иначе отрабатывает
+// ветка "обычная" (VA 0x6E38F1..0x6E38FE: mov esi,[ebp-10] / mov ecx,[esi] / mov edx,[ecx] /
+// mov eax,[edx+0x104] / call eax). Только вид, симуляцию не трогает.
+static const DWORD RVA_LACKUI_RED_SITE   = 0x2E38D9;
+static const DWORD RVA_LACKUI_RED_RESUME = 0x2E38DE;
+static const DWORD RVA_LACKUI_OK_SITE    = 0x2E38F1;
+static const DWORD RVA_LACKUI_OK_RESUME  = 0x2E38F6;
+static const DWORD RVA_LACKUI_OK_CALL    = 0x2E38FE;
+static DWORD g_lackUiRedResume = 0, g_lackUiOkResume = 0, g_lackUiOkCall = 0;
+
+static void* g_lackKeys[4096];
+static DWORD g_lackSince[4096];
+static DWORD g_lackSeen[4096];
+
+static unsigned LackSlot(void* icon)
+{
+    unsigned h = ((unsigned)(UINT_PTR)icon >> 4) & 4095;
+    for (int probe = 0; probe < 4096 && g_lackKeys[h] && g_lackKeys[h] != icon; ++probe)
+        h = (h + 1) & 4095;
+    g_lackKeys[h] = icon;
+    return h;
+}
+
+// 1 = показывать красную подложку.
+static int __cdecl LackUiDecide(void* icon)
+{
+    __try
+    {
+        int ms = g_settings.factoryLackIconDebounceMs;
+        if (ms <= 0)
+            return 1;
+        unsigned h = LackSlot(icon);
+        DWORD now = GetTickCount() | 1;
+        if (g_lackSince[h] == 0 || now - g_lackSeen[h] > 500)
+            g_lackSince[h] = now;
+        g_lackSeen[h] = now;
+        return (int)(now - g_lackSince[h]) >= ms;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+    return 1;
+}
+
+static void __cdecl LackUiClear(void* icon)
+{
+    __try
+    {
+        g_lackSince[LackSlot(icon)] = 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+__declspec(naked) static void LackUiRedThunk()
+{
+    __asm {
+        pushad
+        mov eax, dword ptr [ebp - 0x10]
+        push dword ptr [eax]
+        call LackUiDecide
+        add esp, 4
+        mov dword ptr [esp + 28], eax
+        popad
+        mov esi, dword ptr [ebp - 0x10]
+        mov ecx, dword ptr [esi]
+        test eax, eax
+        jz not_yet
+        jmp dword ptr [g_lackUiRedResume]
+    not_yet:
+        mov edx, dword ptr [ecx]
+        mov eax, dword ptr [edx + 0x104]
+        jmp dword ptr [g_lackUiOkCall]
+    }
+}
+
+__declspec(naked) static void LackUiOkThunk()
+{
+    __asm {
+        pushad
+        mov eax, dword ptr [ebp - 0x10]
+        push dword ptr [eax]
+        call LackUiClear
+        add esp, 4
+        popad
+        mov esi, dword ptr [ebp - 0x10]
+        mov ecx, dword ptr [esi]
+        jmp dword ptr [g_lackUiOkResume]
+    }
+}
+
+static bool InstallLackIconDebounce()
+{
+    static const unsigned char SIG[5]    = { 0x8B, 0x75, 0xF0, 0x8B, 0x0E };
+    static const unsigned char RESUME[4] = { 0x8B, 0x11, 0x8B, 0x82 };
+    static const unsigned char CALLSIG[2] = { 0xFF, 0xD0 };
+    g_lackUiRedResume = g_base + RVA_LACKUI_RED_RESUME;
+    g_lackUiOkResume  = g_base + RVA_LACKUI_OK_RESUME;
+    g_lackUiOkCall    = g_base + RVA_LACKUI_OK_CALL;
+    if (memcmp((void*)g_lackUiOkCall, CALLSIG, sizeof(CALLSIG)) != 0)
+    {
+        Log("FactoryLackIconDebounce: сигнатура call eax не совпала rva %06X - не патчим", RVA_LACKUI_OK_CALL);
+        return false;
+    }
+    bool a = WriteJmpSite(RVA_LACKUI_RED_SITE, SIG, sizeof(SIG), 5, RVA_LACKUI_RED_RESUME, RESUME, sizeof(RESUME),
+        (void*)&LackUiRedThunk, "FactoryLackIconDebounce(красная)");
+    bool b = WriteJmpSite(RVA_LACKUI_OK_SITE, SIG, sizeof(SIG), 5, RVA_LACKUI_OK_RESUME, RESUME, sizeof(RESUME),
+        (void*)&LackUiOkThunk, "FactoryLackIconDebounce(обычная)");
+    Log("FactoryLackIconDebounce: %s (порог %d мс, FACTORY_LACK_ICON_DEBOUNCE_MS, 0 = выкл)",
+        (a && b) ? "установлено" : "НЕ установлено", g_settings.factoryLackIconDebounceMs);
+    return a && b;
+}
+
 // Возвращает 1, если фабрика закрыта (ванильные финансы за этот день пропускаем).
 static int __cdecl FactoryAutoCloseCheck(void* factory)
 {
@@ -17391,6 +17525,9 @@ static const int FAC_OFF_RATIO  = 0x1E0;   // доля суточной потр
 // считается по базовым ценам, поэтому деньги субсидируемой фабрики покрывают только часть закупки, и
 // вчерашние затраты (основа бюджета) не растут - состояние устойчиво (замер: r = 0.81 годами). Если
 // вчера r < 1, полная потребность стоила затраты / r: цель поднимается до неё (но не более 3x базовой).
+// Когда фабрика купила всё (r = 1), цель остаётся на уровне вчерашних затрат + 5%: иначе доплата
+// пропадала, на следующий день денег снова не хватало, и закупки "мигали" (пила: 1.05x в день вверх,
+// потом провал).
 static long long __cdecl FactoryBudgetExtra(void* factory, unsigned costLo, int costHi)
 {
     long long total = 0;
@@ -17410,9 +17547,13 @@ static long long __cdecl FactoryBudgetExtra(void* factory, unsigned costLo, int 
             long long cost  = ((long long)costHi << 32) | (unsigned long long)costLo;
             long long spent = *(long long*)(f + FAC_OFF_SPENT);
             long long r     = *(long long*)(f + FAC_OFF_RATIO);
-            if (cost > 0 && spent > 0 && r > 0 && r < 32768)
+            if (cost > 0 && spent > 0 && r > 0)
             {
+                if (r > 32768)
+                    r = 32768;
                 long long full = (spent << 15) / r;
+                if (r == 32768)
+                    full += full / 20;
                 if (full > cost * 3)
                     full = cost * 3;
                 if (full > cost)
@@ -22609,6 +22750,9 @@ static bool Install()
 
     if (g_settings.factoryDeleteClosed && g_defClosedDeleteDays > 0)
         InstallClosedFactoryDelete();
+
+    if (g_settings.factoryLackIconDebounceMs > 0)
+        InstallLackIconDebounce();
 
     if (g_settings.fixTechFactoryMaintenance)
         InstallTechFactoryMaintenance();
