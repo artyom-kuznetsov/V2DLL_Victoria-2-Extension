@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.28"
+#define MOD_VERSION "6.29"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -11490,6 +11490,15 @@ static unsigned char* ReserveTakeSupportFirst(unsigned char* side, int minStreng
     return ReserveTakeNode(side, false, minStrength);
 }
 
+// Обратный порядок: пехота/кавалерия, и только если их нет - support (для транзитных слотов, см. фазу 3).
+static unsigned char* ReserveTakeNonSupportFirst(unsigned char* side, int minStrength)
+{
+    unsigned char* node = ReserveTakeNode(side, false, minStrength);
+    if (node)
+        return node;
+    return ReserveTakeNode(side, true, minStrength);
+}
+
 // Есть ли в резервах вообще разворачиваемый юнит (любого класса).
 static bool ReserveHasDeployable(unsigned char* side)
 {
@@ -11504,11 +11513,13 @@ static bool ReserveHasDeployable(unsigned char* side)
     return false;
 }
 
-// Ванильная FUN_0059b190 один в один (три фазы, границы, проверки),
-// с единственным отличием: юнит для слота второй линии выбирается
-// support-приоритетом (артиллерия важнее пехоты). В ваниле фазы 1-2
-// наоборот берут только не-support, из-за чего пехота занимала
-// вторую линию, пока артиллерия ждала в резервах.
+// Ванильная FUN_0059b190 (три фазы, границы, проверки), отличие одно: юнит для слота второй
+// линии, ПЕРЕД КОТОРЫМ СТОИТ юнит первой линии, выбирается support-приоритетом (артиллерия
+// важнее пехоты; в ваниле там оказывалась пехота, пока артиллерия ждала в резерве).
+// Фазы 1-2 и слоты фазы 3 с ПУСТЫМ F[i] - ванильные (пехота/кавалерия вперёд, артиллерия
+// только если больше никого): такой G[i] ванильная протяжка FUN_0059B0E0 на следующем раунде
+// двигает в F[i], и до 6.30 артиллерия, выбранная первой, попадала в передний ряд раньше
+// пехоты и кавалерии (особенно при пополнении идущего боя).
 static void __cdecl ReserveDeployNew(unsigned char* side, int enemySide)
 {
     void** front = (void**)(side + 0x6C);
@@ -11530,7 +11541,7 @@ static void __cdecl ReserveDeployNew(unsigned char* side, int enemySide)
         if (back[idx] || front[idx] || !enemyFront[idx])
             continue;
         int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
-        unsigned char* node = ReserveTakeSupportFirst(side, minStrength);
+        unsigned char* node = ReserveTakeNode(side, false, minStrength);
         if (!node)
             break;
         back[idx] = *(void**)node;
@@ -11547,7 +11558,7 @@ static void __cdecl ReserveDeployNew(unsigned char* side, int enemySide)
         if (back[idx] || front[idx])
             continue;
         int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
-        unsigned char* node = ReserveTakeSupportFirst(side, minStrength);
+        unsigned char* node = ReserveTakeNode(side, false, minStrength);
         if (!node)
             break;
         back[idx] = *(void**)node;
@@ -11564,7 +11575,11 @@ static void __cdecl ReserveDeployNew(unsigned char* side, int enemySide)
         if (back[idx])
             continue;
         int minStrength = (int)((tV2RandomFloat)(g_base + RVA_RANDOM_FLOAT))(96.0f);
-        unsigned char* node = ReserveTakeSupportFirst(side, minStrength);
+        // F[idx] занят - это настоящая вторая линия: артиллерия приоритетнее. F[idx] пуст - слот транзитный
+        // (юнит из G на следующем раунде переедет вперёд): туда в первую очередь пехоту/кавалерию, артиллерию -
+        // только если больше никого нет.
+        unsigned char* node = front[idx] ? ReserveTakeSupportFirst(side, minStrength)
+                                         : ReserveTakeNonSupportFirst(side, minStrength);
         if (!node)
             break;
         back[idx] = *(void**)node;
