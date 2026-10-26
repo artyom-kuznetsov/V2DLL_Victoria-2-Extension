@@ -5,6 +5,9 @@ Along with modding tools, CC has a lot of performance and stability patches - mo
 Even if you are not a modder and just play Victoria II - there is no downside in using CreatineCore (don't forget to configure it!)
 Almost all of the patches were tested in MP.
 
+**WE HAVE DISCORD!**
+https://discord.gg/kkypeQukWF
+
 ## How to install CreatineCore
 1. Put all the files from `CreatineCore_LATEST_INSTALL` folder into your game folder.
 2. Go to `z_CreatineCore` folder and tweak `creatinecore_dll_settings.ini` for your liking - every patch is optional (some of them have to be ran in tandem though).
