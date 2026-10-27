@@ -46,3 +46,10 @@ void   LoadV2Submods();
 int    V2_GetRunningPlugins(char names[][64], int maxCount);
 // True when `addr` lies inside the image of a loaded plugin DLL (their __try-caught exceptions are not crashes).
 bool   V2_AddrInPlugin(DWORD addr);
+
+void ConfigureExtendedCountryPrimaryPopModifiers(bool enabled);
+void ConfigureExtendedCountryAcceptedPopModifiers(bool enabled);
+void ConfigureExtendedCountryColonialPopModifiers(bool enabled);
+int GetTechPrimaryPopModifier(unsigned countryIndex, bool militancy);
+int GetTechAcceptedPopModifier(unsigned countryIndex, bool militancy);
+int GetTechColonialPopModifier(unsigned countryIndex, bool militancy);
