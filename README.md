@@ -307,6 +307,21 @@ Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RE
 #### 9. FIX_PROVINCE_FLAGS
 With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games (made by balticšprott).
   
+#### 10. NEW_POP_MODIFIERS
+Adds twelve POP militancy and consciousness effects, enabled together with `NEW_POP_MODIFIERS = 1` in `creatinecore_dll_settings.ini`.
+
+Province modifier effects apply only inside the province and only to the matching POP cultures:
+- `prov_non_accepted_mil_modifier` / `prov_non_accepted_con_modifier` — non-accepted cultures.
+- `prov_primary_mil_modifier` / `prov_primary_con_modifier` — the country's primary culture.
+- `prov_accepted_mil_modifier` / `prov_accepted_con_modifier` — accepted cultures.
+
+Country modifier effects apply across the country, filtered to the relevant POP group:
+- `primary_pop_militancy_modifier` / `primary_pop_consciousness_modifier` — primary culture.
+- `accepted_pop_militancy_modifier` / `accepted_pop_consciousness_modifier` — accepted cultures.
+- `colonial_pop_militancy_modifier` / `colonial_pop_consciousness_modifier` — POPs in colonial provinces.
+
+The country effects are also supported in technology and invention effects (made by COUNTRY_ADJ).
+
 ### Stability and Performance
 #### 1. PATCH_COMPRESS_FLAG_CACHE
 Compresses flag cache to reduce RAM usage (made by wyrm).

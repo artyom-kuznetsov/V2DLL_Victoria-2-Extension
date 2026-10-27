@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.36"
+#define MOD_VERSION "6.37"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -194,6 +194,8 @@ struct Settings
     bool assimilateBlock             = true;
     // Enable all custom culture and colonial-province unit recruitment rules.
     bool extendedUnitRecruitmentRules             = true;
+    // All custom POP modifiers (province, culture, accepted culture, colonial); controlled by NEW_POP_MODIFIERS.
+    bool newPopModifiers                          = true;
     // FIX_PROVINCE_FLAGS: has_province_flag trigger (CCore_ProvinceFlags.cpp).
     bool fixProvinceFlags                         = true;
     // FIX_MEMORY_MISS_CRASHES: dangling scope pointer of delayed events (CCore_DelayedEventFrom.cpp).
@@ -4759,6 +4761,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "ENABLE_GOODS_CONSUMPTION") == 0)         { g_settings.goodsConsumption            = v; return; }
     if (_stricmp(key, "ENABLE_ASSIMILATE_BLOCK") == 0)          { g_settings.assimilateBlock             = v; return; }
     if (_stricmp(key, "ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES") == 0) { g_settings.extendedUnitRecruitmentRules = v; return; }
+    if (_stricmp(key, "NEW_POP_MODIFIERS") == 0) { g_settings.newPopModifiers = v; return; }
     if (_stricmp(key, "FIX_PROVINCE_FLAGS") == 0)           { g_settings.fixProvinceFlags = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
@@ -4985,6 +4988,7 @@ static void WriteDefaultSettings(const char* path)
         "FIX_TECH_FACTORY_MAINTENANCE=%d\n"
         "ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES=%d\n"
         "FIX_PROVINCE_FLAGS=%d\n"
+        "NEW_POP_MODIFIERS = %d\n"
         "\n",
         (int)g_settings.assimilateBlock,
         (int)g_settings.movePopBlock,
@@ -4995,7 +4999,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.popBuildInfrastructureRule,
         (int)g_settings.fixTechFactoryMaintenance,
         (int)g_settings.extendedUnitRecruitmentRules,
-        (int)g_settings.fixProvinceFlags);
+        (int)g_settings.fixProvinceFlags,
+        (int)g_settings.newPopModifiers);
 
     fprintf(f,
         "; Stability and Performance\n"
@@ -17987,6 +17992,70 @@ static int  g_techMaintMismatch = 0;
 static DWORD g_tmParseOrig = 0, g_tmAggrOrig = 0, g_tmResetOrig = 0, g_tmTipOrig = 0;
 static DWORD g_tmResume[6] = {};
 
+struct TechPrimaryEntry { void* key; int mil; int con; int acceptedMil; int acceptedCon; int colonialMil; int colonialCon; };
+static TechPrimaryEntry g_techPrimaryTech[1024];
+static int g_techPrimaryByCountry[1024][2];
+static int g_techAcceptedByCountry[1024][2];
+static int g_techColonialByCountry[1024][2];
+static bool TechPrimaryAlias(void* tech, void* ctx)
+{
+    if (!ctx) return false;
+    const char* key = (const char*)ctx + 0x24;
+    bool mil = strcmp(key, "primary_pop_militancy_modifier") == 0;
+    bool con = strcmp(key, "primary_pop_consciousness_modifier") == 0;
+    bool acceptedMil = strcmp(key, "accepted_pop_militancy_modifier") == 0;
+    bool acceptedCon = strcmp(key, "accepted_pop_consciousness_modifier") == 0;
+    bool colonialMil = strcmp(key, "colonial_pop_militancy_modifier") == 0;
+    bool colonialCon = strcmp(key, "colonial_pop_consciousness_modifier") == 0;
+    bool countryPrimary = mil || con;
+    bool countryAccepted = acceptedMil || acceptedCon;
+    bool countryColonial = colonialMil || colonialCon;
+    if ((!countryPrimary && !countryAccepted && !countryColonial) ||
+        ((countryPrimary || countryAccepted || countryColonial) && !g_settings.newPopModifiers)) return false;
+    typedef int* (__stdcall* tNumber)(void*, int*);
+    int val = 0;
+    ((tNumber)(g_base + RVA_TM_NUMBER_FN))((unsigned char*)ctx + 0x228, &val);
+    unsigned h = (((unsigned)(DWORD_PTR)tech) >> 4) & 1023;
+    for (int n = 0; n < 1024; ++n)
+    {
+        TechPrimaryEntry& e = g_techPrimaryTech[(h + n) & 1023];
+        if (e.key == tech || !e.key)
+        {
+            if (!e.key) e.key = tech;
+            if (mil) e.mil = val;
+            else if (con) e.con = val;
+            else if (acceptedMil) e.acceptedMil = val;
+            else if (acceptedCon) e.acceptedCon = val;
+            else if (colonialMil) e.colonialMil = val;
+            else e.colonialCon = val;
+            return true;
+        }
+    }
+    return true;
+}
+static TechPrimaryEntry* TechPrimarySlot(void* tech)
+{
+    unsigned h = (((unsigned)(DWORD_PTR)tech) >> 4) & 1023;
+    for (int n = 0; n < 1024; ++n)
+    {
+        TechPrimaryEntry& e = g_techPrimaryTech[(h + n) & 1023];
+        if (e.key == tech) return &e;
+        if (!e.key) return 0;
+    }
+    return 0;
+}
+int GetTechPrimaryPopModifier(unsigned countryIndex, bool militancy)
+{
+    return countryIndex < 1024 ? g_techPrimaryByCountry[countryIndex][militancy ? 0 : 1] : 0;
+}
+int GetTechAcceptedPopModifier(unsigned countryIndex, bool militancy)
+{
+    return countryIndex < 1024 ? g_techAcceptedByCountry[countryIndex][militancy ? 0 : 1] : 0;
+}
+int GetTechColonialPopModifier(unsigned countryIndex, bool militancy)
+{
+    return countryIndex < 1024 ? g_techColonialByCountry[countryIndex][militancy ? 0 : 1] : 0;
+}
 static int* TechMaintSlot(void* key, bool create)
 {
     unsigned h = (((unsigned)(DWORD_PTR)key) >> 4) & 1023;
@@ -18049,7 +18118,8 @@ static void __cdecl TechMaintApply(void* sum, void* tech, int scale)
     __try
     {
         int* v = TechMaintSlot(tech, false);
-        if (!v || !*v)
+        TechPrimaryEntry* primary = TechPrimarySlot(tech);
+        if ((!v || !*v) && (!primary || (!primary->mil && !primary->con && !primary->acceptedMil && !primary->acceptedCon && !primary->colonialMil && !primary->colonialCon)))
             return;
         unsigned char* country = *(unsigned char**)((unsigned char*)sum + TM_SUM_COUNTRY);
         if (!country || *(void**)(country + TM_COUNTRY_SUM) != sum)
@@ -18061,8 +18131,10 @@ static void __cdecl TechMaintApply(void* sum, void* tech, int scale)
         unsigned idx = *(unsigned*)(country + TM_COUNTRY_INDEX);
         if (idx < 1024)
         {
-            g_techMaintByCountry[idx] += (int)((long long)*v * scale / 1000);
-            LogDbg("TechMaint: страна %u += %d * %d / 1000 -> %d", idx, *v, scale, g_techMaintByCountry[idx]);
+            if (v && *v) { g_techMaintByCountry[idx] += (int)((long long)*v * scale / 1000); LogDbg("TechMaint: страна %u += %d * %d / 1000 -> %d", idx, *v, scale, g_techMaintByCountry[idx]); }
+            if (primary && g_settings.newPopModifiers) { g_techPrimaryByCountry[idx][0] += (int)((long long)primary->mil * scale / 1000); g_techPrimaryByCountry[idx][1] += (int)((long long)primary->con * scale / 1000); }
+            if (primary && g_settings.newPopModifiers) { g_techAcceptedByCountry[idx][0] += (int)((long long)primary->acceptedMil * scale / 1000); g_techAcceptedByCountry[idx][1] += (int)((long long)primary->acceptedCon * scale / 1000); }
+            if (primary && g_settings.newPopModifiers) { g_techColonialByCountry[idx][0] += (int)((long long)primary->colonialMil * scale / 1000); g_techColonialByCountry[idx][1] += (int)((long long)primary->colonialCon * scale / 1000); }
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -18078,8 +18150,7 @@ static void __cdecl TechMaintReset(void* sum)
         if (!country || *(void**)(country + TM_COUNTRY_SUM) != sum)
             return;
         unsigned idx = *(unsigned*)(country + TM_COUNTRY_INDEX);
-        if (idx < 1024)
-            g_techMaintByCountry[idx] = 0;
+        if (idx < 1024) { g_techMaintByCountry[idx] = 0; g_techPrimaryByCountry[idx][0] = g_techPrimaryByCountry[idx][1] = 0; g_techAcceptedByCountry[idx][0] = g_techAcceptedByCountry[idx][1] = 0; g_techColonialByCountry[idx][0] = g_techColonialByCountry[idx][1] = 0; }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -18125,26 +18196,50 @@ static void __cdecl TechMaintTooltip(void* tech, void* out)
     __try
     {
         int* v = TechMaintSlot(tech, false);
-        if (!v || !*v || !out)
-            return;
-        const char* label = ConsLoc("TECH_FACTORY_MAINTENANCE", "Factory maintenance:");
+        TechPrimaryEntry* primary = TechPrimarySlot(tech);
+        if (!out) return;
         char line[320];
-        double pct = *v / 10.0;
-        if (*v > 0)
-            _snprintf_s(line, sizeof(line), _TRUNCATE, "%s \xA7R+%.1f%%\xA7W\n", label, pct);
-        else
-            _snprintf_s(line, sizeof(line), _TRUNCATE, "%s \xA7G%.1f%%\xA7W\n", label, pct);
-        GStrAppend(out, line);
+        if (v && *v)
+        {
+            const char* label = ConsLoc("TECH_FACTORY_MAINTENANCE", "Factory maintenance:");
+            double pct = *v / 10.0;
+            if (*v > 0) _snprintf_s(line, sizeof(line), _TRUNCATE, "%s \xA7R+%.1f%%\xA7W\n", label, pct);
+            else _snprintf_s(line, sizeof(line), _TRUNCATE, "%s \xA7G%.1f%%\xA7W\n", label, pct);
+            GStrAppend(out, line);
+        }
+        if (primary && g_settings.newPopModifiers)
+        {
+            if (primary->mil) { _snprintf_s(line, sizeof(line), _TRUNCATE, "PRIMARY_POP_MILITANCY_MODIFIER: %+.2f\n", primary->mil / 1000.0); GStrAppend(out, line); }
+            if (primary->con) { _snprintf_s(line, sizeof(line), _TRUNCATE, "PRIMARY_POP_CONSCIOUSNESS_MODIFIER: %+.2f\n", primary->con / 1000.0); GStrAppend(out, line); }
+        }
+        if (primary && g_settings.newPopModifiers)
+        {
+            if (primary->acceptedMil) { _snprintf_s(line, sizeof(line), _TRUNCATE, "ACCEPTED_POP_MILITANCY_MODIFIER: %+.2f\n", primary->acceptedMil / 1000.0); GStrAppend(out, line); }
+            if (primary->acceptedCon) { _snprintf_s(line, sizeof(line), _TRUNCATE, "ACCEPTED_POP_CONSCIOUSNESS_MODIFIER: %+.2f\n", primary->acceptedCon / 1000.0); GStrAppend(out, line); }
+            if (primary->colonialMil) { _snprintf_s(line, sizeof(line), _TRUNCATE, "COLONIAL_POP_MILITANCY_MODIFIER: %+.2f\n", primary->colonialMil / 1000.0); GStrAppend(out, line); }
+            if (primary->colonialCon) { _snprintf_s(line, sizeof(line), _TRUNCATE, "COLONIAL_POP_CONSCIOUSNESS_MODIFIER: %+.2f\n", primary->colonialCon / 1000.0); GStrAppend(out, line); }
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
     }
 }
-
 // call FUN_0056D450(ctx, token) (thiscall, ecx = технология/изобретение, ret 8)
 __declspec(naked) static void TechMaintParseThunk()
 {
     __asm {
+        push ecx
+        push edx
+        mov eax, dword ptr [esp + 0x0C]
+        push eax
+        mov eax, dword ptr [esp + 0x08]
+        push eax
+        call TechPrimaryAlias
+        add esp, 8
+        pop edx
+        pop ecx
+        test eax, eax
+        jnz primary_done
         mov eax, dword ptr [esp + 8]
         cmp eax, 0x62D
         jne orig
@@ -18156,11 +18251,12 @@ __declspec(naked) static void TechMaintParseThunk()
         add esp, 8
         pop edx
         ret 8
+    primary_done:
+        ret 8
     orig:
         jmp dword ptr [g_tmParseOrig]
     }
 }
-
 // call FUN_0056C900(сумма, технология, масштаб) (stdcall, ret 0xC)
 __declspec(naked) static void TechMaintAggrThunk()
 {
@@ -22754,7 +22850,7 @@ static bool Install()
     if (g_settings.factoryLackIconDebounceMs > 0)
         InstallLackIconDebounce();
 
-    if (g_settings.fixTechFactoryMaintenance)
+    if (g_settings.fixTechFactoryMaintenance || g_settings.newPopModifiers)
         InstallTechFactoryMaintenance();
 
     if (g_settings.popFixNeedsModifiers)
@@ -22802,6 +22898,14 @@ static bool Install()
 
     if (g_settings.extendedUnitRecruitmentRules)
         InstallExtendedUnitRecruitmentRules();
+
+    if (g_settings.newPopModifiers)
+    {
+        ConfigureExtendedCountryPrimaryPopModifiers(g_settings.newPopModifiers);
+        ConfigureExtendedCountryAcceptedPopModifiers(g_settings.newPopModifiers);
+        ConfigureExtendedCountryColonialPopModifiers(g_settings.newPopModifiers);
+        InstallNewPopModifiers();
+    }
 
     if (g_settings.fixProvinceFlags)
         InstallProvinceFlags();
