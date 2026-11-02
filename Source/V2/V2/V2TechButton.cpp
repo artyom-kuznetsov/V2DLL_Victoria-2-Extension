@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.38"
+#define MOD_VERSION "6.40"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -200,6 +200,8 @@ struct Settings
     bool fixProvinceFlags                         = true;
     // Country state-religion condition country_religion = <religion> in trigger/potential/allow blocks.
     bool countryReligionTrigger                   = true;
+    // CHANGE_COLOR_CONSOLE: enables the change_color console command and its save/load color persistence.
+    bool changeColorConsole                       = true;
     // FIX_MEMORY_MISS_CRASHES: dangling scope pointer of delayed events (CCore_DelayedEventFrom.cpp).
     bool fixMemoryMissCrashes                     = true;
     // move_pop = { where = province_id amount = 0..1 } plus identity-safe insertion.
@@ -4766,6 +4768,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "NEW_POP_MODIFIERS") == 0) { g_settings.newPopModifiers = v; return; }
     if (_stricmp(key, "FIX_PROVINCE_FLAGS") == 0)           { g_settings.fixProvinceFlags = v; return; }
     if (_stricmp(key, "NEW_COUNTRY_SCOPE_CONDITIONS") == 0) { g_settings.countryReligionTrigger = v; return; }
+    if (_stricmp(key, "CHANGE_COLOR_CONSOLE") == 0) { g_settings.changeColorConsole = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
     if (_stricmp(key, "LOAD_DLL_FROM_MOD_FOLDER") == 0)                      { g_settings.loadDllFromModFolder                  = v; return; }
@@ -4993,6 +4996,7 @@ static void WriteDefaultSettings(const char* path)
         "FIX_PROVINCE_FLAGS=%d\n"
         "NEW_COUNTRY_SCOPE_CONDITIONS=%d\n"
         "NEW_POP_MODIFIERS = %d\n"
+        "CHANGE_COLOR_CONSOLE=%d\n"
         "\n",
         (int)g_settings.assimilateBlock,
         (int)g_settings.movePopBlock,
@@ -5005,7 +5009,8 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.extendedUnitRecruitmentRules,
         (int)g_settings.fixProvinceFlags,
         (int)g_settings.countryReligionTrigger,
-        (int)g_settings.newPopModifiers);
+        (int)g_settings.newPopModifiers,
+        (int)g_settings.changeColorConsole);
 
     fprintf(f,
         "; Stability and Performance\n"
@@ -5871,6 +5876,8 @@ static bool IsV2SavePath(const char* path)
     return len > 3 && _stricmp(path + len - 3, ".v2") == 0;
 }
 
+void CountryColorOnSaveLoadStart();
+
 static const DWORD RVA_PHYSFS_OPENREAD = 0x721F40;
 static LONG  g_embarkRepairApplied = 0;   // исправлений в текущей загрузке (сброс при открытии .v2)
 
@@ -5879,6 +5886,8 @@ static void __cdecl OnPhysfsOpenReadFilename(const char* filename)
 {
     __try
     {
+        if (g_settings.changeColorConsole && IsV2SavePath(filename))
+            CountryColorOnSaveLoadStart();
         if (g_settings.navyAllowUseAllyTransports && IsV2SavePath(filename))
             InterlockedExchange(&g_embarkRepairApplied, 0);
     }
@@ -22481,6 +22490,7 @@ static void LogConfigFingerprint()
 
 // vasalle_color.cpp
 bool InstallVassalColors(int percent);
+bool InstallCountryColorConsole();
 
 // ---------------------------------------------------------------
 // POP_BUILD_INFRASTRUCTURE_RULE: правило реформ pop_build_infrastructure.
@@ -22720,8 +22730,7 @@ static bool Install()
     if (g_settings.navyAllowUseAllyTransports)
         InstallAllyEmbark();
 
-    // Ремонт владельца посаженной союзной армии при загрузке сейва (PATCHES.md §4.2b).
-    // PhysfsOpenRead нужен только чтобы обнулять лимит исправлений при открытии .v2.
+    // Repair embarked army owners and detect loaded saves for persistent country colors.
     if (g_settings.navyAllowUseAllyTransports)
     {
         InstallPhysfsOpenReadHook();
@@ -22990,6 +22999,17 @@ static bool Install()
         InstallVassalColors(g_settings.vassalColorPercent);
     else
         Log("VasalleColor: desactivado (ENABLE_VASSAL_COLORS=0)");
+
+    // CHANGE_COLOR_CONSOLE gates the command and country-color save/load behavior.
+    if (g_settings.changeColorConsole)
+    {
+        if (!InstallPhysfsOpenReadHook())
+            Log("CountryColor: save/load tracking hook unavailable; command not registered");
+        else if (!InstallCountryColorConsole())
+            Log("CountryColor: no se pudo instalar el comando en Core");
+    }
+    else
+        Log("CountryColor: desactivado (CHANGE_COLOR_CONSOLE=0)");
 
     // Optional plugin "mod\<Name>\v2dll_mod.dll" of the running mod: last, so
     // they see a fully patched game.
@@ -24065,3 +24085,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
     }
     return TRUE;
 }
+
+
+
+

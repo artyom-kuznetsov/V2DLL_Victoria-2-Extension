@@ -290,10 +290,33 @@ Adds optional recruitment restrictions to land unit definitions in `common/units
 These custom rules do not change the vanilla `primary_culture = yes` behavior, 
 which allows both primary and accepted cultures.  
 
-Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).
+Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`) (made by COUNTRY_ADJ).
 #### 9. FIX_PROVINCE_FLAGS
 With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games (made by balticšprott).
   
+#### 10. NEW_COUNTRY_SCOPE_CONDITIONS
+Adds the country-scope trigger `country_religion = <religion>`. It checks the country's state religion against the named religion.
+
+The setting `NEW_COUNTRY_SCOPE_CONDITIONS=1` enables the trigger. Tooltip localization uses `CC_COUNTRY_RELIGION_IS` and `CC_COUNTRY_RELIGION_IS_NOT` (made by COUNTRY_ADJ).
+
+#### 11. NEW_POP_MODIFIERS
+Adds twelve POP militancy and consciousness effects, enabled with `NEW_POP_MODIFIERS=1`.
+
+Province modifier effects apply only inside the province and only to the matching POP cultures:
+- `prov_non_accepted_mil_modifier` / `prov_non_accepted_con_modifier` — non-accepted cultures.
+- `prov_primary_mil_modifier` / `prov_primary_con_modifier` — the country's primary culture.
+- `prov_accepted_mil_modifier` / `prov_accepted_con_modifier` — accepted cultures.
+
+Country modifier effects apply across the country, filtered to the relevant POP group:
+- `primary_pop_militancy_modifier` / `primary_pop_consciousness_modifier` — primary culture.
+- `accepted_pop_militancy_modifier` / `accepted_pop_consciousness_modifier` — accepted cultures.
+- `colonial_pop_militancy_modifier` / `colonial_pop_consciousness_modifier` — POPs in colonial provinces.
+
+The country effects are also supported in technology and invention effects (made by COUNTRY_ADJ).
+
+#### 12. CHANGE_COLOR_CONSOLE
+Enables the `change_color TAG R G B` console command. `TAG` is a country tag; each RGB component must be from 0 to 255. The selected color is saved with the game and is replaced when gameplay applies a native country color change. Set to `0` to disable command registration. (made by COUNTRY_ADJ)
+
 ### Stability and Performance
 #### 1. PATCH_COMPRESS_FLAG_CACHE
 Compresses flag cache to reduce RAM usage (made by wyrm).
