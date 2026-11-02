@@ -303,14 +303,14 @@ Adds optional recruitment restrictions to land unit definitions in `common/units
 These custom rules do not change the vanilla `primary_culture = yes` behavior, 
 which allows both primary and accepted cultures.  
 
-Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).
+Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RECRUITMENT`, `COLONIAL_ONLY_RECRUITMENT`, `NON_COLONIAL_ONLY_RECRUITMENT` (already added to `creatinecore.csv`).(made by COUNTRY_ADJ)
 #### 9. FIX_PROVINCE_FLAGS
 With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games (made by balticšprott).
   
 #### 10. NEW_COUNTRY_SCOPE_CONDITIONS
 Adds the country-scope trigger `country_religion = <religion>`. It checks the country's state religion against the named religion.
 
-The setting `NEW_COUNTRY_SCOPE_CONDITIONS = 1` enables the trigger. Tooltip localization uses `CC_COUNTRY_RELIGION_IS` and `CC_COUNTRY_RELIGION_IS_NOT`; the religion value is localized by its religion key (for example, `sunni` is displayed as “Sunni”).
+The setting `NEW_COUNTRY_SCOPE_CONDITIONS = 1` enables the trigger. Tooltip localization uses `CC_COUNTRY_RELIGION_IS` and `CC_COUNTRY_RELIGION_IS_NOT`.(made by COUNTRY_ADJ).
 
 #### 11. NEW_POP_MODIFIERS
 Adds twelve POP militancy and consciousness effects, enabled together with `NEW_POP_MODIFIERS = 1` in `creatinecore_dll_settings.ini`.
@@ -326,6 +326,9 @@ Country modifier effects apply across the country, filtered to the relevant POP 
 - `colonial_pop_militancy_modifier` / `colonial_pop_consciousness_modifier` — POPs in colonial provinces.
 
 The country effects are also supported in technology and invention effects (made by COUNTRY_ADJ).
+
+#### 12. CHANGE_COLOR_CONSOLE
+Adds the in-game console command `change_color TAG R G B` (RGB values 0–255). The chosen country color is stored in the save and remains in effect until gameplay changes the country color through its native rules. Set `CHANGE_COLOR_CONSOLE=1` in `creatinecore_settings.ini` to enable; set it to `0` to unregister the command. (made by COUNTRY_ADJ)
 
 ### Stability and Performance
 #### 1. PATCH_COMPRESS_FLAG_CACHE
