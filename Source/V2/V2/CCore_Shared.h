@@ -19,7 +19,8 @@ bool   InstallEffectFactoryHook();       // shared router of the block-form scri
 bool   InstallExtendedUnitRecruitmentRules();
 
 // --- defined in CCore_ProvinceFlags.cpp ---
-bool   InstallProvinceFlags();
+bool   InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCountryReligion);
+bool   InstallNewPopModifiers();
 
 // --- defined in CCore_DelayedEventFrom.cpp ---
 bool   InstallDelayedEventFrom(bool applyFix);

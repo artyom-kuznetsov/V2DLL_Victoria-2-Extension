@@ -17,3 +17,5 @@ ACCEPTED_POP_MILITANCY_MODIFIER;Accepted pop militancy;x
 ACCEPTED_POP_CONSCIOUSNESS_MODIFIER;Accepted pop consciousness;x
 COLONIAL_POP_MILITANCY_MODIFIER;Colonial militancy;x
 COLONIAL_POP_CONSCIOUSNESS_MODIFIER;Colonial consciousness;x
+CC_COUNTRY_RELIGION_IS;Country religion is ;La religion d'Etat est ;Die Staatsreligion ist ;;;;;;;;;;;x
+CC_COUNTRY_RELIGION_IS_NOT;Country religion is NOT ;La religion d'Etat n'est PAS ;Die Staatsreligion ist NICHT ;;;;;;;;;;;x

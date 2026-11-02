@@ -2,7 +2,7 @@
 
 Reference for every patch in CreatineCore (`z_CreatineCore\creatinecore.dll`, started by the `dinput8.dll` proxy, for Victoria 2 `v2game.exe`): what each one touches in memory, how it is applied, which `creatinecore_settings.ini` key controls it and what it does.
 
-* DLL version documented: **5.121** (`MOD_VERSION` in `Source/V2/V2/V2TechButton.cpp`).
+* DLL version documented: **6.38** (`MOD_VERSION` in `Source/V2/V2/V2TechButton.cpp`).
 * Source moved 2026-09-30 to `I:\Vic2_DLL\CreatineCore - Victoria 2 Extension` (git remote `CreatineCore---Victoria-2-Extension`); the old `I:\Vic2_DLL\balticsprott_CreatineCore` checkout no longer holds the source.
 * Target binary: `v2game.exe` (32-bit x86, preferred image base `0x400000`, ASLR on).
 * Verification: before this file was written, a script checked the cited bytes against the on-disk `v2game.exe` — all 22 byte-patch rows (address, length, *expect* bytes), 33 hook-site byte sequences, every redirected `call` / `jnz` target, the topbar vftable slots and every cited resume address (must be an instruction boundary). Behavioural descriptions come from the source comments and code, not from a runtime trace.
@@ -611,14 +611,21 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 * **Diagnostics.** Execute (slot 11) of the two effect classes is wrapped; with `DEBUG_LOG=1` the first 30 calls log province, flag name and the container state, the first 12 trigger evaluations are logged too.
 * **Config.** `FIX_PROVINCE_FLAGS` (ini, Script Extensions, default on). Log line `ProvinceFlags: ...` at start.
 
-### 6a.6 `FIX_MEMORY_MISS_CRASHES` - FROM in delayed events: 2 redirected `call`s to `FUN_008A88D0` (RVA `0x140A9E` in `FUN_00540A70`, RVA `0xB1FEE` in `FUN_004B1FC0`), on (source `CCore_DelayedEventFrom.cpp`)
+### 6a.6 `NEW_COUNTRY_SCOPE_CONDITIONS` — `country_religion` country-scope trigger (source `CCore_ProvinceFlags.cpp`)
+
+* **Behavior.** Adds `country_religion = <religion>` for country-scope event triggers and decision `potential` / `allow` blocks. It compares the country's state religion (`country+0xE68`) with the required religion. Vanilla `pop_majority_religion` instead reads the POP religion aggregate (`country+0x12E8`).
+* **Parsing.** The shared trigger-factory hook recognizes the `country_religion` parser key and invokes the vanilla `pop_majority_religion` parser (token `0x880`) to resolve the religion value into the native trigger object. It clones that trigger class and overrides evaluation and tooltip slots.
+* **Tooltip localization.** The trigger value is resolved through the engine localization system using its religion key (for example, `sunni` becomes “Sunni”). The prefix is localized with `CC_COUNTRY_RELIGION_IS` or `CC_COUNTRY_RELIGION_IS_NOT`, supplied in `CREATINECORE_LATEST_BUILD/localisation/creatinecore.csv`.
+* **Config.** `NEW_COUNTRY_SCOPE_CONDITIONS` (ini, Script Extensions, default on).
+
+### 6a.7 `FIX_MEMORY_MISS_CRASHES` - FROM in delayed events: 2 redirected `call`s to `FUN_008A88D0` (RVA `0x140A9E` in `FUN_00540A70`, RVA `0xB1FEE` in `FUN_004B1FC0`), on (source `CCore_DelayedEventFrom.cpp`)
 
 * **Bug.** `CEventScope` (vtable VA `0xE2C904`) stores a "canonical scope" pointer at `+0x24` (the active scope points to itself). Relation triggers read FROM through it: `FUN_008D9F20` does `idx = *(*(scope+0x24)+0x30)`, then `country+0xBE8[idx]` (`alliance_with` / `war_with` / `truce_with`, ...). `country_event`/`province_event` with `days = N` allocate a `CDelayedEvent` (`FUN_00540A70` country list `country+0x68`, `FUN_004B1FC0` province list `province+0x384`; 0x58 bytes, vtable VA `0xE2C858`) and copy the scope into its embedded scope at `+0xC` with `FUN_008A88D0` (`EAX` = destination, `ECX` = source, copies `+8..+0x3C` including `+0x24`). The copy therefore points at the stack object of the scheduling effect; when the event fires, the slot holds garbage and the trigger crashes (VA `0x8D9F77` / `0x8D9F7A`, stack: `CDelayedEvent -> CEvent -> CAIMTTHChance -> CMTTHModifier`). Reported with the January Uprising chain (`country_event 500001` -> `500002` with `days = 5`, options with `alliance_with = FROM` in `ai_chance`). Vanilla never uses such a trigger in a delayed event.
 * **Fix.** Both `call`s go to `ScopeCopyThunk`: it calls the original and then sets `[dest+0x24] = dest`, so the delayed event's scope is its own canonical scope (it holds a full copy of the data, FROM index at `+0x30` included). The other callers of `FUN_008A88D0` (stack copies while an event runs) are not touched.
 * **Diagnostics (6.17, DEBUG_LOG=1).** The hook is installed with the fix off as well, so the vanilla behaviour can be observed: when a delayed scope is copied it logs the source scope, the copy's canonical pointer and whether that pointer lies inside the live stack of the thread; `FUN_008A8120` (event run, entry hook, 6 bytes `55 8B EC 83 E4 F8`) logs, for every scope whose canonical pointer is not the scope itself, where it points, whether it lies in the live stack and what `[canonical+0x30]` holds at that moment.
 * **Config.** `FIX_MEMORY_MISS_CRASHES` (ini, Script Extensions, default on). Log line `DelayedEventFrom: 2 of 2 ...`.
 
-### 6a.7 `NEW_POP_MODIFIERS` — 12 POP militancy / consciousness effects (source `Source/V2/V2/CCore_NewPopModifiers.cpp`)
+### 6a.8 `NEW_POP_MODIFIERS` — 12 POP militancy / consciousness effects (source `Source/V2/V2/CCore_NewPopModifiers.cpp`)
 
 * **Effects.** Province-scoped: `prov_non_accepted_mil_modifier`, `prov_non_accepted_con_modifier`, `prov_primary_mil_modifier`, `prov_primary_con_modifier`, `prov_accepted_mil_modifier`, `prov_accepted_con_modifier`. Country-scoped: `primary_pop_militancy_modifier`, `primary_pop_consciousness_modifier`, `accepted_pop_militancy_modifier`, `accepted_pop_consciousness_modifier`, `colonial_pop_militancy_modifier`, `colonial_pop_consciousness_modifier`.
 * **Behavior.** Province effects alter only matching POPs in that province. Country effects are filtered to primary culture, accepted cultures, or POPs in colonial provinces respectively. Country effects are also parsed in technologies and inventions; the existing technology aggregation path carries their values into country POP updates.

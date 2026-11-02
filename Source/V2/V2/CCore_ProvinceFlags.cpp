@@ -1,4 +1,6 @@
-// FIX_PROVINCE_FLAGS: has_province_flag trigger for Victoria II.
+// Shared script-trigger factory extensions for Victoria II.
+// FIX_PROVINCE_FLAGS adds has_province_flag and its effects.
+// NEW_COUNTRY_SCOPE_CONDITIONS adds country_religion using the native religion-value parser.
 //
 // set_province_flag / clr_province_flag / has_province_flag are registered script keywords (tokens
 // 0x439 / 0x43A / 0x43B). The effects exist: the effect factory FUN_00876B30 creates classes with vtable
@@ -19,6 +21,11 @@
 // pointer of that object is then replaced by a copy of 0xE307E8 whose slot 6 (Evaluate(ctx), thiscall, ret 4)
 // reads the context like has_province_modifier does (ctx+0x10 = province index) and tests the flag in
 // province+0x328, and whose slot 10 (tooltip, thiscall with 4 stack arguments, ret 0x10) builds its own text.
+// For country_religion, the same hook recognizes the parser key text and calls the native
+// pop_majority_religion token 0x880 (CPopMajorityReligionTrigger, 0x20-byte object). Its parser resolves the
+// religion name into the object at +0x1C. A cloned vtable replaces slot 6 to compare the country's state
+// religion at +0xE68, and slot 10 to report the new keyword. The country field is different from the POP
+// religion aggregate at +0x12E8 used by vanilla pop_majority_religion.
 //
 // Diagnostics (DEBUG_LOG=1): Execute of the two effect classes is wrapped and logs province, flag name and the
 // state of the flag in the container after the call; the first trigger evaluations are logged as well.
@@ -34,13 +41,27 @@ static const DWORD RVA_TRIGGER_FACTORY    = 0x4B33E0;     // FUN_008B33E0
 static const DWORD RVA_FLAG_TRIGGER_VT    = 0xA307E8;     // has_country_flag trigger class
 static const DWORD RVA_FLAG_EVALUATE      = 0x4CCB90;     // its slot 6
 static const DWORD RVA_FLAG_TOOLTIP       = 0x4CCBF0;     // its slot 10
+static const DWORD RVA_COUNTRIES_VECTOR   = 0xE587E4;     // DAT_012587E4, country manager pointer
+static const DWORD RVA_COUNTRY_RELIGION_VT = 0xA31F88;     // CPopMajorityReligionTrigger
+static const DWORD RVA_MAJ_RELIGION_EVAL   = 0x4F1320;     // slot 6, FUN_008F1320
+static const DWORD RVA_MAJ_RELIGION_TIP    = 0x4F13D0;     // slot 10, FUN_008F13D0
+static const DWORD RVA_STD_STRING_ASSIGN   = 0x009350;
+static const DWORD RVA_FMT_FROM_KEY        = 0x5A8EE0;
+static const DWORD RVA_FMT_FINISH           = 0x5A9880;
+static const DWORD RVA_FMT_FREE             = 0x5A9740;
+static const DWORD RVA_LOC_SINGLETON        = 0x075500;
 static const DWORD RVA_EFFECT_VT[2]       = { 0xA2ACF8, 0xA2AD30 };   // set_province_flag, clr_province_flag
 static const DWORD RVA_EFFECT_EXECUTE[2]  = { 0x482A90, 0x482B00 };   // their slot 11
 static const int   EFFECT_EXECUTE_SLOT    = 11;
 static const int   TOKEN_HAS_PROVINCE     = 0x43B;
 static const int   TOKEN_HAS_COUNTRY      = 0x40A;
+static const int   TOKEN_POP_MAJ_RELIGION = 0x880;
 static const int   OFF_PROVINCE_FLAGS     = 0x328;
 static const int   OFF_CTX_PROVINCE       = 0x10;
+static const int   OFF_CTX_COUNTRY        = 0x0C;
+static const int   OFF_COUNTRY_RELIGION   = 0xE68;
+static const int   OFF_PARSER_KEY_TEXT    = 0x24;
+static const int   OFF_PARSER_VALUE_TEXT  = 0x22C;
 
 static void LogDbgPf(const char* fmt, ...)
 {
@@ -57,11 +78,112 @@ static void LogDbgPf(const char* fmt, ...)
 typedef void (__fastcall* tFactory)(void* self, void* edx, void* ctx, int token);
 static tFactory g_realFactory = 0;
 __declspec(align(16)) static unsigned char g_trampFactory[32];
-static void* g_vtableBuf[17];          // [0] = RTTI pointer of the source class, [1..16] = slots
-static void** g_vtable = 0;
+static void* g_flagVtableBuf[17];      // [0] = RTTI pointer, [1..16] = trigger slots
+static void** g_flagVtable = 0;
+static void* g_religionVtableBuf[17];
+static void** g_religionVtable = 0;
+static bool g_enableProvinceFlags = false;
+static bool g_enableCountryReligion = false;
 static volatile LONG g_created = 0;
+static volatile LONG g_religionCreated = 0;
 static volatile LONG g_evalLogs = 0;
 static volatile LONG g_execLogs = 0;
+
+static const unsigned COUNTRY_RELIGION_META_CAPACITY = 8192;
+struct CountryReligionTriggerName
+{
+    void* trigger;
+    char name[64];
+    char localizedName[128];
+    volatile LONG localizationState;
+};
+static CountryReligionTriggerName g_religionNames[COUNTRY_RELIGION_META_CAPACITY];
+static char g_countryReligionPrefixes[2][128];
+static volatile LONG g_countryReligionPrefixState[2] = {};
+static bool CountryReligionLocalizeKey(const char* key, char* output, unsigned outputCapacity);
+
+static unsigned TriggerNameHash(void* trigger)
+{
+    DWORD x = (DWORD)(DWORD_PTR)trigger >> 4;
+    x ^= x >> 16;
+    x *= 0x7FEB352D;
+    x ^= x >> 15;
+    return x & (COUNTRY_RELIGION_META_CAPACITY - 1);
+}
+
+static void RememberCountryReligionName(void* trigger, const char* name)
+{
+    if (!trigger || !name || !name[0])
+        return;
+    unsigned at = TriggerNameHash(trigger);
+    for (unsigned i = 0; i < COUNTRY_RELIGION_META_CAPACITY; ++i)
+    {
+        CountryReligionTriggerName* entry = &g_religionNames[(at + i) & (COUNTRY_RELIGION_META_CAPACITY - 1)];
+        if (!entry->trigger || entry->trigger == trigger)
+        {
+            entry->trigger = trigger;
+            strncpy_s(entry->name, sizeof(entry->name), name, _TRUNCATE);
+            entry->localizedName[0] = 0;
+            InterlockedExchange(&entry->localizationState, 0);
+            return;
+        }
+    }
+    Log("CountryReligion: trigger-name table is full; tooltip name omitted");
+}
+
+static CountryReligionTriggerName* FindCountryReligionEntry(void* trigger)
+{
+    if (!trigger)
+        return 0;
+    unsigned at = TriggerNameHash(trigger);
+    for (unsigned i = 0; i < COUNTRY_RELIGION_META_CAPACITY; ++i)
+    {
+        CountryReligionTriggerName* entry = &g_religionNames[(at + i) & (COUNTRY_RELIGION_META_CAPACITY - 1)];
+        if (!entry->trigger)
+            return 0;
+        if (entry->trigger == trigger)
+            return entry;
+    }
+    return 0;
+}
+
+static const char* CountryReligionLocalizedPrefix(bool negate)
+{
+    int index = negate ? 1 : 0;
+    LONG state = InterlockedCompareExchange(&g_countryReligionPrefixState[index], 1, 0);
+    if (state == 0)
+    {
+        const char* key = negate ? "CC_COUNTRY_RELIGION_IS_NOT" : "CC_COUNTRY_RELIGION_IS";
+        if (!CountryReligionLocalizeKey(key, g_countryReligionPrefixes[index],
+                sizeof(g_countryReligionPrefixes[index])))
+            strncpy_s(g_countryReligionPrefixes[index], sizeof(g_countryReligionPrefixes[index]),
+                negate ? "Country religion is NOT " : "Country religion is ", _TRUNCATE);
+        InterlockedExchange(&g_countryReligionPrefixState[index], 2);
+    }
+    else if (state == 1)
+    {
+        return negate ? "Country religion is NOT " : "Country religion is ";
+    }
+    return g_countryReligionPrefixes[index];
+}
+
+static const char* CountryReligionLocalizedName(CountryReligionTriggerName* entry)
+{
+    if (!entry)
+        return "?";
+    LONG state = InterlockedCompareExchange(&entry->localizationState, 1, 0);
+    if (state == 0)
+    {
+        if (!CountryReligionLocalizeKey(entry->name, entry->localizedName, sizeof(entry->localizedName)))
+            strncpy_s(entry->localizedName, sizeof(entry->localizedName), entry->name, _TRUNCATE);
+        InterlockedExchange(&entry->localizationState, 2);
+    }
+    else if (state == 1)
+    {
+        return entry->name;
+    }
+    return entry->localizedName[0] ? entry->localizedName : entry->name;
+}
 
 static void* ProvinceByIndex(unsigned idx)
 {
@@ -70,6 +192,16 @@ static void* ProvinceByIndex(unsigned idx)
     if (!provinces || idx >= 20000)
         return 0;
     return provinces[idx];
+}
+
+static void* CountryByIndex(unsigned idx)
+{
+    char* manager = *(char**)(g_base + RVA_COUNTRIES_VECTOR);
+    char** begin = manager ? *(char***)(manager + 4) : 0;
+    char** end = manager ? *(char***)(manager + 8) : 0;
+    if (!begin || !end || idx == 0 || begin > end || idx >= (unsigned)(end - begin))
+        return 0;
+    return begin[idx];
 }
 
 // container vtable slot 2 = Find(name) -> entry (flag state byte at +0x1C) or null
@@ -112,6 +244,30 @@ static BOOL __fastcall EvaluateProvinceFlag(void* self, void* edx, void* ctx)
     return result;
 }
 
+// country_religion is deliberately different from vanilla pop_majority_religion:
+// country +0xE68 is the selected state religion, while +0x12E8 is the POP-religion aggregate.
+static BOOL __fastcall EvaluateCountryReligion(void* self, void* edx, void* ctx)
+{
+    (void)edx;
+    BOOL result = FALSE;
+    __try
+    {
+        if (ctx)
+        {
+            unsigned countryIndex = *(unsigned*)((char*)ctx + OFF_CTX_COUNTRY);
+            void* country = CountryByIndex(countryIndex);
+            void* requiredReligion = *(void**)((char*)self + 0x1C);
+            if (country && requiredReligion)
+                result = (*(void**)((char*)country + OFF_COUNTRY_RELIGION) == requiredReligion) ? TRUE : FALSE;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        result = FALSE;
+    }
+    return result;
+}
+
 // Tooltip (slot 10): thiscall, four stack arguments (the original ends with ret 0x10). The first stack
 // argument is the OUTPUT std::string: the original constructs the whole text into it (flag name taken from
 // this+0x1C, key HAVE_COUNTRY_FLAG / HAVE_NOT_COUNTRY_FLAG chosen by the third argument) and returns it; the
@@ -143,6 +299,121 @@ static void ConstructEngineString(void* dest, const char* text)
     *(unsigned*)(p + 0x14) = n;
 }
 
+struct CountryReligionGameString
+{
+    union { char buffer[16]; char* pointer; } data;
+    unsigned size;
+    unsigned capacity;
+};
+
+typedef void* (__thiscall* tCountryReligionStringAssign)(void*, const char*, unsigned);
+static volatile LONG g_countryReligionLocalizationError = 0;
+
+static void CountryReligionGameStringSet(CountryReligionGameString* value, const char* text)
+{
+    memset(value, 0, sizeof(*value));
+    value->capacity = 15;
+    ((tCountryReligionStringAssign)(g_base + RVA_STD_STRING_ASSIGN))(
+        value, text, (unsigned)strlen(text));
+}
+
+// Uses the engine's localization formatter. Religion script IDs (e.g. "sunni")
+// are also the localization keys that provide the visible value (e.g. "Sunni").
+static bool CountryReligionLocalizeKey(const char* key, char* output, unsigned outputCapacity)
+{
+    CountryReligionGameString keyString, gameOutput;
+    unsigned char formatter[0x60];
+    bool formatterStarted = false;
+    memset(&keyString, 0, sizeof(keyString));
+    memset(&gameOutput, 0, sizeof(gameOutput));
+    memset(formatter, 0, sizeof(formatter));
+    gameOutput.capacity = 15;
+    if (output && outputCapacity)
+        output[0] = 0;
+    if (!key || !output || outputCapacity < 2)
+        return false;
+
+    __try
+    {
+        CountryReligionGameStringSet(&keyString, key);
+        CountryReligionGameString* keyPtr = &keyString;
+        void* formatterPtr = formatter;
+        DWORD fromKey = g_base + RVA_FMT_FROM_KEY;
+        __asm
+        {
+            push keyPtr
+            push formatterPtr
+            mov ecx, keyPtr
+            mov edx, formatterPtr
+            call fromKey
+        }
+        formatterStarted = true;
+
+        void* locale = ((void*(__cdecl*)(void))(g_base + RVA_LOC_SINGLETON))();
+        if (!locale)
+        {
+            DWORD freeFmt = g_base + RVA_FMT_FREE;
+            __asm
+            {
+                push formatterPtr
+                call freeFmt
+            }
+            formatterStarted = false;
+            return false;
+        }
+
+        void* outputPtr = &gameOutput;
+        DWORD finish = g_base + RVA_FMT_FINISH;
+        __asm
+        {
+            mov eax, locale
+            movq xmm0, qword ptr [eax + 0x6c]
+            sub esp, 0x10
+            mov ecx, esp
+            movq qword ptr [ecx], xmm0
+            movq xmm0, qword ptr [eax + 0x74]
+            movq qword ptr [ecx + 8], xmm0
+            mov esi, outputPtr
+            mov ecx, formatterPtr
+            call finish
+        }
+
+        const char* localized = gameOutput.capacity < 16
+            ? gameOutput.data.buffer : gameOutput.data.pointer;
+        bool copied = localized && gameOutput.size > 0 && gameOutput.size < outputCapacity;
+        if (copied)
+        {
+            memcpy(output, localized, gameOutput.size);
+            output[gameOutput.size] = 0;
+        }
+        DWORD freeFmt = g_base + RVA_FMT_FREE;
+        __asm
+        {
+            push formatterPtr
+            call freeFmt
+        }
+        formatterStarted = false;
+        return copied;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (InterlockedCompareExchange(&g_countryReligionLocalizationError, 1, 0) == 0)
+            Log("CountryReligion: localization failed for key '%s' (code=%08X)",
+                key, (unsigned)GetExceptionCode());
+        if (formatterStarted)
+        {
+            DWORD freeFmt = g_base + RVA_FMT_FREE;
+            void* formatterPtr = formatter;
+            __asm
+            {
+                push formatterPtr
+                call freeFmt
+            }
+        }
+        return false;
+    }
+}
+
 static void* __fastcall ProvinceFlagTooltip(void* self, void* edx, void* dest, void* arg1, int negate, int arg3)
 {
     (void)edx; (void)arg1; (void)arg3;
@@ -163,42 +434,92 @@ static void* __fastcall ProvinceFlagTooltip(void* self, void* edx, void* dest, v
     return dest;
 }
 
-static volatile LONG g_seenTarget = 0;
-
-static void __fastcall HookTriggerFactory(void* self, void* edx, void* ctx, int token)
+static void* __fastcall CountryReligionTooltip(void* self, void* edx, void* dest, void* arg1, int negate, int arg3)
 {
-    if (token != TOKEN_HAS_PROVINCE)
+    (void)edx; (void)arg1; (void)arg3;
+    __try
     {
-        g_realFactory(self, edx, ctx, token);
-        return;
+        char religion[128] = { 0 };
+        char text[640];
+        CountryReligionTriggerName* entry = FindCountryReligionEntry(self);
+        const char* prefix = CountryReligionLocalizedPrefix((negate & 0xFF) != 0);
+        strncpy_s(religion, sizeof(religion), CountryReligionLocalizedName(entry), _TRUNCATE);
+        _snprintf_s(text, sizeof(text), _TRUNCATE, "%s\xA7" "Y%s\xA7" "W\n", prefix, religion);
+        if (dest)
+            ConstructEngineString(dest, text);
     }
-    if (InterlockedIncrement(&g_seenTarget) <= 5)
-        LogDbgPf("ProvinceFlags: trigger factory called for has_province_flag (parent %p, children before: %d)", self,
-            (int)((*(char**)((char*)self + 0xC) - *(char**)((char*)self + 8)) / 4));
-    g_realFactory(self, edx, ctx, TOKEN_HAS_COUNTRY);
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (dest)
+            ConstructEngineString(dest, "");
+    }
+    return dest;
+}
+
+static bool ReplaceLastTrigger(void* self, DWORD expectedVtable, void** replacement,
+    volatile LONG* created, const char* label)
+{
     __try
     {
         void** begin = *(void***)((char*)self + 8);
         void** end = *(void***)((char*)self + 0xC);
-        if (begin && end > begin)
+        if (!begin || !end || end <= begin)
         {
-            void* obj = end[-1];
-            if (obj && *(DWORD*)obj == g_base + RVA_FLAG_TRIGGER_VT)
-            {
-                *(void**)obj = (void*)g_vtable;
-                if (InterlockedIncrement(&g_created) <= 5)
-                    LogDbgPf("ProvinceFlags: has_province_flag trigger created %p (total %d)", obj, (int)g_created);
-            }
-            else
-                Log("ProvinceFlags: object after parsing has_province_flag has an unexpected class (%p), left as a country flag", obj);
+            Log("%s: trigger list is empty after parsing (begin=%p end=%p)", label, begin, end);
+            return false;
         }
-        else
-            Log("ProvinceFlags: has_province_flag: the parent trigger list is empty after parsing (begin=%p end=%p)", begin, end);
+        void* obj = end[-1];
+        if (!obj || *(DWORD*)obj != g_base + expectedVtable)
+        {
+            Log("%s: parsed trigger has unexpected class (%p), left unchanged", label, obj);
+            return false;
+        }
+        *(void**)obj = (void*)replacement;
+        if (InterlockedIncrement(created) <= 5)
+            LogDbgPf("%s: trigger created %p (total %d)", label, obj, (int)*created);
+        return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        Log("ProvinceFlags: exception while replacing the trigger class");
+        Log("%s: exception while replacing the trigger class", label);
+        return false;
     }
+}
+
+static volatile LONG g_seenTarget = 0;
+
+static void __fastcall HookTriggerFactory(void* self, void* edx, void* ctx, int token)
+{
+    if (g_enableProvinceFlags && token == TOKEN_HAS_PROVINCE)
+    {
+        if (InterlockedIncrement(&g_seenTarget) <= 5)
+            LogDbgPf("ProvinceFlags: trigger factory called for has_province_flag (parent %p, children before: %d)", self,
+                (int)((*(char**)((char*)self + 0xC) - *(char**)((char*)self + 8)) / 4));
+        g_realFactory(self, edx, ctx, TOKEN_HAS_COUNTRY);
+        ReplaceLastTrigger(self, RVA_FLAG_TRIGGER_VT, g_flagVtable, &g_created, "ProvinceFlags");
+        return;
+    }
+
+    const char* key = ctx ? (const char*)((char*)ctx + OFF_PARSER_KEY_TEXT) : 0;
+    if (g_enableCountryReligion && key && _stricmp(key, "country_religion") == 0)
+    {
+        char religionName[64] = { 0 };
+        const char* value = (const char*)ctx + OFF_PARSER_VALUE_TEXT;
+        if (value)
+            strncpy_s(religionName, sizeof(religionName), value, _TRUNCATE);
+
+        g_realFactory(self, edx, ctx, TOKEN_POP_MAJ_RELIGION);
+        if (ReplaceLastTrigger(self, RVA_COUNTRY_RELIGION_VT, g_religionVtable,
+                &g_religionCreated, "CountryReligion"))
+        {
+            void** end = *(void***)((char*)self + 0xC);
+            if (end && end > *(void***)((char*)self + 8))
+                RememberCountryReligionName(end[-1], religionName);
+        }
+        return;
+    }
+
+    g_realFactory(self, edx, ctx, token);
 }
 
 // Diagnostic wrappers of the set / clr effects (Execute = slot 11, thiscall(ctx, arg), ret 8)
@@ -237,44 +558,84 @@ static void __fastcall ExecuteClr(void* self, void* edx, void* ctx, int arg)
     LogExecute(1, self, ctx);
 }
 
-bool InstallProvinceFlags()
+bool InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCountryReligion)
 {
     static const unsigned char SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
+    if (!enableProvinceFlags && !enableCountryReligion)
+        return true;
 
-    void** srcVt = (void**)(g_base + RVA_FLAG_TRIGGER_VT);
-    if ((DWORD)(DWORD_PTR)srcVt[6] != g_base + RVA_FLAG_EVALUATE || (DWORD)(DWORD_PTR)srcVt[10] != g_base + RVA_FLAG_TOOLTIP)
+    g_enableProvinceFlags = enableProvinceFlags;
+    g_enableCountryReligion = enableCountryReligion;
+    bool classesReady = true;
+
+    if (enableProvinceFlags)
     {
-        Log("ProvinceFlags: has_country_flag trigger vtable does not match (slot6=%p slot10=%p) - not installed", srcVt[6], srcVt[10]);
-        return false;
+        void** srcVt = (void**)(g_base + RVA_FLAG_TRIGGER_VT);
+        if ((DWORD)(DWORD_PTR)srcVt[6] != g_base + RVA_FLAG_EVALUATE ||
+            (DWORD)(DWORD_PTR)srcVt[10] != g_base + RVA_FLAG_TOOLTIP)
+        {
+            Log("ProvinceFlags: has_country_flag trigger vtable does not match (slot6=%p slot10=%p)", srcVt[6], srcVt[10]);
+            classesReady = false;
+        }
+        else
+        {
+            // Clone with RTTI kept at [-1], so native destruction and RTTI still see the source class.
+            g_flagVtableBuf[0] = srcVt[-1];
+            for (int i = 0; i < 16; ++i)
+                g_flagVtableBuf[1 + i] = srcVt[i];
+            g_flagVtable = &g_flagVtableBuf[1];
+            g_flagVtable[6] = (void*)&EvaluateProvinceFlag;
+            g_flagVtable[10] = (void*)&ProvinceFlagTooltip;
+        }
     }
 
-    // copy of the vtable with the RTTI pointer kept at [-1]
-    g_vtableBuf[0] = srcVt[-1];
-    for (int i = 0; i < 16; ++i)
-        g_vtableBuf[1 + i] = srcVt[i];
-    g_vtable = &g_vtableBuf[1];
-    g_vtable[6] = (void*)&EvaluateProvinceFlag;
-    g_vtable[10] = (void*)&ProvinceFlagTooltip;
+    if (enableCountryReligion)
+    {
+        void** srcVt = (void**)(g_base + RVA_COUNTRY_RELIGION_VT);
+        if ((DWORD)(DWORD_PTR)srcVt[6] != g_base + RVA_MAJ_RELIGION_EVAL ||
+            (DWORD)(DWORD_PTR)srcVt[10] != g_base + RVA_MAJ_RELIGION_TIP)
+        {
+            Log("CountryReligion: CPopMajorityReligionTrigger vtable mismatch (slot6=%p slot10=%p)", srcVt[6], srcVt[10]);
+            classesReady = false;
+        }
+        else
+        {
+            // Reuse the vanilla parser/layout, but override only evaluation and tooltip.
+            g_religionVtableBuf[0] = srcVt[-1];
+            for (int i = 0; i < 16; ++i)
+                g_religionVtableBuf[1 + i] = srcVt[i];
+            g_religionVtable = &g_religionVtableBuf[1];
+            g_religionVtable[6] = (void*)&EvaluateCountryReligion;
+            g_religionVtable[10] = (void*)&CountryReligionTooltip;
+        }
+    }
 
-    bool hooked = StealToTrampoline(RVA_TRIGGER_FACTORY, sizeof(SIG), g_trampFactory, sizeof(g_trampFactory), SIG,
-        (void*)&HookTriggerFactory, (void**)&g_realFactory, "ProvinceFlags(trigger factory)");
+    bool hooked = classesReady && StealToTrampoline(RVA_TRIGGER_FACTORY, sizeof(SIG), g_trampFactory,
+        sizeof(g_trampFactory), SIG, (void*)&HookTriggerFactory, (void**)&g_realFactory,
+        "ScriptTriggerExtensions(trigger factory)");
+    if (!classesReady)
+        Log("ScriptTriggerExtensions: class validation failed; trigger factory not hooked");
 
     int wrapped = 0;
-    void* thunks[2] = { (void*)&ExecuteSet, (void*)&ExecuteClr };
-    for (int i = 0; i < 2; ++i)
+    if (enableProvinceFlags)
     {
-        void** vt = (void**)(g_base + RVA_EFFECT_VT[i]);
-        if ((DWORD)(DWORD_PTR)vt[EFFECT_EXECUTE_SLOT] != g_base + RVA_EFFECT_EXECUTE[i])
+        void* thunks[2] = { (void*)&ExecuteSet, (void*)&ExecuteClr };
+        for (int i = 0; i < 2; ++i)
         {
-            Log("ProvinceFlags: slot %d of effect %d does not match (%p) - diagnostics not installed", EFFECT_EXECUTE_SLOT, i,
-                vt[EFFECT_EXECUTE_SLOT]);
-            continue;
+            void** vt = (void**)(g_base + RVA_EFFECT_VT[i]);
+            if ((DWORD)(DWORD_PTR)vt[EFFECT_EXECUTE_SLOT] != g_base + RVA_EFFECT_EXECUTE[i])
+            {
+                Log("ProvinceFlags: slot %d of effect %d does not match (%p) - diagnostics not installed",
+                    EFFECT_EXECUTE_SLOT, i, vt[EFFECT_EXECUTE_SLOT]);
+                continue;
+            }
+            if (PatchSlot(RVA_EFFECT_VT[i], EFFECT_EXECUTE_SLOT, thunks[i], (void**)&g_realExecute[i]))
+                ++wrapped;
         }
-        if (PatchSlot(RVA_EFFECT_VT[i], EFFECT_EXECUTE_SLOT, thunks[i], (void**)&g_realExecute[i]))
-            ++wrapped;
     }
 
-    Log("ProvinceFlags: trigger factory %s, effect Execute wrappers %d of 2 (has_province_flag trigger)",
-        hooked ? "hooked" : "NOT hooked", wrapped);
+    Log("ScriptTriggerExtensions: factory %s (has_province_flag=%d, country_religion=%d), "
+        "province effect Execute wrappers %d of 2",
+        hooked ? "hooked" : "NOT hooked", (int)enableProvinceFlags, (int)enableCountryReligion, wrapped);
     return hooked;
 }
