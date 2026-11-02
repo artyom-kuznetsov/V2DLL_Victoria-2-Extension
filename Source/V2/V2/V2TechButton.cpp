@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.37"
+#define MOD_VERSION "6.38"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -196,8 +196,10 @@ struct Settings
     bool extendedUnitRecruitmentRules             = true;
     // All custom POP modifiers (province, culture, accepted culture, colonial); controlled by NEW_POP_MODIFIERS.
     bool newPopModifiers                          = true;
-    // FIX_PROVINCE_FLAGS: has_province_flag trigger (CCore_ProvinceFlags.cpp).
+    // FIX_PROVINCE_FLAGS: has_province_flag/set_province_flag/clr_province_flag (CCore_ProvinceFlags.cpp).
     bool fixProvinceFlags                         = true;
+    // Country state-religion condition country_religion = <religion> in trigger/potential/allow blocks.
+    bool countryReligionTrigger                   = true;
     // FIX_MEMORY_MISS_CRASHES: dangling scope pointer of delayed events (CCore_DelayedEventFrom.cpp).
     bool fixMemoryMissCrashes                     = true;
     // move_pop = { where = province_id amount = 0..1 } plus identity-safe insertion.
@@ -4763,6 +4765,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES") == 0) { g_settings.extendedUnitRecruitmentRules = v; return; }
     if (_stricmp(key, "NEW_POP_MODIFIERS") == 0) { g_settings.newPopModifiers = v; return; }
     if (_stricmp(key, "FIX_PROVINCE_FLAGS") == 0)           { g_settings.fixProvinceFlags = v; return; }
+    if (_stricmp(key, "NEW_COUNTRY_SCOPE_CONDITIONS") == 0) { g_settings.countryReligionTrigger = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
     if (_stricmp(key, "LOAD_DLL_FROM_MOD_FOLDER") == 0)                      { g_settings.loadDllFromModFolder                  = v; return; }
@@ -4988,6 +4991,7 @@ static void WriteDefaultSettings(const char* path)
         "FIX_TECH_FACTORY_MAINTENANCE=%d\n"
         "ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES=%d\n"
         "FIX_PROVINCE_FLAGS=%d\n"
+        "NEW_COUNTRY_SCOPE_CONDITIONS=%d\n"
         "NEW_POP_MODIFIERS = %d\n"
         "\n",
         (int)g_settings.assimilateBlock,
@@ -5000,6 +5004,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.fixTechFactoryMaintenance,
         (int)g_settings.extendedUnitRecruitmentRules,
         (int)g_settings.fixProvinceFlags,
+        (int)g_settings.countryReligionTrigger,
         (int)g_settings.newPopModifiers);
 
     fprintf(f,
@@ -22907,8 +22912,8 @@ static bool Install()
         InstallNewPopModifiers();
     }
 
-    if (g_settings.fixProvinceFlags)
-        InstallProvinceFlags();
+    if (g_settings.fixProvinceFlags || g_settings.countryReligionTrigger)
+        InstallProvinceTriggerExtensions(g_settings.fixProvinceFlags, g_settings.countryReligionTrigger);
 
     // Installed with the fix off too when DEBUG_LOG=1: the diagnostics show the vanilla behaviour.
     if (g_settings.fixMemoryMissCrashes || V2_DebugLogEnabled())

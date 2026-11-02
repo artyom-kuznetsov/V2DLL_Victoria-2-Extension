@@ -307,7 +307,12 @@ Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RE
 #### 9. FIX_PROVINCE_FLAGS
 With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games (made by balticšprott).
   
-#### 10. NEW_POP_MODIFIERS
+#### 10. NEW_COUNTRY_SCOPE_CONDITIONS
+Adds the country-scope trigger `country_religion = <religion>`. It checks the country's state religion against the named religion.
+
+The setting `NEW_COUNTRY_SCOPE_CONDITIONS = 1` enables the trigger. Tooltip localization uses `CC_COUNTRY_RELIGION_IS` and `CC_COUNTRY_RELIGION_IS_NOT`; the religion value is localized by its religion key (for example, `sunni` is displayed as “Sunni”).
+
+#### 11. NEW_POP_MODIFIERS
 Adds twelve POP militancy and consciousness effects, enabled together with `NEW_POP_MODIFIERS = 1` in `creatinecore_dll_settings.ini`.
 
 Province modifier effects apply only inside the province and only to the matching POP cultures:
