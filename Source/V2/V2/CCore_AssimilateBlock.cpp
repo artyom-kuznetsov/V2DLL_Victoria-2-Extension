@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include "CCore_Shared.h"
 
@@ -60,6 +61,14 @@ static const DWORD RVA_EFFECT_FACTORY        = 0x476B30;  // FUN_00876B30(this, 
 static const DWORD RVA_CASSIMILATE_VTABLE    = 0xA2BAE8;  // VA 0xE2BAE8
 static const int   ASSIM_EXECUTE_SLOT        = 11;
 static const DWORD RVA_ASSIM_EXECUTE         = 0x494160;  // FUN_00894160(this, ctx, x), thiscall ret 8
+static const DWORD RVA_ASSIM_TOOLTIP         = 0x494260;  // CAssimilateEffect tooltip, vtable slot 9
+static const int   ASSIM_TOOLTIP_SLOT        = 9;
+static const DWORD RVA_FMT_FROM_KEY          = 0x5A8EE0;
+static const DWORD RVA_FMT_FINISH            = 0x5A9880;
+static const DWORD RVA_FMT_FREE              = 0x5A9740;
+static const DWORD RVA_FMT_REPLACE           = 0x5A9980;
+static const DWORD RVA_LOC_SINGLETON         = 0x075500;
+static const DWORD RVA_GAME_OPERATOR_NEW     = 0x6AE9AF;
 static const int   KW_ASSIMILATE             = 0xA5B;
 static const int   TOKEN_OPEN_BRACE          = 3;
 static const int   TOKEN_CLOSE_BRACE         = 4;
@@ -115,7 +124,6 @@ static const int   OFF_POP_MONEY             = 0x180;     // int64 FP15
 static const int   OFF_POP_BANK              = 0x250;     // int64 FP15
 static const int   OFF_POP_NEXT              = 0x27C;
 static const int   OFF_POPTYPE_MAX_SIZE      = 0x30;      // -1 = no limit
-static const int   OFF_POPTYPE_NO_ASSIM      = 0x3D9;
 static const int   ASSIM_MAX_PROVINCE_POPS   = 512;
 
 // OWNER = province owner's primary culture / no religion change (KEEP).
@@ -144,6 +152,9 @@ static LONG g_assimRuns = 0;
 
 typedef void(__fastcall* tEffectFactory)(void* self, void* edx, void* ctx, int keyId);
 typedef void(__fastcall* tAssimExecute)(void* self, void* edx, void* ctx, int arg);
+typedef void*(__thiscall* tAssimTooltip)(void* self, void* outString,
+    uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5,
+    uintptr_t a6, uintptr_t a7, uintptr_t a8, uintptr_t a9);
 typedef void*(__thiscall* tProvinceGetName)(void* province, void* outString);
 typedef void*(__stdcall* tPopCreate)(void* province, void* popType);
 typedef void*(__thiscall* tStdStringAssign)(void* self, const char* s, unsigned n);
@@ -153,10 +164,13 @@ typedef char(__thiscall* tPopIsReal)(void* pop);
 __declspec(align(16)) static unsigned char g_trampEffectFactory[32];
 static tEffectFactory g_origEffectFactory = 0;
 static tAssimExecute g_origAssimExecute = 0;
+static tAssimTooltip g_origAssimTooltip = 0;
 
 static bool g_assimEnabled = false;
 static bool g_factoryHookInstalled = false;
 static bool g_assimHookInstalled = false;
+static bool g_assimTooltipHookInstalled = false;
+static volatile LONG g_assimTooltipLocError = 0;
 
 
 static AssimBlock* AssimFind(void* effect)
@@ -194,6 +208,309 @@ struct GameString
     unsigned cap;
 };
 
+static void AssimGameStringSet(GameString* s, const char* text)
+{
+    memset(s, 0, sizeof(*s));
+    s->cap = 15;
+    ((tStdStringAssign)(g_base + RVA_STD_STRING_ASSIGN))(s, text, (unsigned)strlen(text));
+}
+
+static void AssimGameStringFree(GameString* s)
+{
+    if (s->cap >= 16 && s->u.ptr)
+        ((tGameDelete)(g_base + RVA_GAME_OPERATOR_DELETE))(s->u.ptr);
+    memset(s, 0, sizeof(*s));
+}
+
+// Resolve a Core localization key through the game's own formatter and release
+// temporary game strings after copying the localized text.
+static bool AssimLocalizeKey(const char* key, char* output, unsigned outputCapacity)
+{
+    GameString keyString, gameOutput;
+    unsigned char formatter[0x60];
+    bool formatterStarted = false;
+    memset(&keyString, 0, sizeof(keyString));
+    memset(&gameOutput, 0, sizeof(gameOutput));
+    memset(formatter, 0, sizeof(formatter));
+    gameOutput.cap = 15;
+    if (output && outputCapacity)
+        output[0] = 0;
+    if (!key || !output || outputCapacity < 2 || !g_base)
+        return false;
+
+    __try
+    {
+        AssimGameStringSet(&keyString, key);
+        GameString* keyPtr = &keyString;
+        void* formatterPtr = formatter;
+        DWORD fromKey = g_base + RVA_FMT_FROM_KEY;
+        __asm
+        {
+            push keyPtr
+            push formatterPtr
+            mov ecx, keyPtr
+            mov edx, formatterPtr
+            call fromKey
+        }
+        formatterStarted = true;
+
+        void* locale = ((void*(__cdecl*)(void))(g_base + RVA_LOC_SINGLETON))();
+        if (!locale)
+        {
+            DWORD freeFmt = g_base + RVA_FMT_FREE;
+            __asm
+            {
+                push formatterPtr
+                call freeFmt
+            }
+            formatterStarted = false;
+            AssimGameStringFree(&keyString);
+            return false;
+        }
+
+        void* outputPtr = &gameOutput;
+        DWORD finish = g_base + RVA_FMT_FINISH;
+        __asm
+        {
+            mov eax, locale
+            movq xmm0, qword ptr [eax + 0x6c]
+            sub esp, 0x10
+            mov ecx, esp
+            movq qword ptr [ecx], xmm0
+            movq xmm0, qword ptr [eax + 0x74]
+            movq qword ptr [ecx + 8], xmm0
+            mov esi, outputPtr
+            mov ecx, formatterPtr
+            call finish
+        }
+
+        const char* localized = gameOutput.cap < 16 ? gameOutput.u.buf : gameOutput.u.ptr;
+        bool copied = localized && gameOutput.size > 0 && gameOutput.size < outputCapacity;
+        if (copied)
+        {
+            memcpy(output, localized, gameOutput.size);
+            output[gameOutput.size] = 0;
+        }
+        DWORD freeFmt = g_base + RVA_FMT_FREE;
+        __asm
+        {
+            push formatterPtr
+            call freeFmt
+        }
+        formatterStarted = false;
+        AssimGameStringFree(&keyString);
+        AssimGameStringFree(&gameOutput);
+        return copied;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        // Avoid touching partially initialized game-owned strings after an AV.
+        if (formatterStarted && InterlockedCompareExchange(&g_assimTooltipLocError, 1, 0) == 0)
+            Log("AssimilateBlock: localization failed for key '%s' (code=%08X)", key, (unsigned)GetExceptionCode());
+        return false;
+    }
+}
+
+static void AssimFmtReplace(void* formatter, const char* name, const char* value)
+{
+    GameString nameString, valueString;
+    AssimGameStringSet(&nameString, name);
+    AssimGameStringSet(&valueString, value);
+    GameString* namePtr = &nameString;
+    GameString* valuePtr = &valueString;
+    DWORD replace = g_base + RVA_FMT_REPLACE;
+    __asm
+    {
+        push valuePtr
+        mov ecx, formatter
+        mov esi, namePtr
+        call replace
+    }
+    AssimGameStringFree(&nameString);
+    AssimGameStringFree(&valueString);
+}
+
+static const char* AssimTargetDescription(const AssimTarget* target, bool culture,
+    char* output, unsigned outputCapacity)
+{
+    if (!target || !output || outputCapacity < 2)
+        return "";
+    output[0] = 0;
+    if (target->mode == ASSIM_NAMED)
+    {
+        if (!AssimLocalizeKey(target->name, output, outputCapacity))
+            strncpy_s(output, outputCapacity, target->name, _TRUNCATE);
+        return output;
+    }
+
+    const char* label = 0;
+    if (target->mode == ASSIM_OWNER)
+        label = culture ? "owner's primary culture" : "owner's state religion";
+    else if (target->mode == ASSIM_THIS)
+        label = culture ? "this country's primary culture" : "this country's state religion";
+    else if (target->mode == ASSIM_FROM)
+        label = culture ? "FROM country's primary culture" : "FROM country's state religion";
+    else
+        label = culture ? "current culture" : "current religion";
+    strncpy_s(output, outputCapacity, label, _TRUNCATE);
+    return output;
+}
+
+static void AssimBuildAmountText(const AssimBlock* blk, char* output,
+    unsigned outputCapacity)
+{
+    if (!blk || !output || outputCapacity < 2)
+        return;
+    double pct = (double)blk->amountFp * 100.0 / 32768.0;
+    char percent[32];
+    if (pct == (double)(int)(pct + 0.5))
+        _snprintf_s(percent, sizeof(percent), _TRUNCATE, "%d%%", (int)(pct + 0.5));
+    else
+        _snprintf_s(percent, sizeof(percent), _TRUNCATE, "%.1f%%", pct);
+    _snprintf_s(output, outputCapacity, _TRUNCATE, "%s of the POPs", percent);
+}
+
+static bool AssimFormatEffectTooltip(const char* key, const AssimBlock* blk,
+    bool cultureEffect, char* output, unsigned outputCapacity)
+{
+    GameString keyString, formatted;
+    unsigned char formatter[0x60];
+    bool formatterStarted = false;
+    memset(&keyString, 0, sizeof(keyString));
+    memset(&formatted, 0, sizeof(formatted));
+    memset(formatter, 0, sizeof(formatter));
+    formatted.cap = 15;
+    if (output && outputCapacity)
+        output[0] = 0;
+    if (!output || outputCapacity < 2 || !key || !blk || !g_base)
+        return false;
+
+    __try
+    {
+        AssimGameStringSet(&keyString, key);
+        GameString* keyPtr = &keyString;
+        void* formatterPtr = formatter;
+        DWORD fromKey = g_base + RVA_FMT_FROM_KEY;
+        __asm
+        {
+            push keyPtr
+            push formatterPtr
+            mov ecx, keyPtr
+            mov edx, formatterPtr
+            call fromKey
+        }
+        formatterStarted = true;
+
+        char amount[96];
+        char target[160];
+        AssimBuildAmountText(blk, amount, sizeof(amount));
+
+        AssimFmtReplace(formatter, "AMOUNT", amount);
+        AssimTargetDescription(cultureEffect ? &blk->culture : &blk->religion,
+            cultureEffect, target, sizeof(target));
+        AssimFmtReplace(formatter, cultureEffect ? "CULTURE" : "RELIGION", target);
+
+        void* locale = ((void*(__cdecl*)(void))(g_base + RVA_LOC_SINGLETON))();
+        if (!locale)
+        {
+            DWORD freeFmt = g_base + RVA_FMT_FREE;
+            __asm
+            {
+                push formatterPtr
+                call freeFmt
+            }
+            formatterStarted = false;
+            AssimGameStringFree(&keyString);
+            AssimGameStringFree(&formatted);
+            return false;
+        }
+
+        void* outputPtr = &formatted;
+        DWORD finish = g_base + RVA_FMT_FINISH;
+        __asm
+        {
+            mov eax, locale
+            movq xmm0, qword ptr [eax + 0x6c]
+            sub esp, 0x10
+            mov ecx, esp
+            movq qword ptr [ecx], xmm0
+            movq xmm0, qword ptr [eax + 0x74]
+            movq qword ptr [ecx + 8], xmm0
+            mov esi, outputPtr
+            mov ecx, formatterPtr
+            call finish
+        }
+
+        const char* formattedText = formatted.cap < 16 ? formatted.u.buf : formatted.u.ptr;
+        bool copied = formattedText && formatted.size > 0 && formatted.size < outputCapacity;
+        if (copied)
+        {
+            memcpy(output, formattedText, formatted.size);
+            output[formatted.size] = 0;
+        }
+
+        DWORD freeFmt = g_base + RVA_FMT_FREE;
+        __asm
+        {
+            push formatterPtr
+            call freeFmt
+        }
+        formatterStarted = false;
+        AssimGameStringFree(&keyString);
+        AssimGameStringFree(&formatted);
+        return copied;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (formatterStarted && InterlockedCompareExchange(&g_assimTooltipLocError, 1, 0) == 0)
+            Log("AssimilateBlock: exception while formatting effect tooltip '%s' (code=%08X)",
+                key, (unsigned)GetExceptionCode());
+        return false;
+    }
+}
+
+static void AssimBuildEffectTooltipFallback(const AssimBlock* blk, bool cultureEffect,
+    char* output, unsigned outputCapacity)
+{
+    if (!blk || !output || outputCapacity < 2)
+        return;
+    char amount[96];
+    char target[160];
+    AssimBuildAmountText(blk, amount, sizeof(amount));
+    AssimTargetDescription(cultureEffect ? &blk->culture : &blk->religion,
+        cultureEffect, target, sizeof(target));
+    _snprintf_s(output, outputCapacity, _TRUNCATE,
+        cultureEffect ? "Change %s to %s culture" :
+            "Convert %s to the %s faith", amount, target);
+}
+
+static void AssimConstructEngineString(void* dest, const char* text)
+{
+    if (!dest || !text)
+        return;
+    unsigned char* p = (unsigned char*)dest;
+    unsigned n = (unsigned)strlen(text);
+    if (n <= 15)
+    {
+        memcpy(p, text, n + 1);
+        *(unsigned*)(p + 0x10) = n;
+        *(unsigned*)(p + 0x14) = 15;
+        return;
+    }
+    typedef void*(__cdecl* tOpNew)(unsigned);
+    char* buf = (char*)((tOpNew)(g_base + RVA_GAME_OPERATOR_NEW))(n + 1);
+    if (!buf)
+    {
+        p[0] = 0;
+        *(unsigned*)(p + 0x10) = 0;
+        *(unsigned*)(p + 0x14) = 15;
+        return;
+    }
+    memcpy(buf, text, n + 1);
+    *(char**)p = buf;
+    *(unsigned*)(p + 0x10) = n;
+    *(unsigned*)(p + 0x14) = n;
+}
 // Both the culture and the religion tables use the same lookup shape.
 static void* AssimLookupByName(DWORD rvaManager, DWORD rvaLookup, const char* name)
 {
@@ -410,7 +727,6 @@ static int AssimPopTypeCount()
     return (*(int*)(db + 0x10) - *(int*)(db + 0xC)) >> 2;
 }
 
-// Pop of the same type with the target culture and religion that still has room.
 static char* AssimFindMergeTarget(char* prov, char* src, void* culture, void* religion)
 {
     char* type = *(char**)(src + OFF_POP_TYPE);
@@ -437,6 +753,8 @@ static char* AssimFindMergeTarget(char* prov, char* src, void* culture, void* re
 
 static void AssimConvertPop(AssimBlock* blk, char* ctx, char* pop)
 {
+    if (!blk)
+        return;
     char* prov = *(char**)(pop + OFF_POP_PROVINCE);
     if (!prov)
         return;
@@ -444,7 +762,7 @@ static void AssimConvertPop(AssimBlock* blk, char* ctx, char* pop)
     if (size <= 0)
         return;
     char* type = *(char**)(pop + OFF_POP_TYPE);
-    if (!type || *(unsigned char*)(type + OFF_POPTYPE_NO_ASSIM))
+    if (!type)
         return;
 
     void* culture = AssimResolve(&blk->culture, "culture", RVA_CULTURE_MAP, RVA_NAME_MAP_LOOKUP,
@@ -550,10 +868,13 @@ static void AssimConvertPop(AssimBlock* blk, char* ctx, char* pop)
 
 static void AssimRun(AssimBlock* blk, char* ctx)
 {
+    if (!blk)
+        return;
     char* pop = *(char**)(ctx + OFF_CTX_POP);
-    if (pop && AssimPopIsReal(pop))
+    if (pop)
     {
-        AssimConvertPop(blk, ctx, pop);
+        if (AssimPopIsReal(pop))
+            AssimConvertPop(blk, ctx, pop);
         return;
     }
 
@@ -576,6 +897,72 @@ static void AssimRun(AssimBlock* blk, char* ctx)
         AssimConvertPop(blk, ctx, pops[i]);
 }
 
+static void AssimAppendRawTooltipLine(char* text, unsigned capacity, const char* line)
+{
+    if (!text || !line || !capacity)
+        return;
+    size_t used = strlen(text);
+    if (used >= capacity - 1 || strcat_s(text, capacity, line) != 0)
+        return;
+    used = strlen(text);
+    if (used + 1 < capacity)
+    {
+        text[used] = '\n';
+        text[used + 1] = 0;
+    }
+}
+
+static void* __fastcall AssimTooltipHook(void* self, void* edx, void* outString,
+    uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5,
+    uintptr_t a6, uintptr_t a7, uintptr_t a8, uintptr_t a9)
+{
+    (void)edx;
+    AssimBlock* blk = AssimFind(self);
+    if (!blk || !outString || !g_origAssimTooltip)
+        return g_origAssimTooltip
+            ? g_origAssimTooltip(self, outString, a1, a2, a3, a4, a5, a6, a7, a8, a9)
+            : outString;
+
+    bool cultureEffect = blk->culture.mode != ASSIM_KEEP;
+    bool religionEffect = blk->religion.mode != ASSIM_KEEP;
+    bool keepNativeTooltip = blk->culture.mode == ASSIM_OWNER &&
+        blk->religion.mode == ASSIM_KEEP && blk->amountFp >= 0x8000;
+    if (keepNativeTooltip || (!cultureEffect && !religionEffect))
+        return g_origAssimTooltip(self, outString, a1, a2, a3, a4, a5, a6, a7, a8, a9);
+
+    __try
+    {
+        char text[512] = { 0 };
+        char line[256] = { 0 };
+        if (cultureEffect)
+        {
+            if (AssimFormatEffectTooltip("ASSIMILATE_CULTURE_EFFECT", blk, true, line, sizeof(line)))
+                AssimAppendRawTooltipLine(text, sizeof(text), line);
+            else
+            {
+                AssimBuildEffectTooltipFallback(blk, true, line, sizeof(line));
+                AssimAppendRawTooltipLine(text, sizeof(text), line);
+            }
+        }
+        if (religionEffect)
+        {
+            if (AssimFormatEffectTooltip("ASSIMILATE_RELIGION_EFFECT", blk, false, line, sizeof(line)))
+                AssimAppendRawTooltipLine(text, sizeof(text), line);
+            else
+            {
+                AssimBuildEffectTooltipFallback(blk, false, line, sizeof(line));
+                AssimAppendRawTooltipLine(text, sizeof(text), line);
+            }
+        }
+        AssimConstructEngineString(outString, text);
+        return outString;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Log("AssimilateBlock: exception while building effect tooltip");
+        return g_origAssimTooltip(self, outString, a1, a2, a3, a4, a5, a6, a7, a8, a9);
+    }
+}
 static void __fastcall AssimExecuteHook(void* self, void* edx, void* ctx, int arg)
 {
     AssimBlock* blk = AssimFind(self);
@@ -590,7 +977,8 @@ static void __fastcall AssimExecuteHook(void* self, void* edx, void* ctx, int ar
         AssimRun(blk, (char*)ctx);
         if (InterlockedIncrement(&g_assimRuns) <= 5)
             LogDbg("AssimilateBlock: executed effect %p (culture mode %d '%s', religion mode %d '%s', amount %d/32768)",
-                self, blk->culture.mode, blk->culture.name, blk->religion.mode, blk->religion.name, blk->amountFp);
+                self, blk->culture.mode, blk->culture.name, blk->religion.mode, blk->religion.name,
+                blk->amountFp);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -696,7 +1084,8 @@ static void ParseAssimilateBlock(void* effect, void* ctx)
         blk->culture.mode = ASSIM_KEEP;
 
     // Same meaning as "assimilate = yes": keep the vanilla tooltip line.
-    if (blk->culture.mode == ASSIM_OWNER && blk->religion.mode == ASSIM_KEEP && blk->amountFp >= 0x8000)
+    if (blk->culture.mode == ASSIM_OWNER &&
+        blk->religion.mode == ASSIM_KEEP && blk->amountFp >= 0x8000)
         *((char*)effect + OFF_ASSIM_YES) = 1;
 }
 
@@ -773,11 +1162,29 @@ bool InstallAssimilateBlock()
         g_origAssimExecute = (tAssimExecute)orig;
         g_assimHookInstalled = true;
     }
-    if (!InstallEffectFactoryHook())
+    if (!g_assimTooltipHookInstalled)
+    {
+        void** slot = (void**)(g_base + RVA_CASSIMILATE_VTABLE) + ASSIM_TOOLTIP_SLOT;
+        if (*slot != (void*)(g_base + RVA_ASSIM_TOOLTIP))
+        {
+            Log("AssimilateBlock: tooltip slot %d points to %p, expected %p - not installed",
+                ASSIM_TOOLTIP_SLOT, *slot, (void*)(g_base + RVA_ASSIM_TOOLTIP));
+            return false;
+        }
+        void* original = 0;
+        if (!PatchSlot(RVA_CASSIMILATE_VTABLE, ASSIM_TOOLTIP_SLOT, (void*)&AssimTooltipHook, &original))
+        {
+            Log("AssimilateBlock: tooltip PatchSlot failed");
+            return false;
+        }
+        g_origAssimTooltip = (tAssimTooltip)original;
+        g_assimTooltipHookInstalled = true;
+        Log("AssimilateBlock: culture/religion tooltip localization installed");
+    }    if (!InstallEffectFactoryHook())
     {
         return false;
     }
-    Log("AssimilateBlock: installed (assimilate = { culture = ... amount = ... })");
+    Log("AssimilateBlock: installed (assimilate = { culture/religion = ... amount = ... })");
     return true;
 }
 
