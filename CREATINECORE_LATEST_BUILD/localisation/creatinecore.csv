@@ -19,3 +19,5 @@ COLONIAL_POP_MILITANCY_MODIFIER;Colonial militancy;x
 COLONIAL_POP_CONSCIOUSNESS_MODIFIER;Colonial consciousness;x
 CC_COUNTRY_RELIGION_IS;Country religion is ;La religion d'Etat est ;Die Staatsreligion ist ;;;;;;;;;;;x
 CC_COUNTRY_RELIGION_IS_NOT;Country religion is NOT ;La religion d'Etat n'est PAS ;Die Staatsreligion ist NICHT ;;;;;;;;;;;x
+ASSIMILATE_CULTURE_EFFECT;Change §Y$AMOUNT$§! of the POPs to $CULTURE$ culture;x
+ASSIMILATE_RELIGION_EFFECT;Convert §Y$AMOUNT$§! of the POPs to the $RELIGION$ faith;x
