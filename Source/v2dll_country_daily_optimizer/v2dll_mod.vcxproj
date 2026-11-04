@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0F1EA38D-AD8E-4BAC-BD03-92A9C51678B1}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>v2dll_country_daily_optimizer</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)Release\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)Release\obj\</IntDir>
+    <TargetName>v2dll_mod</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <Optimization>MaxSpeed</Optimization>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)tgl_patch\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="v2dll_mod.cpp" />
+    <ClCompile Include="tgl_patch\src\tgl_support.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\hooks\memory.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\hooks\hourly_tick.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\game\window.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\features\multiplayer\state_checksum.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\features\multiplayer\sync_check.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\features\multiplayer\oos_log.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\features\multiplayer\oos_notice.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\features\multiplayer\world_rng.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClCompile Include="tgl_patch\src\features\multiplayer\oos_test.cpp"><TreatWarningAsError>false</TreatWarningAsError></ClCompile>
+    <ClInclude Include="V2ModAPI.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
