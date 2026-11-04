@@ -1,4 +1,3 @@
-
 ### dll_Submods
 Every `*.dll` in `z_CreatineCore\dll_Submods\` is loaded at startup (alphabetical order, after all built-in patches), whichever mod is running.
 If the author did not provide his submod with settings, to disable one, rename it (e.g. `x.dll.off`) or move it out of the folder. Submods that need mod files (a `.gui`, textures) still read those from the running mod.
@@ -31,6 +30,8 @@ If there are units with support stat in reserve during battle, they will be prio
 If enabled, units from second row will be able to damage enemy's second row units, 20% redirected from damage to the first row (made by balticšprott).
 #### 11. ARMY_FIX_SATELLITE_COMMAND
 The "Command army" button on a satellite is always available (vanilla: only while you fight a war together), and the command over the satellite's armies is kept after peace is made (made by balticšprott).
+#### 12. cleanup_armies_of_landless_countries
+Lives in `v2dll_country_daily_optimizer.ini` (see Stability and Performance). After the daily economy tick, destroys the armies of all registered countries that have no provinces (using the game's native army destructor). Meant to remove "ghost armies" left after annexation. It can also delete legitimate forces of landless countries. Off by default.
   
 ### Economic
 #### 1. TRADE_PRICE_DELTA_PERCENTUAL 
@@ -317,6 +318,38 @@ The country effects are also supported in technology and invention effects (made
 #### 12. CHANGE_COLOR_CONSOLE
 Enables the `change_color TAG R G B` console command. `TAG` is a country tag; each RGB component must be from 0 to 255. The selected color is saved with the game and is replaced when gameplay applies a native country color change. Set to `0` to disable command registration. (made by COUNTRY_ADJ)
 
+### Great Powers
+These options live in `v2dll_country_daily_optimizer.ini` (see Stability and Performance).
+#### 1. great_nations_count_override
+If non-zero (`1..32`), rewrites `GREAT_NATIONS_COUNT` in the active mod's `common/defines.lua` on startup. Creates a `defines.lua.v2dll.bak` backup the first time and requires a game restart. Above `8` it also installs a display limit, because vanilla `.gui` files only have 8 `country_gp*` / `sort_by_gp*` controls and the game crashes otherwise. Great powers 9+ stay active in the simulation but are not shown in the diplomacy and production windows. `0` = off.
+#### 2. keep_puppets_when_great_powers
+When a puppet is promoted to great power, it keeps its overlord instead of the native code destroying the satellite relation. Off by default. Check diplomacy, wars and save/load, since the game does not expect a great power with an overlord.
+#### 3. block_puppets_from_great_powers
+A country with an overlord can no longer become a great power (same exclusion the game uses for one-province countries). On by default. A puppet already marked as great power is demoted on the next economic lists rebuild. Takes priority over №2.
+
+### Puppets
+These options live in `v2dll_country_daily_optimizer.ini`, section `[Puppets]`. All of them are `0` (off, native behaviour) by default.
+#### 1. allow_puppet_justify
+Allows a puppet (satellite) to justify wargoals / casus belli by itself.
+#### 2. allow_justify_puppets
+Allows other countries to justify wargoals against a puppet.
+#### 3. allow_puppet_add_wargoal
+Allows a puppet to add wargoals to a war.
+#### 4. allow_puppet_declare
+Allows a puppet to declare wars by itself.
+#### 5. allow_declare_puppets
+Allows other countries to declare war on a puppet.
+#### 6. no_puppet_war_autocancel
+Wars involving a puppet are no longer cancelled automatically by the game.
+#### 7. allow_puppet_peace
+Allows a puppet to make peace by itself.
+#### 8. allow_peace_with_puppets
+Allows other countries to offer and sign peace with a puppet.
+#### 9. allow_puppet_occupations
+Allows occupation of a puppet's provinces (and by a puppet) during wars.
+#### 10. allow_puppet_ai_diplomacy
+Lets the AI run diplomacy for puppets instead of skipping them.
+
 ### Stability and Performance
 #### 1. PATCH_COMPRESS_FLAG_CACHE
 Compresses flag cache to reduce RAM usage (made by wyrm).
@@ -324,6 +357,31 @@ Compresses flag cache to reduce RAM usage (made by wyrm).
 Some of the performance patches made by wyrm. Should improve game speed, especially on heavy mods.
 #### ccore_performance_patch.dll
 Our own performance patch is now treated as a submod; go to `z_CreatineCore/dll_Submods/ccore_performance_patch.ini` for configuration
+
+#### v2dll_country_daily_optimizer
+These options live in `v2dll_country_daily_optimizer.ini` inside the active mod folder, section `[CountryDailyOptimizer]`. Every patch checks the exact bytes of Victoria II 3.04 before installing; if anything does not match, it is not installed and the native behaviour stays. Always test on a copy of your save.
+#### 3. skip_empty_country_daily_update
+Skips `Country_DailyUpdate` for countries that have no provinces. Can skip daily logic that landless or exiled countries still need. Off by default.
+#### 4. skip_empty_country_prepass
+Skips `Country_PrePass` for countries that have no provinces. Can change transfers or relation logic between countries. Off by default.
+#### 5. prefetch_country_relations
+Experimental cache prefetch for country relations and country pairs. Does not reduce iterations and may even be slower on some CPUs. Off by default (can also be enabled with the env variable `V2DLL_PREFETCH_RELATION_HOTSPOTS=1`).
+#### 6. optimize_ai_target_lookup
+Replaces the linked-list membership search in `AI_TargetScan` with a temporary 683-bit set, built once per call and per thread. If the list is invalid or longer than 4096 nodes, it falls back to the native search. Off by default.
+#### 7. prefetch_pop_reset_chain
+Prefetches the next pop and the cache lines written during the daily pop reset pass. Does not change any values. Off by default.
+#### 8. prefetch_pop_culture / prefetch_pop_religion
+Separate prefetch hints for the culture (`pop+0x6C`) and religion (`pop+0x70`) pointers of pops. Independent from each other and from №7. Off by default.
+#### 9. event_scan_interval_days
+`2` keeps the vanilla alternating event scan, `4` scans country and province events every four days, compensating the MTTH multipliers. Events without MTTH can be delayed up to two days and the RNG sequence changes. **In multiplayer everyone must use the same value.**
+#### 10. render_thread_core
+Temporarily pins the current thread to the chosen logical processor (`2` = second, `3` = third) while `Render_MapFrame` runs, then restores the affinity. `0` disables it. It does not make rendering parallel and may not help.
+#### 11. ai_thread_core
+Same as №10 but for `AI_FrameUpdate`. Does not create a new thread.
+#### 12. disable_map_3d_scene_render
+Skips the batch pass `FUN_00999BB0` inside `Render_MapFrame`. This is not real culling, and it can hide visible content.
+#### 13. disable_log
+Silences the plugin `.log` file (`v2dll_country_daily_optimizer.log`). The existing log stays untouched but gets no new lines.
   
 ### Diagnostics 
 #### 1. ENABLE_LOG 
@@ -342,4 +400,9 @@ Creates Windows memory dump on game crash (made by av213238).
 Caps state savings to fix repeating desyncs in MP (made by balticšprott).
 #### 7. MP_HOST_HUMAN_SYNC=1
 Should prevent one certain miscellanous desync issue. Not confirmed.
-  
+#### 8. V2DLL_PREFETCH_RELATION_HOTSPOTS=1
+Environment variable of `v2dll_country_daily_optimizer`, read when the plugin starts. Enables the relation prefetch (same as `prefetch_country_relations`).
+#### 9. V2DLL_PREFETCH_LIVING_COUNTRIES_ONLY=1
+Environment variable. Limits that prefetch to countries that have provinces.
+#### 10. V2DLL_PROFILE_COUNTRY_DAILY=1
+Environment variable. Logs timing windows of `Country_DailyUpdate`.
