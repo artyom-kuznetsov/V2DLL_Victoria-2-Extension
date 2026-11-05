@@ -1,10 +1,10 @@
 TRUE_EXIT;Restart Game;Quitter;Beenden;;;;;;;;;;;x
-PRIMARY_CULTURE_ONLY_RECRUITMENT;Primary Culture Only;Culture Primaire Uniquement;Nur Primärkultur;;;;;;;;;;;x
-ACCEPTED_CULTURE_ONLY_RECRUITMENT;Accepted Culture Only;Culture Acceptée Uniquement;Nur akzeptierte Kultur;;;;;;;;;;;x
+PRIMARY_CULTURE_ONLY_RECRUITMENT;Primary Culture Only;Culture Primaire Uniquement;Nur PrimÃ¤rkultur;;;;;;;;;;;x
+ACCEPTED_CULTURE_ONLY_RECRUITMENT;Accepted Culture Only;Culture AcceptÃ©e Uniquement;Nur akzeptierte Kultur;;;;;;;;;;;x
 NON_ACCEPTED_ONLY_RECRUITMENT;Non-accepted Culture Only;;;;;;;;;;;x
 COLONIAL_ONLY_RECRUITMENT;Colonial Only;Colonial Uniquement;Nur kolonial;;;;;;;;;;;x
 NON_COLONIAL_ONLY_RECRUITMENT;Non-Colonial Only;Non Colonial Uniquement;Nur nicht kolonial;;;;;;;;;;;x
-MOVE_POP_AMOUNT_EFFECT;Move §Y$AMOUNT$§! of Pops to §Y$WHERE$§W.;Déplacer §Y$AMOUNT$§! de pops vers §Y$WHERE$§W.;Verschiebe §Y$AMOUNT$§! Pops nach §Y$WHERE$§W.;;;;;;;;;;;x
+MOVE_POP_AMOUNT_EFFECT;Move Â§Y$AMOUNT$Â§! of Pops to Â§Y$WHERE$Â§W.;DÃ©placer Â§Y$AMOUNT$Â§! de pops vers Â§Y$WHERE$Â§W.;Verschiebe Â§Y$AMOUNT$Â§! Pops nach Â§Y$WHERE$Â§W.;;;;;;;;;;;x
 PROV_NON_ACC_MIL_MODIFIER;Local non-accepted pop militancy;x
 PROV_NON_ACC_CON_MODIFIER;Local non-accepted pop consciousness;x
 PROV_PRIMARY_MIL_MODIFIER;Local primary pop militancy;x
@@ -19,11 +19,11 @@ COLONIAL_POP_MILITANCY_MODIFIER;Colonial militancy;x
 COLONIAL_POP_CONSCIOUSNESS_MODIFIER;Colonial consciousness;x
 CC_COUNTRY_RELIGION_IS;Country religion is ;La religion d'Etat est ;Die Staatsreligion ist ;;;;;;;;;;;x
 CC_COUNTRY_RELIGION_IS_NOT;Country religion is NOT ;La religion d'Etat n'est PAS ;Die Staatsreligion ist NICHT ;;;;;;;;;;;x
-ASSIMILATE_CULTURE_EFFECT;Change §Y$AMOUNT$§! of the POPs to $CULTURE$ culture;x
-ASSIMILATE_RELIGION_EFFECT;Convert §Y$AMOUNT$§! of the POPs to the $RELIGION$ faith;x
+ASSIMILATE_CULTURE_EFFECT;Change Â§Y$AMOUNT$Â§! of the POPs to $CULTURE$ culture;x
+ASSIMILATE_RELIGION_EFFECT;Convert Â§Y$AMOUNT$Â§! of the POPs to the $RELIGION$ faith;x
 DISABLE_UNIT_TECH;Disables construction of;x
 ACTIVATE_UNIT_EFFECT;Will allow construction of $UNIT$;x
 DEACTIVATE_UNIT_EFFECT;Will disallow construction of $UNIT$;x
 UNIT_ENABLED_IS;Unit is enabled: ;x
 UNIT_ENABLED_NOT;Unit is NOT enabled: ;x
-UNIT_WILL_BE_DEACTIVATED_BY_SOURCE;§Y$UNIT$§! will no longer be available for recruitment after discovering §Y$UNIT$§!;x
+UNIT_WILL_BE_DEACTIVATED_BY_SOURCE;Â§Y$UNIT$Â§! will no longer be available for recruitment after discovering Â§Y$SOURCE$Â§!;x
