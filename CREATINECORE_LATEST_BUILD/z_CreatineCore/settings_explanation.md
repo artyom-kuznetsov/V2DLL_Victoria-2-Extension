@@ -296,10 +296,11 @@ Localization keys: `PRIMARY_CULTURE_ONLY_RECRUITMENT`, `ACCEPTED_CULTURE_ONLY_RE
 With this patch, `has_province_flag = x`, `set_province_flag = x` and `clr_province_flag = x` work, similarly to other paradox games (made by balticšprott).
   
 #### 10. NEW_COUNTRY_SCOPE_CONDITIONS
-Adds the country-scope trigger `country_religion = <religion>`. It checks the country's state religion against the named religion.
+Adds the country-scope triggers `country_religion = <religion>` and `unit_enabled = <unit_type>` for event triggers and decision `potential` / `allow` blocks.
 
-The setting `NEW_COUNTRY_SCOPE_CONDITIONS=1` enables the trigger. Tooltip localization uses `CC_COUNTRY_RELIGION_IS` and `CC_COUNTRY_RELIGION_IS_NOT` (made by COUNTRY_ADJ).
+`country_religion` checks the country's state religion. `unit_enabled` checks whether the country has activated the named unit. It reflects whether the country can build that unit in principle: a shortage of eligible POPs or a brigade-limit restriction does not make the trigger false.
 
+`NEW_COUNTRY_SCOPE_CONDITIONS=1` enables both triggers. Tooltip localization uses `CC_COUNTRY_RELIGION_IS`, `CC_COUNTRY_RELIGION_IS_NOT`, `UNIT_ENABLED_IS`, and `UNIT_ENABLED_NOT` (made by COUNTRY_ADJ).
 #### 11. NEW_POP_MODIFIERS
 Adds twelve POP militancy and consciousness effects, enabled with `NEW_POP_MODIFIERS=1`.
 
@@ -318,6 +319,14 @@ The country effects are also supported in technology and invention effects (made
 #### 12. CHANGE_COLOR_CONSOLE
 Enables the `change_color TAG R G B` console command. `TAG` is a country tag; each RGB component must be from 0 to 255. The selected color is saved with the game and is replaced when gameplay applies a native country color change. Set to `0` to disable command registration. (made by COUNTRY_ADJ)
 
+#### 13. ACTIVATE_DEACTIVATE_UNIT
+Adds the country effects `activate_unit = <unit_type>` and `deactivate_unit = <unit_type>` for events and decisions. The same effects are supported in technology and invention effects. Use the unit type identifier from `common/units`.
+
+The console commands `activate_unit <unit_type>` and `deactivate_unit <unit_type>` activate or deactivate that unit for the current country.
+
+Set `ACTIVATE_DEACTIVATE_UNIT=1` in `creatinecore_settings.ini` to enable the custom effects, technology/invention fixes, and console commands. With `0`, the game's vanilla `activate_unit` in technologies and inventions still works; custom `deactivate_unit` support and both console commands are disabled. `unit_enabled` is controlled independently by `NEW_COUNTRY_SCOPE_CONDITIONS`.
+
+Effect and tooltip localization keys include `ACTIVATE_UNIT_EFFECT`, `DEACTIVATE_UNIT_EFFECT`, and `UNIT_WILL_BE_DEACTIVATED_BY_SOURCE` (included in `creatinecore.csv`) (made by COUNTRY_ADJ)
 ### Great Powers
 These options live in `v2dll_country_daily_optimizer.ini` (see Stability and Performance).
 #### 1. great_nations_count_override

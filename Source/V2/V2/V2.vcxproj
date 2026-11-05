@@ -29,6 +29,8 @@
     <ClCompile Include="CCore_IfElseOperators.cpp" />
     <ClCompile Include="CCore_PopMergeIdentity.cpp" />
     <ClCompile Include="CCore_ExtendedUnitRecruitmentRules.cpp" />
+    <ClCompile Include="CCore_UnitDeactivation.cpp" />
+    <ClCompile Include="CCore_UnitScriptEffects.cpp" />
     <ClCompile Include="CCore_ProvinceFlags.cpp" />
     <ClCompile Include="CCore_NewPopModifiers.cpp" />
     <ClCompile Include="CCore_DelayedEventFrom.cpp" />

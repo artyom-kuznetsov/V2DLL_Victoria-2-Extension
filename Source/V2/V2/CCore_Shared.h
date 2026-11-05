@@ -9,17 +9,22 @@ void   Log(const char* fmt, ...);
 bool   V2_DebugLogEnabled();                          // DEBUG_LOG setting
 bool   PatchSlot(DWORD rvaVtable, int slotIndex, void* replacement, void** outOriginal);
 bool   StealToTrampoline(DWORD rva, unsigned steal, unsigned char* tramp, int trampSize,
-                         const unsigned char* expect, void* hook, void** orig, const char* tag);
+                         const unsigned char* expect, void* hook, void** orig, const char* tag, bool quietFailure = false);
 double ConsParseNumber(const char* s);
 const char* V2_OwnDir();                              // folder z_CreatineCore\ (holds creatinecore.dll), no trailing "\\"
 
 // --- defined in CCore_AssimilateBlock.cpp ---
 bool   InstallAssimilateBlock();
-bool   InstallEffectFactoryHook();       // shared router of the block-form script effects
+bool   CoreLocalizeKeyToGameString(const char* key, void* outputGameString);
+void   CoreFreeGameString(void* gameString);
+bool   InstallEffectFactoryHook(bool quietFailure = false);       // shared router of the block-form script effects
 bool   InstallExtendedUnitRecruitmentRules();
 
+bool   InitializeUnitLookup();
+bool   InstallUnitDeactivationFix();
+
 // --- defined in CCore_ProvinceFlags.cpp ---
-bool   InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCountryReligion);
+bool   InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCountryReligion, bool enableUnitEnabled);
 bool   InstallNewPopModifiers();
 
 // --- defined in CCore_DelayedEventFrom.cpp ---
@@ -31,6 +36,18 @@ bool   InstallIfElseOperators();
 bool   CaptureIfElseOperator(void* self, void* edx, void* ctx, int keyId,
                                 tCoreEffectFactory originalFactory);
 void   IfElseOperatorBeforeFactory(void* self);
+
+// --- defined in CCore_UnitScriptEffects.cpp ---
+bool InstallUnitScriptEffects();
+bool SetCountryUnitEnabled(void* country, const char* unitName, bool enabled);
+bool InstallUnitConsoleCommands();
+unsigned char* __cdecl ActivateUnitConsoleCommand(unsigned char* result, const void* args);
+unsigned char* __cdecl DeactivateUnitConsoleCommand(unsigned char* result, const void* args);
+bool GetCountryUnitEnabled(void* country, const char* unitName, bool* enabled);
+bool UnitScriptEffectMatchesInvention(void* invention, const char* unitName, bool activate);
+bool ResolveUnitDefinitionByName(const char* unitName, void** unitDefinition);
+bool CaptureUnitScriptEffect(void* self, void* edx, void* ctx, int keyId,
+                                tCoreEffectFactory originalFactory);
 
 // --- defined in CCore_PopMergeIdentity.cpp ---
 bool   InstallMovePopBlock();
