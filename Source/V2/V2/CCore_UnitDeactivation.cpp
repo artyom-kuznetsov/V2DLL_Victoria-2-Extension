@@ -489,7 +489,6 @@ static void* FormatNativeTechTooltipWithInvention(void* output,
         firstKey, firstValue, secondKey, secondValue);
     if (localized)
         CoreFreeGameString(&localizedInvention);
-    else
     return formatted;
 }
 static bool ReadTooltipUnitArgument(const char* firstKey, const char* firstValue,
