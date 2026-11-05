@@ -311,6 +311,33 @@ static bool AssimLocalizeKey(const char* key, char* output, unsigned outputCapac
     }
 }
 
+bool CoreLocalizeKeyToGameString(const char* key, void* outputGameString)
+{
+    if (!key || !outputGameString)
+        return false;
+    char localized[1024] = {};
+    GameString* output = (GameString*)outputGameString;
+    memset(output, 0, sizeof(*output));
+    output->cap = 15;
+    if (!AssimLocalizeKey(key, localized, sizeof(localized)))
+        return false;
+    __try
+    {
+        AssimGameStringSet(output, localized);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        memset(output, 0, sizeof(*output));
+        return false;
+    }
+}
+
+void CoreFreeGameString(void* gameString)
+{
+    if (gameString)
+        AssimGameStringFree((GameString*)gameString);
+}
 static void AssimFmtReplace(void* formatter, const char* name, const char* value)
 {
     GameString nameString, valueString;
@@ -1095,6 +1122,9 @@ static void __fastcall EffectFactoryHook(void* self, void* edx, void* ctx, int k
         return;
     IfElseOperatorBeforeFactory(self);
 
+    if (CaptureUnitScriptEffect(self, edx, ctx, keyId, g_origEffectFactory))
+        return;
+
     g_origEffectFactory(self, edx, ctx, keyId);
     if (!g_assimEnabled && !MovePopBlockEnabled())
         return;
@@ -1124,16 +1154,16 @@ static void __fastcall EffectFactoryHook(void* self, void* edx, void* ctx, int k
     }
 }
 
-bool InstallEffectFactoryHook()
+bool InstallEffectFactoryHook(bool quietFailure)
 {
     if (g_factoryHookInstalled)
         return true;
     static const unsigned char FACTORY_SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
     void* origFactory = 0;
     if (!StealToTrampoline(RVA_EFFECT_FACTORY, 6, g_trampEffectFactory, sizeof(g_trampEffectFactory),
-            FACTORY_SIG, (void*)&EffectFactoryHook, &origFactory, "EffectBlockExtensions"))
+            FACTORY_SIG, (void*)&EffectFactoryHook, &origFactory, "EffectBlockExtensions", quietFailure))
     {
-        Log("EffectBlockExtensions: effect factory detour failed");
+        if (!quietFailure) Log("EffectBlockExtensions: effect factory detour failed");
         return false;
     }
     g_origEffectFactory = (tEffectFactory)origFactory;

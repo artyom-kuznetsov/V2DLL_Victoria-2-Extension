@@ -114,8 +114,14 @@ static unsigned g_ccOverrideCount = 0;
 static unsigned char g_ccConsoleTrampoline[32] = {};
 static void* g_ccConsoleOriginal = 0;
 static unsigned char g_ccCommandEntry[0x4C] = {};
+static unsigned char g_activateUnitCommandEntry[0x4C] = {};
+static unsigned char g_deactivateUnitCommandEntry[0x4C] = {};
 static const char g_ccCommandName[] = "change_color";
+static const char g_activateUnitCommandName[] = "activate_unit";
+static const char g_deactivateUnitCommandName[] = "deactivate_unit";
 static bool g_ccCommandInstalled = false;
+static bool g_ccColorCommandEnabled = false;
+static bool g_unitConsoleCommandsEnabled = false;
 static volatile LONG g_ccRestoreSavedColors = 0;
 static const char g_ccSavedColorMarker[] = "ccore_color_v1";
 
@@ -411,8 +417,12 @@ static unsigned char* __cdecl VcCountryColorCommand(unsigned char* result, const
 typedef int (__thiscall* VcConsoleLookupFn)(void*, const char*);
 static int __fastcall VcConsoleLookupHook(void* self, void*, const char* name)
 {
-    if (name && _stricmp(name, g_ccCommandName) == 0)
+    if (name && g_ccColorCommandEnabled && _stricmp(name, g_ccCommandName) == 0)
         return (int)g_ccCommandEntry;
+    if (name && g_unitConsoleCommandsEnabled && _stricmp(name, g_activateUnitCommandName) == 0)
+        return (int)g_activateUnitCommandEntry;
+    if (name && g_unitConsoleCommandsEnabled && _stricmp(name, g_deactivateUnitCommandName) == 0)
+        return (int)g_deactivateUnitCommandEntry;
     return reinterpret_cast<VcConsoleLookupFn>(g_ccConsoleOriginal)(self, name);
 }
 
@@ -712,38 +722,55 @@ bool InstallVassalColors(int percent)
     return true;
 }
 
-bool InstallCountryColorConsole()
+static bool VcInstallConsoleLookupHook(bool quietFailure = false)
 {
     if (g_ccCommandInstalled) return true;
-    if (!g_vcInstalled && !InstallVassalColors(0))
-    {
-        Log("CountryColor: no se pudo instalar el hook de paleta compartido");
-        return false;
-    }
     if (!VcMatch(VC_RVA_CONSOLE_LOOKUP, VC_CONSOLE_LOOKUP_SIG, sizeof(VC_CONSOLE_LOOKUP_SIG)))
     {
-        Log("CountryColor: firma del console lookup no coincide (v3.04); comando no instalado");
+        if (!quietFailure) Log("CoreConsole: console lookup signature mismatch; commands not registered");
         return false;
     }
-
     memset(g_ccCommandEntry, 0, sizeof(g_ccCommandEntry));
-    g_ccCommandEntry[0] = 1; // доступна без developer-флага
+    memset(g_activateUnitCommandEntry, 0, sizeof(g_activateUnitCommandEntry));
+    memset(g_deactivateUnitCommandEntry, 0, sizeof(g_deactivateUnitCommandEntry));
+    g_ccCommandEntry[0] = g_activateUnitCommandEntry[0] = g_deactivateUnitCommandEntry[0] = 1;
     *(const char**)(g_ccCommandEntry + 4) = g_ccCommandName;
     *(void**)(g_ccCommandEntry + 0x1C) = (void*)&VcCountryColorCommand;
+    *(const char**)(g_activateUnitCommandEntry + 4) = g_activateUnitCommandName;
+    *(void**)(g_activateUnitCommandEntry + 0x1C) = (void*)&ActivateUnitConsoleCommand;
+    *(const char**)(g_deactivateUnitCommandEntry + 4) = g_deactivateUnitCommandName;
+    *(void**)(g_deactivateUnitCommandEntry + 0x1C) = (void*)&DeactivateUnitConsoleCommand;
     if (!StealToTrampoline(VC_RVA_CONSOLE_LOOKUP, sizeof(VC_CONSOLE_LOOKUP_SIG),
                            g_ccConsoleTrampoline, sizeof(g_ccConsoleTrampoline),
                            VC_CONSOLE_LOOKUP_SIG, (void*)&VcConsoleLookupHook,
-                           &g_ccConsoleOriginal, "CountryColor(console lookup)"))
+                           &g_ccConsoleOriginal, "CoreConsole(console lookup)", quietFailure))
     {
-        Log("CountryColor: no se pudo instalar el hook del console lookup");
+        if (!quietFailure) Log("CoreConsole: could not install console lookup hook");
         return false;
     }
-
     g_ccCommandInstalled = true;
-    Log("CountryColor: comando change_color TAG R G B registrado en Core");
     return true;
 }
 
+bool InstallUnitConsoleCommands()
+{
+    if (!VcInstallConsoleLookupHook(true)) return false;
+    g_unitConsoleCommandsEnabled = true;
+    return true;
+}
+
+bool InstallCountryColorConsole()
+{
+    if (!g_vcInstalled && !InstallVassalColors(0))
+    {
+        Log("CountryColor: shared palette hook could not be installed");
+        return false;
+    }
+    if (!VcInstallConsoleLookupHook()) return false;
+    g_ccColorCommandEnabled = true;
+    Log("CountryColor: command change_color TAG R G B registered in Core");
+    return true;
+}
 void CountryColorOnSaveLoadStart()
 {
     memset(g_ccOverrides, 0, sizeof(g_ccOverrides));

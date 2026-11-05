@@ -21,3 +21,9 @@ CC_COUNTRY_RELIGION_IS;Country religion is ;La religion d'Etat est ;Die Staatsre
 CC_COUNTRY_RELIGION_IS_NOT;Country religion is NOT ;La religion d'Etat n'est PAS ;Die Staatsreligion ist NICHT ;;;;;;;;;;;x
 ASSIMILATE_CULTURE_EFFECT;Change §Y$AMOUNT$§! of the POPs to $CULTURE$ culture;x
 ASSIMILATE_RELIGION_EFFECT;Convert §Y$AMOUNT$§! of the POPs to the $RELIGION$ faith;x
+DISABLE_UNIT_TECH;Disables construction of;x
+ACTIVATE_UNIT_EFFECT;Will allow construction of $UNIT$;x
+DEACTIVATE_UNIT_EFFECT;Will disallow construction of $UNIT$;x
+UNIT_ENABLED_IS;Unit is enabled: ;x
+UNIT_ENABLED_NOT;Unit is NOT enabled: ;x
+UNIT_WILL_BE_DEACTIVATED_BY_SOURCE;§Y$UNIT$§! will no longer be available for recruitment after discovering §Y$UNIT$§!;x

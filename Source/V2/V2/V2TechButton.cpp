@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.40"
+#define MOD_VERSION "6.41"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -198,8 +198,10 @@ struct Settings
     bool newPopModifiers                          = true;
     // FIX_PROVINCE_FLAGS: has_province_flag/set_province_flag/clr_province_flag (CCore_ProvinceFlags.cpp).
     bool fixProvinceFlags                         = true;
-    // Country state-religion condition country_religion = <religion> in trigger/potential/allow blocks.
+    // Country conditions country_religion and unit_enabled in trigger/potential/allow blocks.
     bool countryReligionTrigger                   = true;
+    // Activate/deactivate unit effects, tech/invention fixes and console commands.
+    bool activateDeactivateUnit                   = true;
     // CHANGE_COLOR_CONSOLE: enables the change_color console command and its save/load color persistence.
     bool changeColorConsole                       = true;
     // FIX_MEMORY_MISS_CRASHES: dangling scope pointer of delayed events (CCore_DelayedEventFrom.cpp).
@@ -4768,6 +4770,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "NEW_POP_MODIFIERS") == 0) { g_settings.newPopModifiers = v; return; }
     if (_stricmp(key, "FIX_PROVINCE_FLAGS") == 0)           { g_settings.fixProvinceFlags = v; return; }
     if (_stricmp(key, "NEW_COUNTRY_SCOPE_CONDITIONS") == 0) { g_settings.countryReligionTrigger = v; return; }
+    if (_stricmp(key, "ACTIVATE_DEACTIVATE_UNIT") == 0) { g_settings.activateDeactivateUnit = v; return; }
     if (_stricmp(key, "CHANGE_COLOR_CONSOLE") == 0) { g_settings.changeColorConsole = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
@@ -4995,6 +4998,7 @@ static void WriteDefaultSettings(const char* path)
         "ENABLE_EXTENDED_UNIT_RECRUITMENT_RULES=%d\n"
         "FIX_PROVINCE_FLAGS=%d\n"
         "NEW_COUNTRY_SCOPE_CONDITIONS=%d\n"
+        "ACTIVATE_DEACTIVATE_UNIT=%d\n"
         "NEW_POP_MODIFIERS = %d\n"
         "CHANGE_COLOR_CONSOLE=%d\n"
         "\n",
@@ -5009,6 +5013,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.extendedUnitRecruitmentRules,
         (int)g_settings.fixProvinceFlags,
         (int)g_settings.countryReligionTrigger,
+        (int)g_settings.activateDeactivateUnit,
         (int)g_settings.newPopModifiers,
         (int)g_settings.changeColorConsole);
 
@@ -13381,14 +13386,14 @@ static DWORD WINAPI ClipboardPasteWorker(LPVOID)
 }
 
 bool StealToTrampoline(DWORD rva, unsigned steal, unsigned char* tramp, int trampSize,
-    const unsigned char* expect, void* hook, void** orig, const char* tag)
+    const unsigned char* expect, void* hook, void** orig, const char* tag, bool quietFailure)
 {
     unsigned char* src = (unsigned char*)(g_base + rva);
     if (steal < 5 || steal > 16 || trampSize < (int)(steal + 5))
         return false;
     if (memcmp(src, expect, steal) != 0)
     {
-        Log("%s: сигнатура не совпала rva %06X (%02X %02X %02X %02X)",
+        if (!quietFailure) Log("%s: сигнатура не совпала rva %06X (%02X %02X %02X %02X)",
             tag, rva, src[0], src[1], src[2], src[3]);
         return false;
     }
@@ -13411,7 +13416,7 @@ bool StealToTrampoline(DWORD rva, unsigned steal, unsigned char* tramp, int tram
     VirtualProtect(src, steal, old, &old);
     FlushInstructionCache(GetCurrentProcess(), src, steal);
     FlushInstructionCache(GetCurrentProcess(), tramp, trampSize);
-    LogDbg("%s: idle rva %06X", tag, rva);
+    if (!quietFailure) LogDbg("%s: idle rva %06X", tag, rva);
     return true;
 }
 
@@ -22910,6 +22915,20 @@ static bool Install()
 
     InstallGoodsConsumption();
 
+    // The consolidated status intentionally excludes NEW_COUNTRY_SCOPE_CONDITIONS / unit_enabled.
+    if (g_settings.activateDeactivateUnit)
+    {
+        const bool deactivationOk = InstallUnitDeactivationFix();
+        const bool scriptEffectsOk = InstallUnitScriptEffects();
+        const bool consoleCommandsOk = InstallUnitConsoleCommands();
+        const bool allPatchesInstalled = deactivationOk && scriptEffectsOk && consoleCommandsOk;
+        Log("ActivateDeactivateUnit: enabled=1 all_patches_installed=%d", allPatchesInstalled ? 1 : 0);
+    }
+    else
+    {
+        Log("ActivateDeactivateUnit: enabled=0 all_patches_installed=0");
+    }
+
     if (g_settings.extendedUnitRecruitmentRules)
         InstallExtendedUnitRecruitmentRules();
 
@@ -22922,7 +22941,7 @@ static bool Install()
     }
 
     if (g_settings.fixProvinceFlags || g_settings.countryReligionTrigger)
-        InstallProvinceTriggerExtensions(g_settings.fixProvinceFlags, g_settings.countryReligionTrigger);
+        InstallProvinceTriggerExtensions(g_settings.fixProvinceFlags, g_settings.countryReligionTrigger, g_settings.countryReligionTrigger);
 
     // Installed with the fix off too when DEBUG_LOG=1: the diagnostics show the vanilla behaviour.
     if (g_settings.fixMemoryMissCrashes || V2_DebugLogEnabled())

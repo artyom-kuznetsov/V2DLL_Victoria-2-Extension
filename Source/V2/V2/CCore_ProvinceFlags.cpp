@@ -1,6 +1,6 @@
 // Shared script-trigger factory extensions for Victoria II.
 // FIX_PROVINCE_FLAGS adds has_province_flag and its effects.
-// NEW_COUNTRY_SCOPE_CONDITIONS adds country_religion using the native religion-value parser.
+// NEW_COUNTRY_SCOPE_CONDITIONS adds country_religion and unit_enabled.
 //
 // set_province_flag / clr_province_flag / has_province_flag are registered script keywords (tokens
 // 0x439 / 0x43A / 0x43B). The effects exist: the effect factory FUN_00876B30 creates classes with vtable
@@ -82,10 +82,14 @@ static void* g_flagVtableBuf[17];      // [0] = RTTI pointer, [1..16] = trigger 
 static void** g_flagVtable = 0;
 static void* g_religionVtableBuf[17];
 static void** g_religionVtable = 0;
+static void* g_unitEnabledVtableBuf[17];
+static void** g_unitEnabledVtable = 0;
 static bool g_enableProvinceFlags = false;
 static bool g_enableCountryReligion = false;
+static bool g_enableUnitEnabled = false;
 static volatile LONG g_created = 0;
 static volatile LONG g_religionCreated = 0;
+static volatile LONG g_unitEnabledCreated = 0;
 static volatile LONG g_evalLogs = 0;
 static volatile LONG g_execLogs = 0;
 
@@ -99,7 +103,9 @@ struct CountryReligionTriggerName
 };
 static CountryReligionTriggerName g_religionNames[COUNTRY_RELIGION_META_CAPACITY];
 static char g_countryReligionPrefixes[2][128];
+static char g_unitEnabledPrefixes[2][128];
 static volatile LONG g_countryReligionPrefixState[2] = {};
+static volatile LONG g_unitEnabledPrefixState[2] = {};
 static bool CountryReligionLocalizeKey(const char* key, char* output, unsigned outputCapacity);
 
 static unsigned TriggerNameHash(void* trigger)
@@ -165,6 +171,26 @@ static const char* CountryReligionLocalizedPrefix(bool negate)
         return negate ? "Country religion is NOT " : "Country religion is ";
     }
     return g_countryReligionPrefixes[index];
+}
+
+static const char* UnitEnabledLocalizedPrefix(bool negate)
+{
+    int index = negate ? 1 : 0;
+    LONG state = InterlockedCompareExchange(&g_unitEnabledPrefixState[index], 1, 0);
+    if (state == 0)
+    {
+        const char* key = negate ? "UNIT_ENABLED_NOT" : "UNIT_ENABLED_IS";
+        if (!CountryReligionLocalizeKey(key, g_unitEnabledPrefixes[index],
+                sizeof(g_unitEnabledPrefixes[index])))
+            strncpy_s(g_unitEnabledPrefixes[index], sizeof(g_unitEnabledPrefixes[index]),
+                negate ? "Unit is NOT enabled: " : "Unit is enabled: ", _TRUNCATE);
+        InterlockedExchange(&g_unitEnabledPrefixState[index], 2);
+    }
+    else if (state == 1)
+    {
+        return negate ? "Unit is NOT enabled: " : "Unit is enabled: ";
+    }
+    return g_unitEnabledPrefixes[index];
 }
 
 static const char* CountryReligionLocalizedName(CountryReligionTriggerName* entry)
@@ -266,6 +292,59 @@ static BOOL __fastcall EvaluateCountryReligion(void* self, void* edx, void* ctx)
         result = FALSE;
     }
     return result;
+}
+
+static void ConstructEngineString(void* dest, const char* text);
+static BOOL __fastcall EvaluateUnitEnabled(void* self, void* edx, void* ctx)
+{
+    (void)edx;
+    BOOL result = FALSE;
+    __try
+    {
+        if (ctx)
+        {
+            unsigned countryIndex = *(unsigned*)((char*)ctx + OFF_CTX_COUNTRY);
+            void* country = CountryByIndex(countryIndex);
+            const char* unitName = EngineString((char*)self + 0x1C);
+            bool enabled = false;
+            if (country && GetCountryUnitEnabled(country, unitName, &enabled))
+                result = enabled ? TRUE : FALSE;
+            if (InterlockedIncrement(&g_evalLogs) <= 20)
+                LogDbgPf("UnitEnabled: unit_enabled %s in country %u -> %d",
+                    unitName, countryIndex, (int)result);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        result = FALSE;
+    }
+    return result;
+}
+
+static void* __fastcall UnitEnabledTooltip(void* self, void* edx, void* dest,
+    void* arg1, int negate, int arg3)
+{
+    (void)edx; (void)arg1; (void)arg3;
+    __try
+    {
+        char localizedName[128] = { 0 };
+        char text[384];
+        const char* unitName = EngineString((char*)self + 0x1C);
+        bool isNegated = (negate & 0xFF) != 0;
+        const char* prefix = UnitEnabledLocalizedPrefix(isNegated);
+        if (!CountryReligionLocalizeKey(unitName, localizedName, sizeof(localizedName)))
+            strncpy_s(localizedName, sizeof(localizedName), unitName, _TRUNCATE);
+        _snprintf_s(text, sizeof(text), _TRUNCATE, "%s%cY%s%cW%c",
+            prefix, 0xA7, localizedName, 0xA7, 10);
+        if (dest)
+            ConstructEngineString(dest, text);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (dest)
+            ConstructEngineString(dest, "");
+    }
+    return dest;
 }
 
 // Tooltip (slot 10): thiscall, four stack arguments (the original ends with ret 0x10). The first stack
@@ -501,6 +580,14 @@ static void __fastcall HookTriggerFactory(void* self, void* edx, void* ctx, int 
     }
 
     const char* key = ctx ? (const char*)((char*)ctx + OFF_PARSER_KEY_TEXT) : 0;
+    if (g_enableUnitEnabled && key && _stricmp(key, "unit_enabled") == 0)
+    {
+        g_realFactory(self, edx, ctx, TOKEN_HAS_COUNTRY);
+        ReplaceLastTrigger(self, RVA_FLAG_TRIGGER_VT, g_unitEnabledVtable,
+            &g_unitEnabledCreated, "UnitEnabled");
+        return;
+    }
+
     if (g_enableCountryReligion && key && _stricmp(key, "country_religion") == 0)
     {
         char religionName[64] = { 0 };
@@ -558,14 +645,20 @@ static void __fastcall ExecuteClr(void* self, void* edx, void* ctx, int arg)
     LogExecute(1, self, ctx);
 }
 
-bool InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCountryReligion)
+bool InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCountryReligion, bool enableUnitEnabled)
 {
     static const unsigned char SIG[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
-    if (!enableProvinceFlags && !enableCountryReligion)
+    if (!enableProvinceFlags && !enableCountryReligion && !enableUnitEnabled)
         return true;
 
     g_enableProvinceFlags = enableProvinceFlags;
     g_enableCountryReligion = enableCountryReligion;
+    g_enableUnitEnabled = enableUnitEnabled;
+    if (enableUnitEnabled && !InitializeUnitLookup())
+    {
+        g_enableUnitEnabled = false;
+        Log("UnitEnabled: native unit lookup initialization failed; condition disabled");
+    }
     bool classesReady = true;
 
     if (enableProvinceFlags)
@@ -586,6 +679,27 @@ bool InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCount
             g_flagVtable = &g_flagVtableBuf[1];
             g_flagVtable[6] = (void*)&EvaluateProvinceFlag;
             g_flagVtable[10] = (void*)&ProvinceFlagTooltip;
+        }
+    }
+
+    if (enableUnitEnabled)
+    {
+        void** srcVt = (void**)(g_base + RVA_FLAG_TRIGGER_VT);
+        if ((DWORD)(DWORD_PTR)srcVt[6] != g_base + RVA_FLAG_EVALUATE ||
+            (DWORD)(DWORD_PTR)srcVt[10] != g_base + RVA_FLAG_TOOLTIP)
+        {
+            Log("UnitEnabled: has_country_flag trigger vtable does not match (%p/%p)",
+                srcVt[6], srcVt[10]);
+            classesReady = false;
+        }
+        else
+        {
+            g_unitEnabledVtableBuf[0] = srcVt[-1];
+            for (int i = 0; i < 16; ++i)
+                g_unitEnabledVtableBuf[1 + i] = srcVt[i];
+            g_unitEnabledVtable = &g_unitEnabledVtableBuf[1];
+            g_unitEnabledVtable[6] = (void*)&EvaluateUnitEnabled;
+            g_unitEnabledVtable[10] = (void*)&UnitEnabledTooltip;
         }
     }
 
@@ -634,8 +748,8 @@ bool InstallProvinceTriggerExtensions(bool enableProvinceFlags, bool enableCount
         }
     }
 
-    Log("ScriptTriggerExtensions: factory %s (has_province_flag=%d, country_religion=%d), "
+    Log("ScriptTriggerExtensions: factory %s (has_province_flag=%d, country_religion=%d, unit_enabled=%d), "
         "province effect Execute wrappers %d of 2",
-        hooked ? "hooked" : "NOT hooked", (int)enableProvinceFlags, (int)enableCountryReligion, wrapped);
+        hooked ? "hooked" : "NOT hooked", (int)enableProvinceFlags, (int)enableCountryReligion, (int)g_enableUnitEnabled, wrapped);
     return hooked;
 }
