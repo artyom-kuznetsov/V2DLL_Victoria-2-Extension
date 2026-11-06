@@ -176,6 +176,87 @@ constexpr uint32_t kPuppetAiOpinionNormalRva = 0x43F146;    // normal opinion sc
 constexpr uint32_t kPuppetWarTickRemoveDefender1Rva = 0x2841A6; // CALL 0x00936070 (first defender)
 constexpr uint32_t kPuppetWarTickRemoveDefender2Rva = 0x2841DF; // CALL 0x00936070 (first attacker)
 constexpr uint32_t kWarRemoveDefenderRva = 0x536070; // War_RemoveDefender, stdcall 4 args
+// cancel_wars_with_missing_countries: the daily war tick (FUN_006840F0) only
+// cancels a war when one side is literally empty. A war created by an event
+// against a tag with no owned provinces keeps a valid CCountry in the side
+// vector, so the side is never empty and the war stays at 100% warscore
+// forever. The call below runs before the native tick; it removes those dead
+// participants with the same helpers Country_Annex uses, and the native tick
+// then finds the empty side and cancels the war.
+constexpr uint32_t kWarTickCallRva = 0x2859E9;   // VA 0x006859E9, CALL 0x006840F0
+constexpr uint32_t kWarTickRva = 0x2840F0;       // VA 0x006840F0
+constexpr uint32_t kWarRemoveAttackerRva = 0x5351C0; // VA 0x009351C0, stdcall 4 args
+constexpr uint32_t kWarListOffset = 0x0B3C;      // world+0xB3C, linked list of CWar
+constexpr uint32_t kWarAttackerBeginOffset = 0x2C;
+constexpr uint32_t kWarAttackerEndOffset = 0x30;
+constexpr uint32_t kWarDefenderBeginOffset = 0x3C;
+constexpr uint32_t kWarDefenderEndOffset = 0x40;
+constexpr uint32_t kWarParticipantEntrySize = 8; // {char tag[4]; u32 countryIndex}
+// Non-zero blocks the native empty-side cancellation in FUN_006840F0; the
+// release_vassal war path (FUN_004E7290) sets it to 1, so such a war never
+// cancels even once a side is empty. The CWar constructor zeroes it.
+constexpr uint32_t kWarAutoCancelBlockedOffset = 8;
+// date trigger ([ScriptExtensions] date_trigger): TriggerBlock_AddChild
+// (FUN_008B33E0) has no native date condition. The keyword "date" is registered
+// with token 0x2A1 for bookmarks / ideologies / OOB history, and inside a
+// trigger block that token falls into the "unknown trigger" default branch.
+// The factory hook builds a has_country_flag trigger (token 0x40A) instead, so
+// the parser stores the raw value text in the object's std::string, then swaps
+// in a private vtable whose Evaluate compares the game day with the parsed date.
+constexpr uint32_t kTriggerFactoryRva = 0x4B33E0;      // TriggerBlock_AddChild
+constexpr uint32_t kFlagTriggerVtRva = 0xA307E8;       // has_country_flag vtable
+constexpr uint32_t kFlagTriggerEvaluateRva = 0x4CCB90; // slot 6
+constexpr uint32_t kFlagTriggerTooltipRva = 0x4CCBF0;  // slot 10
+constexpr uint32_t kOperatorNewRva = 0x6AE9AF;         // FUN_00AAE9AF (cdecl size)
+constexpr uint32_t kTriggerKeyTextOffset = 0x24;       // parser key text
+constexpr uint32_t kFlagTriggerStringOffset = 0x1C;    // std::string value
+constexpr uint32_t kFlagTriggerCacheOffset = 0x34;     // free 4 bytes: target game day
+constexpr int kTokenDate = 0x2A1;
+constexpr int kTokenHasCountryFlag = 0x40A;
+constexpr uint32_t kWorldDateOffset = 0x0B0C;          // world date in hours
+constexpr uint32_t kHoursPerDay = 24;
+constexpr uint32_t kDaysPerYear = 365;
+constexpr int32_t kYearBase = -5000;
+// fire_on_time ([Events]): the monthly candidate rebuild (FUN_008A78D0)
+// appends an event only when its trigger is already true at the month change,
+// so an event whose trigger becomes true mid-month waits until the next month.
+// Force time-gated events (date / year / month) into the candidate lists; the
+// daily scan still evaluates the full trigger before firing, so this only
+// changes when the event becomes eligible for the scan.
+constexpr uint32_t kEventCountryGateRva = 0x4A79FA;  // JZ 0x008A7ABE
+constexpr uint32_t kEventCountrySkipRva = 0x4A7ABE;  // loop increment
+constexpr uint32_t kEventProvinceGateRva = 0x4A7BC3; // JZ 0x008A7C86
+constexpr uint32_t kEventProvinceSkipRva = 0x4A7C86; // loop increment
+constexpr uint32_t kEventTriggerOffset = 0x30;       // embedded CAndTrigger
+constexpr uint32_t kVtAndTriggerRva = 0x9F9994;
+constexpr uint32_t kVtOrTriggerRva = 0xA2FB70;
+constexpr uint32_t kVtNotTriggerRva = 0xA2FBA8;
+constexpr uint32_t kVtContextTriggerRva = 0xA2FBE0;
+constexpr uint32_t kVtYearTriggerRva = 0xA2FC18;
+constexpr uint32_t kVtMonthTriggerRva = 0xA2FC50;
+// guard_missing_modifiers ([ScriptExtensions]): the native execute slots of the
+// four modifier effects are already null-safe; only the tooltips dereference
+// the missing modifier. Replace the tooltip slots with null-safe guards that
+// show INVALID MODIFIERS. The two has_*_modifier triggers have the same
+// problem in their tooltip.
+constexpr uint32_t kOperatorDeleteRva = 0x6AE91B;       // FUN_00AAE91B (cdecl ptr)
+constexpr uint32_t kEffectAddProvinceVtRva = 0xA2ABA8;
+constexpr uint32_t kEffectAddCountryVtRva = 0xA2ABE0;
+constexpr uint32_t kEffectRemoveProvinceVtRva = 0xA2AC18;
+constexpr uint32_t kEffectRemoveCountryVtRva = 0xA2AC50;
+constexpr uint32_t kEffectAddProvinceTooltipRva = 0x4814E0;
+constexpr uint32_t kEffectAddCountryTooltipRva = 0x481B40;
+constexpr uint32_t kEffectRemoveProvinceTooltipRva = 0x4822C0;
+constexpr uint32_t kEffectRemoveCountryTooltipRva = 0x4826B0;
+constexpr uint32_t kEffectTooltipSlot = 0x24;
+constexpr uint32_t kEffectModifierAddOffset = 0x24;
+constexpr uint32_t kEffectModifierRemoveOffset = 0x20;
+constexpr uint32_t kTriggerHasCountryModifierVtRva = 0xA30858;
+constexpr uint32_t kTriggerHasProvinceModifierVtRva = 0xA30890;
+constexpr uint32_t kTriggerHasCountryModifierTooltipRva = 0x4CD930;
+constexpr uint32_t kTriggerHasProvinceModifierTooltipRva = 0x4CE000;
+constexpr uint32_t kTriggerTooltipSlot = 0x28;
+constexpr uint32_t kTriggerModifierOffset = 0x1C;
 constexpr uint32_t kRelationArrayOffset = 0x0BE8;
 constexpr uint32_t kRelationCount = 683;
 constexpr LONG kWindowSamples = 32;
@@ -193,10 +274,17 @@ using CountryPrePassFn = void (__stdcall*)(uint32_t country);
 using MarketCapacityFn = void (__stdcall*)(uint32_t country, uint32_t output);
 using CountryPairUpdateFn = void (__stdcall*)(uint32_t country, uint32_t reset);
 using EconomyMonthlyTickFn = void (__stdcall*)(uint32_t world);
+using WarTickFn = void (__stdcall*)(uint32_t world);
+using WarRemoveParticipantFn = void (__stdcall*)(void* war, uint32_t tag, uint32_t index,
+                                                 uint32_t notify);
 using DestroyArmyFn = void (__thiscall*)(void* world, void* army);
 using MapRenderFn = void (__stdcall*)(uint32_t renderContext);
 using AiFrameUpdateFn = void (__stdcall*)(void* queue);
 using AiTargetScanFn = void (__fastcall*)(void* ai);
+// TriggerBlock_AddChild: thiscall (block, parser, token), RET 8. The
+// __fastcall form keeps the same stack layout (ECX=block, EDX=scratch,
+// parser/token on the stack) so it can replace the native entry.
+using TriggerFactoryFn = void (__fastcall*)(void* self, void* edx, void* ctx, int token);
 
 CountryDailyUpdateFn g_original = nullptr;
 CountryPrePassFn g_originalPrePass = nullptr;
@@ -207,6 +295,9 @@ DestroyArmyFn g_destroyArmy = nullptr;
 MapRenderFn g_originalMapRender = nullptr;
 AiFrameUpdateFn g_originalAiFrameUpdate = nullptr;
 AiTargetScanFn g_originalAiTargetScan = nullptr;
+WarTickFn g_originalWarTick = nullptr;
+WarRemoveParticipantFn g_removeWarAttacker = nullptr;
+WarRemoveParticipantFn g_removeWarDefender = nullptr;
 LogFn g_log = nullptr;
 LARGE_INTEGER g_frequency = {};
 uintptr_t g_worldGlobal = 0;
@@ -245,6 +336,19 @@ bool g_allowPuppetAiDiplomacy = true;
 bool g_keepPuppetsWhenGreatPowers = false;
 bool g_blockPuppetsFromGreatPowers = false;
 bool g_localConfig = true;
+bool g_cancelWarsWithMissingCountries = true;
+volatile LONG g_missingWarParticipantsRemoved = 0;
+volatile LONG g_missingWarLogBudget = 200;
+bool g_dateTrigger = true;
+bool g_fireOnTime = true;
+bool g_guardMissingModifiers = true;
+TriggerFactoryFn g_nextTriggerFactory = nullptr;
+void** g_dateTriggerVtable = nullptr;
+void* g_dateTriggerVtableBuf[17] = {};
+uintptr_t g_gameImageBase = 0;
+__declspec(align(16)) unsigned char g_dateFactoryTrampoline[32] = {};
+volatile LONG g_dateTriggersCreated = 0;
+volatile LONG g_dateTriggerParseFailures = 0;
 uint32_t g_greatNationsCountOverride = 0;
 bool g_prefetchPopResetChain = false;
 bool g_prefetchPopCulture = false;
@@ -420,6 +524,465 @@ void CleanupLandlessCountryArmies(uint32_t world) {
 void __stdcall EconomyMonthlyTickCleanupThunk(uint32_t world) {
     g_originalEconomyMonthlyTick(world);
     if (g_cleanupArmiesOfLandlessCountries) CleanupLandlessCountryArmies(world);
+}
+
+// A country with an empty owned-province vector is dead (annexed or never
+// existed); CCountry keeps the object, so the war side vector still names it.
+// Only registered, non-null slots are removed: War_RemoveAttacker/Defender
+// dereference the country by index, so an invalid slot must be left alone.
+bool IsMissingWarCountry(uint32_t index) {
+    if (!g_countryManagerGlobal) return false;
+    uint32_t manager = 0, count = 0, countries = 0;
+    memcpy(&manager, reinterpret_cast<const void*>(g_countryManagerGlobal), sizeof(manager));
+    if (!manager) return false;
+    memcpy(&count, reinterpret_cast<const void*>(static_cast<uintptr_t>(manager)), sizeof(count));
+    memcpy(&countries, reinterpret_cast<const void*>(static_cast<uintptr_t>(manager) + 4),
+           sizeof(countries));
+    if (!countries || count == 0 || count > kMaxCountrySlots || index >= count) return false;
+    uint32_t country = 0;
+    memcpy(&country, reinterpret_cast<const void*>(static_cast<uintptr_t>(countries) + index * 4),
+           sizeof(country));
+    if (!country) return false;
+    return HasNoProvinceEntries(country);
+}
+
+uint32_t RemoveMissingWarParticipantsFromSide(uint32_t war, bool defenderSide) {
+    const uint32_t beginOffset =
+        defenderSide ? kWarDefenderBeginOffset : kWarAttackerBeginOffset;
+    const uint32_t endOffset =
+        defenderSide ? kWarDefenderEndOffset : kWarAttackerEndOffset;
+    uint32_t begin = 0, end = 0;
+    memcpy(&begin, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + beginOffset),
+           sizeof(begin));
+    memcpy(&end, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + endOffset),
+           sizeof(end));
+    if (!begin || end < begin || ((end - begin) % kWarParticipantEntrySize) != 0) return 0;
+    const uint32_t count = (end - begin) / kWarParticipantEntrySize;
+    if (count == 0 || count > 256) return 0;
+
+    struct MissingEntry { uint32_t tag; uint32_t index; };
+    MissingEntry missing[256];
+    uint32_t missingCount = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        const uintptr_t entry = static_cast<uintptr_t>(begin) + i * kWarParticipantEntrySize;
+        uint32_t tag = 0, index = 0;
+        memcpy(&tag, reinterpret_cast<const void*>(entry), sizeof(tag));
+        memcpy(&index, reinterpret_cast<const void*>(entry + 4), sizeof(index));
+        if (!IsMissingWarCountry(index)) continue;
+        missing[missingCount].tag = tag;
+        missing[missingCount].index = index;
+        ++missingCount;
+    }
+
+    for (uint32_t i = 0; i < missingCount; ++i) {
+        void* warPointer = reinterpret_cast<void*>(static_cast<uintptr_t>(war));
+        if (defenderSide) {
+            g_removeWarDefender(warPointer, missing[i].tag, missing[i].index, 0);
+        } else {
+            g_removeWarAttacker(warPointer, missing[i].tag, missing[i].index, 0);
+        }
+        InterlockedIncrement(&g_missingWarParticipantsRemoved);
+        if (InterlockedDecrement(&g_missingWarLogBudget) >= 0 && g_log) {
+            g_log("cancel_wars_with_missing_countries: removed %s tag=%c%c%c index=%lu from war 0x%08X",
+                  defenderSide ? "defender" : "attacker",
+                  static_cast<char>(missing[i].tag & 0xFF),
+                  static_cast<char>((missing[i].tag >> 8) & 0xFF),
+                  static_cast<char>((missing[i].tag >> 16) & 0xFF),
+                  static_cast<unsigned long>(missing[i].index),
+                  static_cast<unsigned>(war));
+        }
+    }
+    return missingCount;
+}
+
+// Runs before FUN_006840F0. If a side ends up empty after the removals, the
+// native tick's empty-side branch performs the actual cancellation (it also
+// clears the war goals and moves the war to the ended list).
+void RemoveMissingWarParticipants(uint32_t world) {
+    if (!world || !g_countryManagerGlobal || !g_removeWarAttacker || !g_removeWarDefender) return;
+    uint32_t node = 0;
+    memcpy(&node, reinterpret_cast<const void*>(static_cast<uintptr_t>(world) + kWarListOffset),
+           sizeof(node));
+    uint32_t visited = 0;
+    while (node && visited++ < 4096) {
+        uint32_t war = 0, next = 0;
+        memcpy(&war, reinterpret_cast<const void*>(node), sizeof(war));
+        memcpy(&next, reinterpret_cast<const void*>(static_cast<uintptr_t>(node) + 8),
+               sizeof(next));
+        if (war) {
+            uint32_t attackerBegin = 0, attackerEnd = 0, defenderBegin = 0, defenderEnd = 0;
+            memcpy(&attackerBegin, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarAttackerBeginOffset), sizeof(attackerBegin));
+            memcpy(&attackerEnd, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarAttackerEndOffset), sizeof(attackerEnd));
+            memcpy(&defenderBegin, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarDefenderBeginOffset), sizeof(defenderBegin));
+            memcpy(&defenderEnd, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarDefenderEndOffset), sizeof(defenderEnd));
+            // An already-empty side is left to the native branch this same tick.
+            if (attackerBegin != attackerEnd && defenderBegin != defenderEnd) {
+                const uint32_t removedAttackers =
+                    RemoveMissingWarParticipantsFromSide(war, false);
+                const uint32_t removedDefenders =
+                    RemoveMissingWarParticipantsFromSide(war, true);
+                if (removedAttackers != 0 || removedDefenders != 0) {
+                    // The removals changed the side bounds, so re-read them.
+                    uint32_t newAttackerBegin = 0, newAttackerEnd = 0;
+                    uint32_t newDefenderBegin = 0, newDefenderEnd = 0;
+                    memcpy(&newAttackerBegin, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarAttackerBeginOffset), sizeof(newAttackerBegin));
+                    memcpy(&newAttackerEnd, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarAttackerEndOffset), sizeof(newAttackerEnd));
+                    memcpy(&newDefenderBegin, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarDefenderBeginOffset), sizeof(newDefenderBegin));
+                    memcpy(&newDefenderEnd, reinterpret_cast<const void*>(static_cast<uintptr_t>(war) + kWarDefenderEndOffset), sizeof(newDefenderEnd));
+                    if (newAttackerBegin == newAttackerEnd || newDefenderBegin == newDefenderEnd) {
+                        // A release_vassal war sets this flag and would stay stuck
+                        // even with an empty side; clear it so the native tick
+                        // performs the cancellation this same day.
+                        const unsigned char autoCancelBlocked = 0;
+                        memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(war) + kWarAutoCancelBlockedOffset),
+                               &autoCancelBlocked, sizeof(autoCancelBlocked));
+                        if (g_log) {
+                            g_log("cancel_wars_with_missing_countries: war 0x%08X emptied (removed %lu+%lu); auto-cancel flag cleared",
+                                  static_cast<unsigned>(war),
+                                  static_cast<unsigned long>(removedAttackers),
+                                  static_cast<unsigned long>(removedDefenders));
+                        }
+                    }
+                }
+            }
+        }
+        node = next;
+    }
+}
+
+void __stdcall WarTickCancelMissingCountriesThunk(uint32_t world) {
+    if (g_cancelWarsWithMissingCountries) {
+        __try {
+            RemoveMissingWarParticipants(world);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            if (g_log) g_log("cancel_wars_with_missing_countries: guarded fault; native war tick continues");
+        }
+    }
+    if (g_originalWarTick) g_originalWarTick(world);
+}
+
+// ---------------------------------------------------------------
+// date trigger ([ScriptExtensions] date_trigger)
+// ---------------------------------------------------------------
+static bool ParseDateNumber(const char*& cursor, int* value) {
+    if (!cursor || !value) return false;
+    while (*cursor == ' ' || *cursor == '\t') ++cursor;
+    if (*cursor < '0' || *cursor > '9') return false;
+    int result = 0;
+    while (*cursor >= '0' && *cursor <= '9') {
+        result = result * 10 + (*cursor - '0');
+        if (result > 100000) return false;
+        ++cursor;
+    }
+    *value = result;
+    return true;
+}
+
+// MM/DD/YYYY is the requested form (01/21/1837). YYYY.MM.DD, YYYY/MM/DD,
+// YYYY-MM-DD and DD/MM/YYYY (when the first component is greater than 12) are
+// accepted too. The game calendar has 365-day years and no leap years, so the
+// day number is (year + 5000) * 365 + day-of-year - 1.
+static bool ParseGameDate(const char* text, int32_t* outDay) {
+    if (!text || !outDay) return false;
+    const char* cursor = text;
+    int first = 0, second = 0, third = 0;
+    if (!ParseDateNumber(cursor, &first)) return false;
+    if (*cursor != '/' && *cursor != '.' && *cursor != '-') return false;
+    const char separator = *cursor++;
+    if (!ParseDateNumber(cursor, &second)) return false;
+    if (*cursor != separator) return false;
+    ++cursor;
+    if (!ParseDateNumber(cursor, &third)) return false;
+    while (*cursor == ' ' || *cursor == '\t') ++cursor;
+    if (*cursor != '\0') return false;
+
+    int year = 0, month = 0, day = 0;
+    if (first >= 1000) {          // YYYY.MM.DD / YYYY/MM/DD / YYYY-MM-DD
+        year = first; month = second; day = third;
+    } else if (first > 12) {      // DD/MM/YYYY
+        day = first; month = second; year = third;
+    } else {                      // MM/DD/YYYY (requested)
+        month = first; day = second; year = third;
+    }
+    if (year < kYearBase || year > 20000) return false;
+    if (month < 1 || month > 12) return false;
+    static const int kMonthDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (day < 1 || day > kMonthDays[month - 1]) return false;
+    int dayOfYear = day - 1;
+    for (int i = 0; i < month - 1; ++i) dayOfYear += kMonthDays[i];
+    *outDay = (year - kYearBase) * static_cast<int32_t>(kDaysPerYear) + dayOfYear;
+    return true;
+}
+
+// std::string of the engine: 16-byte buffer / pointer, size at +0x10,
+// capacity at +0x14 (the has_country_flag value string lives at object+0x1C).
+static const char* EngineString(const void* stringObject) {
+    if (!stringObject) return "";
+    const unsigned char* bytes = static_cast<const unsigned char*>(stringObject);
+    uint32_t capacity = 0;
+    memcpy(&capacity, bytes + 0x14, sizeof(capacity));
+    if (capacity >= 0x10) {
+        const char* pointer = nullptr;
+        memcpy(&pointer, bytes, sizeof(pointer));
+        return pointer ? pointer : "";
+    }
+    return reinterpret_cast<const char*>(bytes);
+}
+
+static void ConstructEngineString(void* dest, const char* text) {
+    if (!dest) return;
+    unsigned char* bytes = static_cast<unsigned char*>(dest);
+    const char* source = text ? text : "";
+    const size_t length = strlen(source);
+    if (length <= 15) {
+        memcpy(bytes, source, length + 1);
+        const uint32_t size = static_cast<uint32_t>(length);
+        memcpy(bytes + 0x10, &size, sizeof(size));
+        const uint32_t capacity = 15;
+        memcpy(bytes + 0x14, &capacity, sizeof(capacity));
+        return;
+    }
+
+    char* buffer = nullptr;
+    if (g_gameImageBase) {
+        typedef void* (__cdecl* OperatorNewFn)(unsigned);
+        OperatorNewFn operatorNew =
+            reinterpret_cast<OperatorNewFn>(g_gameImageBase + kOperatorNewRva);
+        buffer = static_cast<char*>(operatorNew(static_cast<unsigned>(length + 1)));
+    }
+    if (!buffer) {
+        bytes[0] = '\0';
+        const uint32_t zero = 0;
+        memcpy(bytes + 0x10, &zero, sizeof(zero));
+        const uint32_t capacity = 15;
+        memcpy(bytes + 0x14, &capacity, sizeof(capacity));
+        return;
+    }
+    memcpy(buffer, source, length + 1);
+    memcpy(bytes, &buffer, sizeof(buffer));
+    const uint32_t size = static_cast<uint32_t>(length);
+    memcpy(bytes + 0x10, &size, sizeof(size));
+    const uint32_t capacity = static_cast<uint32_t>(length);
+    memcpy(bytes + 0x14, &capacity, sizeof(capacity));
+}
+
+// Evaluate slot 6: thiscall (this, scope), RET 4. The cached target day is
+// stored in the free four bytes at +0x34 when the trigger is created.
+static BOOL __fastcall EvaluateDateTrigger(void* self, void* edx, void* ctx) {
+    (void)edx;
+    (void)ctx;
+    BOOL result = FALSE;
+    __try {
+        int32_t targetDay = -1;
+        memcpy(&targetDay, static_cast<const char*>(self) + kFlagTriggerCacheOffset,
+               sizeof(targetDay));
+        if (targetDay >= 0 && g_worldGlobal) {
+            uint32_t world = 0;
+            memcpy(&world, reinterpret_cast<const void*>(g_worldGlobal), sizeof(world));
+            if (world) {
+                uint32_t hours = 0;
+                memcpy(&hours, reinterpret_cast<const void*>(
+                                   static_cast<uintptr_t>(world) + kWorldDateOffset),
+                       sizeof(hours));
+                const int32_t currentDay = static_cast<int32_t>(hours / kHoursPerDay);
+                result = (currentDay >= targetDay) ? TRUE : FALSE;
+            }
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        result = FALSE;
+    }
+    return result;
+}
+
+// Tooltip slot 10: thiscall (this, dest, arg1, negate, arg3), RET 0x10.
+// Prints the script syntax, so a decision shows "date = 01/21/1837".
+static void* __fastcall DateTriggerTooltip(void* self, void* edx, void* dest, void* arg1,
+                                           int negate, int arg3) {
+    (void)edx;
+    (void)arg1;
+    (void)arg3;
+    __try {
+        char text[192] = {};
+        const char* value = EngineString(static_cast<const char*>(self) + kFlagTriggerStringOffset);
+        _snprintf_s(text, sizeof(text), _TRUNCATE, "%s\xA7" "Ydate = %s\xA7" "W\n",
+                    (negate & 0xFF) ? "NOT " : "", value);
+        ConstructEngineString(dest, text);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        ConstructEngineString(dest, "date\n");
+    }
+    return dest;
+}
+
+// Entry hook on TriggerBlock_AddChild. Every token except "date" goes to the
+// next factory (the core's province-flags hook when FIX_PROVINCE_FLAGS=1, or
+// the local trampoline). For "date" the native has_country_flag class is built
+// so the parser stores the raw value text, then the object gets the private
+// vtable and the cached target day.
+static void __fastcall HookDateTriggerFactory(void* self, void* edx, void* ctx, int token) {
+    if (!g_nextTriggerFactory) return;
+    if (token != kTokenDate || !ctx ||
+        _stricmp(static_cast<const char*>(ctx) + kTriggerKeyTextOffset, "date") != 0) {
+        g_nextTriggerFactory(self, edx, ctx, token);
+        return;
+    }
+
+    void** beginBefore = *reinterpret_cast<void***>(static_cast<char*>(self) + 0x8);
+    void** endBefore = *reinterpret_cast<void***>(static_cast<char*>(self) + 0xC);
+    const uintptr_t countBefore =
+        (beginBefore && endBefore > beginBefore)
+            ? static_cast<uintptr_t>(endBefore - beginBefore)
+            : 0;
+    g_nextTriggerFactory(self, edx, ctx, kTokenHasCountryFlag);
+    __try {
+        void** begin = *reinterpret_cast<void***>(static_cast<char*>(self) + 0x8);
+        void** end = *reinterpret_cast<void***>(static_cast<char*>(self) + 0xC);
+        if (!begin || !end || end <= begin ||
+            static_cast<uintptr_t>(end - begin) != countBefore + 1) {
+            if (g_log) g_log("date trigger: the trigger block did not accept the value");
+            return;
+        }
+        void* object = end[-1];
+        if (!object ||
+            *reinterpret_cast<uint32_t*>(object) !=
+                static_cast<uint32_t>(g_gameImageBase + kFlagTriggerVtRva)) {
+            if (g_log) g_log("date trigger: unexpected trigger class after parsing (%p)", object);
+            return;
+        }
+        const char* value =
+            EngineString(static_cast<const char*>(object) + kFlagTriggerStringOffset);
+        int32_t targetDay = -1;
+        if (!ParseGameDate(value, &targetDay)) {
+            if (InterlockedIncrement(&g_dateTriggerParseFailures) <= 20 && g_log) {
+                g_log("date trigger: invalid date '%s' (use MM/DD/YYYY, e.g. 01/21/1837); "
+                      "the condition is always false", value);
+            }
+        }
+        memcpy(static_cast<char*>(object) + kFlagTriggerCacheOffset, &targetDay,
+               sizeof(targetDay));
+        *reinterpret_cast<void**>(object) = g_dateTriggerVtable;
+        if (InterlockedIncrement(&g_dateTriggersCreated) <= 20 && g_log) {
+            g_log("date trigger: created '%s' -> game day %ld", value,
+                  static_cast<long>(targetDay));
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        if (g_log) g_log("date trigger: exception while replacing the trigger class");
+    }
+}
+
+bool InstallDateTrigger(uintptr_t imageBase) {
+    if (!imageBase) return false;
+    g_gameImageBase = imageBase;
+
+    void** sourceVtable = reinterpret_cast<void**>(imageBase + kFlagTriggerVtRva);
+    if (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(sourceVtable[6])) !=
+            static_cast<uint32_t>(imageBase + kFlagTriggerEvaluateRva) ||
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(sourceVtable[10])) !=
+            static_cast<uint32_t>(imageBase + kFlagTriggerTooltipRva)) {
+        if (g_log) {
+            g_log("date trigger: has_country_flag vtable mismatch (slot6=0x%08X slot10=0x%08X); "
+                  "not installed",
+                  static_cast<unsigned>(reinterpret_cast<uintptr_t>(sourceVtable[6])),
+                  static_cast<unsigned>(reinterpret_cast<uintptr_t>(sourceVtable[10])));
+        }
+        return false;
+    }
+
+    g_dateTriggerVtableBuf[0] = sourceVtable[-1];
+    for (int i = 0; i < 16; ++i) g_dateTriggerVtableBuf[1 + i] = sourceVtable[i];
+    g_dateTriggerVtable = &g_dateTriggerVtableBuf[1];
+    g_dateTriggerVtable[6] = (void*)&EvaluateDateTrigger;
+    g_dateTriggerVtable[10] = (void*)&DateTriggerTooltip;
+
+    unsigned char* entry = reinterpret_cast<unsigned char*>(imageBase + kTriggerFactoryRva);
+    static const unsigned char nativePrologue[6] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8};
+
+    if (entry[0] == 0xE9) {
+        int32_t displacement = 0;
+        memcpy(&displacement, entry + 1, sizeof(displacement));
+        g_nextTriggerFactory =
+            reinterpret_cast<TriggerFactoryFn>(entry + 5 + displacement);
+    } else if (memcmp(entry, nativePrologue, sizeof(nativePrologue)) == 0) {
+        DWORD oldTrampolineProtection = 0;
+        if (!VirtualProtect(g_dateFactoryTrampoline, sizeof(g_dateFactoryTrampoline),
+                            PAGE_EXECUTE_READWRITE, &oldTrampolineProtection)) {
+            return false;
+        }
+        memcpy(g_dateFactoryTrampoline, entry, sizeof(nativePrologue));
+        g_dateFactoryTrampoline[6] = 0xE9;
+        const int32_t backDisplacement = static_cast<int32_t>(
+            reinterpret_cast<uintptr_t>(entry) + sizeof(nativePrologue) -
+            (reinterpret_cast<uintptr_t>(g_dateFactoryTrampoline) + 11));
+        memcpy(g_dateFactoryTrampoline + 7, &backDisplacement, sizeof(backDisplacement));
+        FlushInstructionCache(GetCurrentProcess(), g_dateFactoryTrampoline,
+                              sizeof(g_dateFactoryTrampoline));
+        g_nextTriggerFactory =
+            reinterpret_cast<TriggerFactoryFn>(&g_dateFactoryTrampoline[0]);
+    } else {
+        if (g_log) {
+            g_log("date trigger: unexpected trigger factory prologue "
+                  "(%02X %02X %02X %02X); not installed",
+                  entry[0], entry[1], entry[2], entry[3]);
+        }
+        return false;
+    }
+
+    if (g_nextTriggerFactory == reinterpret_cast<TriggerFactoryFn>(&HookDateTriggerFactory)) {
+        return false;
+    }
+
+    DWORD oldProtection = 0;
+    if (!VirtualProtect(entry, 6, PAGE_EXECUTE_READWRITE, &oldProtection)) return false;
+    unsigned char jump[6] = {0xE9, 0, 0, 0, 0, 0x90};
+    const int32_t displacement = static_cast<int32_t>(
+        reinterpret_cast<uintptr_t>(&HookDateTriggerFactory) -
+        (reinterpret_cast<uintptr_t>(entry) + 5));
+    memcpy(jump + 1, &displacement, sizeof(displacement));
+    memcpy(entry, jump, sizeof(jump));
+    DWORD ignored = 0;
+    const BOOL restored = VirtualProtect(entry, 6, oldProtection, &ignored);
+    const BOOL flushed = FlushInstructionCache(GetCurrentProcess(), entry, 6);
+    if (g_log && (!restored || !flushed)) {
+        g_log("date trigger: factory hook installed with protection_restored=%u cache_flushed=%u",
+              static_cast<unsigned>(restored), static_cast<unsigned>(flushed));
+    }
+    return true;
+}
+
+// fire_on_time: walk a trigger tree looking for a leaf that depends on the
+// calendar (our date trigger, CYearTrigger or CMonthTrigger). The candidate
+// rebuild only needs to know whether the event can become true without waiting
+// for the next month change; the daily scan evaluates the full trigger again.
+static bool EventTriggerHasTimeCondition(uint32_t trigger, int depth, int* budget) {
+    if (!trigger || !budget || *budget <= 0 || depth > 64) return false;
+    --*budget;
+    uint32_t vtable = 0;
+    memcpy(&vtable, reinterpret_cast<const void*>(static_cast<uintptr_t>(trigger)), sizeof(vtable));
+    if (g_dateTriggerVtable &&
+        vtable == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_dateTriggerVtable))) {
+        return true;
+    }
+    if (vtable == static_cast<uint32_t>(g_gameImageBase + kVtYearTriggerRva) ||
+        vtable == static_cast<uint32_t>(g_gameImageBase + kVtMonthTriggerRva)) {
+        return true;
+    }
+    if (vtable != static_cast<uint32_t>(g_gameImageBase + kVtAndTriggerRva) &&
+        vtable != static_cast<uint32_t>(g_gameImageBase + kVtOrTriggerRva) &&
+        vtable != static_cast<uint32_t>(g_gameImageBase + kVtNotTriggerRva) &&
+        vtable != static_cast<uint32_t>(g_gameImageBase + kVtContextTriggerRva)) {
+        return false;
+    }
+    uint32_t begin = 0, end = 0;
+    memcpy(&begin, reinterpret_cast<const void*>(static_cast<uintptr_t>(trigger) + 0x8), sizeof(begin));
+    memcpy(&end, reinterpret_cast<const void*>(static_cast<uintptr_t>(trigger) + 0xC), sizeof(end));
+    if (!begin || end <= begin) return false;
+    uint32_t count = (end - begin) / 4;
+    if (count > 1024) count = 1024;
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t child = 0;
+        memcpy(&child, reinterpret_cast<const void*>(static_cast<uintptr_t>(begin) + i * 4), sizeof(child));
+        if (EventTriggerHasTimeCondition(child, depth + 1, budget)) return true;
+    }
+    return false;
 }
 
 void __stdcall MapRenderAffinityThunk(uint32_t renderContext) {
@@ -649,8 +1212,8 @@ static void ReadTextOptionsFromIni(const char* iniPath, LogFn logFunction) {
     if (attributes == INVALID_FILE_ATTRIBUTES) {
         static const char defaults[] =
             "; Country Daily Optimizer options. Skipping empty countries can change simulation behavior.\r\n"
-            "local_config=1\r\n"
             "[CountryDailyOptimizer]\r\n"
+            "local_config=1\r\n"
             "skip_empty_country_daily_update=0\r\n"
             "skip_empty_country_prepass=0\r\n"
             "cleanup_armies_of_landless_countries=0\r\n"
@@ -683,7 +1246,14 @@ static void ReadTextOptionsFromIni(const char* iniPath, LogFn logFunction) {
             "allow_peace_with_puppets=1\r\n"
             "allow_puppet_peace=1\r\n"
             "allow_puppet_occupations=1\r\n"
-            "allow_puppet_ai_diplomacy=1\r\n";
+            "allow_puppet_ai_diplomacy=1\r\n"
+            "\r\n[Wars]\r\n"
+            "cancel_wars_with_missing_countries=1\r\n"
+            "\r\n[Events]\r\n"
+            "fire_on_time=1\r\n"
+            "\r\n[ScriptExtensions]\r\n"
+            "date_trigger=1\r\n"
+            "guard_missing_modifiers=1\r\n";
         HANDLE file = CreateFileA(iniPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_NEW,
                                   FILE_ATTRIBUTE_NORMAL, nullptr);
         if (file != INVALID_HANDLE_VALUE) {
@@ -717,6 +1287,39 @@ static void ReadTextOptionsFromIni(const char* iniPath, LogFn logFunction) {
         if (GetPrivateProfileStringA("Puppets", option.key, "__missing__", value,
                                      sizeof(value), iniPath) == 0 || strcmp(value, "__missing__") == 0) {
             WritePrivateProfileStringA("Puppets", option.key, option.value, iniPath);
+        }
+    }
+
+    const struct { const char* key; const char* value; } warDefaults[] = {
+        {"cancel_wars_with_missing_countries", "1"},
+    };
+    for (const auto& option : warDefaults) {
+        char value[16] = {};
+        if (GetPrivateProfileStringA("Wars", option.key, "__missing__", value,
+                                     sizeof(value), iniPath) == 0 || strcmp(value, "__missing__") == 0) {
+            WritePrivateProfileStringA("Wars", option.key, option.value, iniPath);
+        }
+    }
+
+    const struct { const char* key; const char* value; } eventDefaults[] = {
+        {"fire_on_time", "1"},
+    };
+    for (const auto& option : eventDefaults) {
+        char value[16] = {};
+        if (GetPrivateProfileStringA("Events", option.key, "__missing__", value,
+                                     sizeof(value), iniPath) == 0 || strcmp(value, "__missing__") == 0) {
+            WritePrivateProfileStringA("Events", option.key, option.value, iniPath);
+        }
+    }
+
+    const struct { const char* key; const char* value; } scriptDefaults[] = {
+        {"date_trigger", "1"}, {"guard_missing_modifiers", "1"},
+    };
+    for (const auto& option : scriptDefaults) {
+        char value[16] = {};
+        if (GetPrivateProfileStringA("ScriptExtensions", option.key, "__missing__", value,
+                                     sizeof(value), iniPath) == 0 || strcmp(value, "__missing__") == 0) {
+            WritePrivateProfileStringA("ScriptExtensions", option.key, option.value, iniPath);
         }
     }
 
@@ -859,20 +1462,65 @@ static void ReadTextOptionsFromIni(const char* iniPath, LogFn logFunction) {
     g_allowPuppetPeace = GetPrivateProfileIntA("Puppets", "allow_puppet_peace", 1, iniPath) == 1;
     g_allowPuppetOccupations = GetPrivateProfileIntA("Puppets", "allow_puppet_occupations", 1, iniPath) == 1;
     g_allowPuppetAiDiplomacy = GetPrivateProfileIntA("Puppets", "allow_puppet_ai_diplomacy", 1, iniPath) == 1;
+    g_cancelWarsWithMissingCountries = GetPrivateProfileIntA(
+        "Wars", "cancel_wars_with_missing_countries", 1, iniPath) == 1;
+    g_dateTrigger = GetPrivateProfileIntA(
+        "ScriptExtensions", "date_trigger", 1, iniPath) == 1;
+    g_fireOnTime = GetPrivateProfileIntA("Events", "fire_on_time", 1, iniPath) == 1;
+    g_guardMissingModifiers = GetPrivateProfileIntA(
+        "ScriptExtensions", "guard_missing_modifiers", 1, iniPath) == 1;
 }
 
 static bool LoadTextOptions(const char* modFolder, LogFn logFunction) {
+    char modIniPath[MAX_PATH] = {};
     char iniPath[MAX_PATH] = {};
     char logPath[MAX_PATH] = {};
     if (!modFolder || !modFolder[0] ||
-        _snprintf_s(iniPath, sizeof(iniPath), _TRUNCATE,
-                    "%s\\v2dll_country_daily_optimizer.ini", modFolder) < 0 ||
-        _snprintf_s(logPath, sizeof(logPath), _TRUNCATE,
-                    "%s\\v2dll_country_daily_optimizer.log", modFolder) < 0) {
+        _snprintf_s(modIniPath, sizeof(modIniPath), _TRUNCATE,
+                    "%s\\v2dll_country_daily_optimizer.ini", modFolder) < 0) {
         if (logFunction) logFunction("Country optimizer options unavailable: invalid or too-long active mod folder");
         return false;
     }
 
+    const DWORD modIniAttributes = GetFileAttributesA(modIniPath);
+    const bool hasModIni = modIniAttributes != INVALID_FILE_ATTRIBUTES &&
+                           (modIniAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    // The API exposes the active mod folder. Use its INI only when it already
+    // exists; otherwise keep the shared/default configuration as the fallback.
+    g_localConfig = hasModIni
+        ? GetPrivateProfileIntA("CountryDailyOptimizer", "local_config", 1, modIniPath) == 1
+        : true;
+    const char* selectedFolder = (hasModIni && g_localConfig) ? modFolder : nullptr;
+    if (selectedFolder) {
+        if (_snprintf_s(iniPath, sizeof(iniPath), _TRUNCATE,
+                        "%s\\v2dll_country_daily_optimizer.ini", selectedFolder) < 0 ||
+            _snprintf_s(logPath, sizeof(logPath), _TRUNCATE,
+                        "%s\\v2dll_country_daily_optimizer.log", selectedFolder) < 0) {
+            if (logFunction) logFunction("Country optimizer options unavailable: mod config path is too long");
+            return false;
+        }
+    } else {
+        char gamePath[MAX_PATH] = {};
+        const DWORD gamePathLength = GetModuleFileNameA(nullptr, gamePath, MAX_PATH);
+        if (gamePathLength == 0 || gamePathLength >= MAX_PATH) {
+            if (logFunction) logFunction("Country optimizer options unavailable: cannot locate game folder for default config");
+            return false;
+        }
+        char* separator = strrchr(gamePath, '\\');
+        if (!separator) separator = strrchr(gamePath, '/');
+        if (!separator) {
+            if (logFunction) logFunction("Country optimizer options unavailable: invalid game executable path");
+            return false;
+        }
+        *separator = '\0';
+        if (_snprintf_s(iniPath, sizeof(iniPath), _TRUNCATE,
+                        "%s\\v2dll_country_daily_optimizer.ini", gamePath) < 0 ||
+            _snprintf_s(logPath, sizeof(logPath), _TRUNCATE,
+                        "%s\\v2dll_country_daily_optimizer.log", gamePath) < 0) {
+            if (logFunction) logFunction("Country optimizer options unavailable: default config path is too long");
+            return false;
+        }
+    }
     ReadTextOptionsFromIni(iniPath, logFunction);
     if (g_disableLogging) {
         logFunction = nullptr;
@@ -884,7 +1532,7 @@ static bool LoadTextOptions(const char* modFolder, LogFn logFunction) {
     }
     ApplyGreatNationsCountOverride(modFolder, g_greatNationsCountOverride, logFunction);
     if (logFunction) {
-        logFunction("Country optimizer options: skip_empty_country_daily_update=%u skip_empty_country_prepass=%u cleanup_armies_of_landless_countries=%u render_thread_core=%lu ai_thread_core=%lu prefetch_country_relations=%u optimize_ai_target_lookup=%u great_nations_count_override=%lu keep_puppets_when_great_powers=%u block_puppets_from_great_powers=%u prefetch_pop_reset_chain=%u prefetch_pop_culture=%u prefetch_pop_religion=%u event_scan_interval_days=%lu disable_map_3d_scene_render=%u; config=%s log=%s",
+        logFunction("Country optimizer options: skip_empty_country_daily_update=%u skip_empty_country_prepass=%u cleanup_armies_of_landless_countries=%u render_thread_core=%lu ai_thread_core=%lu prefetch_country_relations=%u optimize_ai_target_lookup=%u great_nations_count_override=%lu keep_puppets_when_great_powers=%u block_puppets_from_great_powers=%u prefetch_pop_reset_chain=%u prefetch_pop_culture=%u prefetch_pop_religion=%u event_scan_interval_days=%lu disable_map_3d_scene_render=%u cancel_wars_with_missing_countries=%u date_trigger=%u fire_on_time=%u guard_missing_modifiers=%u; config=%s log=%s",
                     static_cast<unsigned>(g_skipEmptyDailyUpdate),
                     static_cast<unsigned>(g_skipEmptyPrePass),
                     static_cast<unsigned>(g_cleanupArmiesOfLandlessCountries),
@@ -899,7 +1547,11 @@ static bool LoadTextOptions(const char* modFolder, LogFn logFunction) {
                     static_cast<unsigned>(g_prefetchPopCulture),
                     static_cast<unsigned>(g_prefetchPopReligion),
                     static_cast<unsigned long>(g_eventScanIntervalDays),
-                    static_cast<unsigned>(g_disableMap3DSceneRender), iniPath, logPath);
+                    static_cast<unsigned>(g_disableMap3DSceneRender),
+                    static_cast<unsigned>(g_cancelWarsWithMissingCountries),
+                    static_cast<unsigned>(g_dateTrigger),
+                    static_cast<unsigned>(g_fireOnTime),
+                    static_cast<unsigned>(g_guardMissingModifiers), iniPath, logPath);
     }
     if (g_skipLogFile != INVALID_HANDLE_VALUE && (g_skipEmptyDailyUpdate || g_skipEmptyPrePass)) {
         WriteSkipLogLine("\r\n--- Country optimizer session: empty-country skipping enabled; simulation behavior may change ---\r\n");
@@ -1282,6 +1934,36 @@ bool PatchVtableDword(uintptr_t imageBase, uint32_t slotRva, uint32_t expectedRv
         return false;
     }
     *slot = static_cast<uint32_t>(imageBase + replacementRva);
+    DWORD ignored = 0;
+    const BOOL restored = VirtualProtect(slot, sizeof(*slot), oldProtection, &ignored);
+    const BOOL flushed = FlushInstructionCache(GetCurrentProcess(), slot, sizeof(*slot));
+    if (g_log && (!restored || !flushed)) {
+        g_log("%s: vtable patch at RVA 0x%06X installed with protection_restored=%u cache_flushed=%u",
+              tag, slotRva, static_cast<unsigned>(restored), static_cast<unsigned>(flushed));
+    }
+    return true;
+}
+
+// Replaces one dword of a vtable with a pointer that lives outside the game
+// image (our DLL thunk). PatchVtableDword only accepts image-relative targets.
+bool PatchVtableAbsolute(uintptr_t imageBase, uint32_t slotRva, uintptr_t expectedVa,
+                         uintptr_t replacementVa, const char* tag) {
+    if (!imageBase || !replacementVa) return false;
+    auto* slot = reinterpret_cast<uint32_t*>(imageBase + slotRva);
+    const uint32_t expected = static_cast<uint32_t>(expectedVa);
+    if (*slot != expected) {
+        if (g_log) g_log("%s: vtable slot 0x%06X holds 0x%08X, expected 0x%08X; native behavior retained",
+                         tag, slotRva, *slot, expected);
+        return false;
+    }
+    DWORD oldProtection = 0;
+    if (!VirtualProtect(slot, sizeof(*slot), PAGE_EXECUTE_READWRITE, &oldProtection)) return false;
+    if (*slot != expected) {
+        DWORD ignored = 0;
+        VirtualProtect(slot, sizeof(*slot), oldProtection, &ignored);
+        return false;
+    }
+    *slot = static_cast<uint32_t>(replacementVa);
     DWORD ignored = 0;
     const BOOL restored = VirtualProtect(slot, sizeof(*slot), oldProtection, &ignored);
     const BOOL flushed = FlushInstructionCache(GetCurrentProcess(), slot, sizeof(*slot));
@@ -2105,6 +2787,42 @@ uintptr_t g_v2dllAiTargetFallbackAsm = 0;
 uintptr_t g_v2dllAiTargetFoundAsm = 0;
 uintptr_t g_v2dllAiTargetSearchAsm = 0;
 void (__cdecl* g_v2dllPopResetPrefetchHelperAsm)(uint32_t) = &PrefetchNextPopResetData;
+uintptr_t g_v2dllEventCountrySkipAsm = 0;
+uintptr_t g_v2dllEventProvinceSkipAsm = 0;
+uintptr_t g_v2dllModifierDeleteAsm = 0;
+uintptr_t g_v2dllAddProvinceTooltipOriginal = 0;
+uintptr_t g_v2dllAddCountryTooltipOriginal = 0;
+uintptr_t g_v2dllRemoveProvinceTooltipOriginal = 0;
+uintptr_t g_v2dllRemoveCountryTooltipOriginal = 0;
+uintptr_t g_v2dllCountryModifierTriggerTooltipOriginal = 0;
+uintptr_t g_v2dllProvinceModifierTriggerTooltipOriginal = 0;
+volatile LONG g_v2dllInvalidModifierTooltips = 0;
+
+// fire_on_time gate helper: called with the event in EDI and the native trigger
+// result in AL. Return 1 to append the event to the monthly candidate list (the
+// daily scan evaluates the trigger again), 0 to keep the native skip.
+int __cdecl v2dll_EventCandidateShouldAppend(uint32_t event, uint32_t triggerTrue) {
+    if (triggerTrue) return 1;
+    if (!g_fireOnTime || !event) return 0;
+    int budget = 4096;
+    bool found = false;
+    __try {
+        found = EventTriggerHasTimeCondition(event + kEventTriggerOffset, 0, &budget);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        found = false;
+    }
+    return found ? 1 : 0;
+}
+
+// guard_missing_modifiers tooltip helper: build the visible replacement text.
+void __cdecl v2dll_WriteInvalidModifiers(void* out) {
+    ConstructEngineString(out, "INVALID MODIFIERS");
+    const LONG count = InterlockedIncrement(&g_v2dllInvalidModifierTooltips);
+    if (count <= 20 && g_log) {
+        g_log("guard_missing_modifiers: a modifier set that does not exist was referenced; "
+              "showing INVALID MODIFIERS and ignoring it");
+    }
+}
 
 __declspec(naked) void __cdecl v2dll_KeepPuppetRelationThunk() {
     // Preserve the native country+0xCFC read except when an overlord exists
@@ -2409,6 +3127,271 @@ __declspec(naked) void __cdecl v2dll_MapSceneCallThunk() {
         ret
     }
 }
+
+// fire_on_time candidate-gate thunks. Entry is the replaced JZ in
+// FUN_008A78D0: EDI = event, AL = trigger result. Returning with `ret` lands on
+// the NOP and then on the native append path; the skip label is the loop
+// increment. Every register and flag is preserved around the helper.
+__declspec(naked) void __cdecl v2dll_EventCountryCandidateThunk() {
+    __asm {
+        pushfd
+        pushad
+        movzx eax, al
+        push eax
+        push edi
+        call v2dll_EventCandidateShouldAppend
+        add esp, 8
+        mov dword ptr [esp + 1Ch], eax
+        popad
+        popfd
+        test eax, eax
+        jz event_country_candidate_skip
+        ret
+    event_country_candidate_skip:
+        add esp, 4
+        jmp dword ptr [g_v2dllEventCountrySkipAsm]
+    }
+}
+
+__declspec(naked) void __cdecl v2dll_EventProvinceCandidateThunk() {
+    __asm {
+        pushfd
+        pushad
+        movzx eax, al
+        push eax
+        push edi
+        call v2dll_EventCandidateShouldAppend
+        add esp, 8
+        mov dword ptr [esp + 1Ch], eax
+        popad
+        popfd
+        test eax, eax
+        jz event_province_candidate_skip
+        ret
+    event_province_candidate_skip:
+        add esp, 4
+        jmp dword ptr [g_v2dllEventProvinceSkipAsm]
+    }
+}
+
+// guard_missing_modifiers effect tooltips. The native tooltip dereferences the
+// modifier to print its name; when the set does not exist the pointer is null.
+// The guard writes INVALID MODIFIERS, frees the by-value std::string argument
+// exactly as the native "nothing to say" path does, and returns the out string.
+// The native execute slots are already null-safe, so they are left untouched.
+__declspec(naked) void __cdecl v2dll_AddProvinceModifierTooltipGuard() {
+    __asm {
+        cmp dword ptr [ecx + 24h], 0
+        jne add_province_modifier_tooltip_pass
+        pushfd
+        pushad
+        push dword ptr [esp + 28h]
+        call v2dll_WriteInvalidModifiers
+        add esp, 4
+        popad
+        popfd
+        cmp dword ptr [esp + 20h], 16
+        jb add_province_modifier_tooltip_done
+        push dword ptr [esp + 0Ch]
+        call dword ptr [g_v2dllModifierDeleteAsm]
+        add esp, 4
+    add_province_modifier_tooltip_done:
+        mov eax, dword ptr [esp + 4]
+        ret 28h
+    add_province_modifier_tooltip_pass:
+        jmp dword ptr [g_v2dllAddProvinceTooltipOriginal]
+    }
+}
+
+__declspec(naked) void __cdecl v2dll_AddCountryModifierTooltipGuard() {
+    __asm {
+        cmp dword ptr [ecx + 24h], 0
+        jne add_country_modifier_tooltip_pass
+        pushfd
+        pushad
+        push dword ptr [esp + 28h]
+        call v2dll_WriteInvalidModifiers
+        add esp, 4
+        popad
+        popfd
+        cmp dword ptr [esp + 20h], 16
+        jb add_country_modifier_tooltip_done
+        push dword ptr [esp + 0Ch]
+        call dword ptr [g_v2dllModifierDeleteAsm]
+        add esp, 4
+    add_country_modifier_tooltip_done:
+        mov eax, dword ptr [esp + 4]
+        ret 28h
+    add_country_modifier_tooltip_pass:
+        jmp dword ptr [g_v2dllAddCountryTooltipOriginal]
+    }
+}
+
+__declspec(naked) void __cdecl v2dll_RemoveProvinceModifierTooltipGuard() {
+    __asm {
+        cmp dword ptr [ecx + 20h], 0
+        jne remove_province_modifier_tooltip_pass
+        pushfd
+        pushad
+        push dword ptr [esp + 28h]
+        call v2dll_WriteInvalidModifiers
+        add esp, 4
+        popad
+        popfd
+        cmp dword ptr [esp + 20h], 16
+        jb remove_province_modifier_tooltip_done
+        push dword ptr [esp + 0Ch]
+        call dword ptr [g_v2dllModifierDeleteAsm]
+        add esp, 4
+    remove_province_modifier_tooltip_done:
+        mov eax, dword ptr [esp + 4]
+        ret 28h
+    remove_province_modifier_tooltip_pass:
+        jmp dword ptr [g_v2dllRemoveProvinceTooltipOriginal]
+    }
+}
+
+__declspec(naked) void __cdecl v2dll_RemoveCountryModifierTooltipGuard() {
+    __asm {
+        cmp dword ptr [ecx + 20h], 0
+        jne remove_country_modifier_tooltip_pass
+        pushfd
+        pushad
+        push dword ptr [esp + 28h]
+        call v2dll_WriteInvalidModifiers
+        add esp, 4
+        popad
+        popfd
+        cmp dword ptr [esp + 20h], 16
+        jb remove_country_modifier_tooltip_done
+        push dword ptr [esp + 0Ch]
+        call dword ptr [g_v2dllModifierDeleteAsm]
+        add esp, 4
+    remove_country_modifier_tooltip_done:
+        mov eax, dword ptr [esp + 4]
+        ret 28h
+    remove_country_modifier_tooltip_pass:
+        jmp dword ptr [g_v2dllRemoveCountryTooltipOriginal]
+    }
+}
+
+// The two trigger tooltips have no by-value string; they just return the out
+// string with RET 0x10.
+__declspec(naked) void __cdecl v2dll_CountryModifierTriggerTooltipGuard() {
+    __asm {
+        cmp dword ptr [ecx + 1Ch], 0
+        jne country_modifier_trigger_tooltip_pass
+        pushfd
+        pushad
+        push dword ptr [esp + 28h]
+        call v2dll_WriteInvalidModifiers
+        add esp, 4
+        popad
+        popfd
+        mov eax, dword ptr [esp + 4]
+        ret 10h
+    country_modifier_trigger_tooltip_pass:
+        jmp dword ptr [g_v2dllCountryModifierTriggerTooltipOriginal]
+    }
+}
+
+__declspec(naked) void __cdecl v2dll_ProvinceModifierTriggerTooltipGuard() {
+    __asm {
+        cmp dword ptr [ecx + 1Ch], 0
+        jne province_modifier_trigger_tooltip_pass
+        pushfd
+        pushad
+        push dword ptr [esp + 28h]
+        call v2dll_WriteInvalidModifiers
+        add esp, 4
+        popad
+        popfd
+        mov eax, dword ptr [esp + 4]
+        ret 10h
+    province_modifier_trigger_tooltip_pass:
+        jmp dword ptr [g_v2dllProvinceModifierTriggerTooltipOriginal]
+    }
+}
+
+bool InstallEventFireOnTime(uintptr_t imageBase) {
+    if (!imageBase) return false;
+    static const unsigned char countryExpected[6] = {0x0F, 0x84, 0xBE, 0x00, 0x00, 0x00};
+    static const unsigned char provinceExpected[6] = {0x0F, 0x84, 0xBD, 0x00, 0x00, 0x00};
+    g_v2dllEventCountrySkipAsm = imageBase + kEventCountrySkipRva;
+    g_v2dllEventProvinceSkipAsm = imageBase + kEventProvinceSkipRva;
+
+    const int64_t countryDelta =
+        static_cast<int64_t>(reinterpret_cast<uintptr_t>(&v2dll_EventCountryCandidateThunk)) -
+        static_cast<int64_t>(imageBase + kEventCountryGateRva + 5);
+    const int64_t provinceDelta =
+        static_cast<int64_t>(reinterpret_cast<uintptr_t>(&v2dll_EventProvinceCandidateThunk)) -
+        static_cast<int64_t>(imageBase + kEventProvinceGateRva + 5);
+    if (countryDelta < INT32_MIN || countryDelta > INT32_MAX ||
+        provinceDelta < INT32_MIN || provinceDelta > INT32_MAX) {
+        if (g_log) {
+            g_log("fire_on_time: candidate gate jump out of range; native monthly candidate rebuild retained");
+        }
+        return false;
+    }
+
+    unsigned char countryReplacement[6] = {0xE8, 0, 0, 0, 0, 0x90};
+    unsigned char provinceReplacement[6] = {0xE8, 0, 0, 0, 0, 0x90};
+    const int32_t country32 = static_cast<int32_t>(countryDelta);
+    const int32_t province32 = static_cast<int32_t>(provinceDelta);
+    memcpy(countryReplacement + 1, &country32, sizeof(country32));
+    memcpy(provinceReplacement + 1, &province32, sizeof(province32));
+
+    const bool country = PatchBytes(imageBase, kEventCountryGateRva, countryExpected,
+                                    countryReplacement, sizeof(countryReplacement), "fire_on_time");
+    const bool province = PatchBytes(imageBase, kEventProvinceGateRva, provinceExpected,
+                                     provinceReplacement, sizeof(provinceReplacement), "fire_on_time");
+    if (country != province && g_log) {
+        g_log("fire_on_time: partial install (country=%u province=%u); the native gate stays on the failed side",
+              static_cast<unsigned>(country), static_cast<unsigned>(province));
+    }
+    return country || province;
+}
+
+bool InstallMissingModifierGuard(uintptr_t imageBase) {
+    if (!imageBase) return false;
+    g_gameImageBase = imageBase;
+    g_v2dllModifierDeleteAsm = imageBase + kOperatorDeleteRva;
+    g_v2dllAddProvinceTooltipOriginal = imageBase + kEffectAddProvinceTooltipRva;
+    g_v2dllAddCountryTooltipOriginal = imageBase + kEffectAddCountryTooltipRva;
+    g_v2dllRemoveProvinceTooltipOriginal = imageBase + kEffectRemoveProvinceTooltipRva;
+    g_v2dllRemoveCountryTooltipOriginal = imageBase + kEffectRemoveCountryTooltipRva;
+    g_v2dllCountryModifierTriggerTooltipOriginal = imageBase + kTriggerHasCountryModifierTooltipRva;
+    g_v2dllProvinceModifierTriggerTooltipOriginal = imageBase + kTriggerHasProvinceModifierTooltipRva;
+
+    const bool addProvince = PatchVtableAbsolute(
+        imageBase, kEffectAddProvinceVtRva + kEffectTooltipSlot, g_v2dllAddProvinceTooltipOriginal,
+        reinterpret_cast<uintptr_t>(&v2dll_AddProvinceModifierTooltipGuard), "add_province_modifier");
+    const bool addCountry = PatchVtableAbsolute(
+        imageBase, kEffectAddCountryVtRva + kEffectTooltipSlot, g_v2dllAddCountryTooltipOriginal,
+        reinterpret_cast<uintptr_t>(&v2dll_AddCountryModifierTooltipGuard), "add_country_modifier");
+    const bool removeProvince = PatchVtableAbsolute(
+        imageBase, kEffectRemoveProvinceVtRva + kEffectTooltipSlot, g_v2dllRemoveProvinceTooltipOriginal,
+        reinterpret_cast<uintptr_t>(&v2dll_RemoveProvinceModifierTooltipGuard), "remove_province_modifier");
+    const bool removeCountry = PatchVtableAbsolute(
+        imageBase, kEffectRemoveCountryVtRva + kEffectTooltipSlot, g_v2dllRemoveCountryTooltipOriginal,
+        reinterpret_cast<uintptr_t>(&v2dll_RemoveCountryModifierTooltipGuard), "remove_country_modifier");
+    const bool hasCountry = PatchVtableAbsolute(
+        imageBase, kTriggerHasCountryModifierVtRva + kTriggerTooltipSlot,
+        g_v2dllCountryModifierTriggerTooltipOriginal,
+        reinterpret_cast<uintptr_t>(&v2dll_CountryModifierTriggerTooltipGuard), "has_country_modifier");
+    const bool hasProvince = PatchVtableAbsolute(
+        imageBase, kTriggerHasProvinceModifierVtRva + kTriggerTooltipSlot,
+        g_v2dllProvinceModifierTriggerTooltipOriginal,
+        reinterpret_cast<uintptr_t>(&v2dll_ProvinceModifierTriggerTooltipGuard), "has_province_modifier");
+    if (g_log) {
+        g_log("guard_missing_modifiers: slots add_province=%u add_country=%u remove_province=%u "
+              "remove_country=%u has_country=%u has_province=%u",
+              static_cast<unsigned>(addProvince), static_cast<unsigned>(addCountry),
+              static_cast<unsigned>(removeProvince), static_cast<unsigned>(removeCountry),
+              static_cast<unsigned>(hasCountry), static_cast<unsigned>(hasProvince));
+    }
+    return addProvince || addCountry || removeProvince || removeCountry || hasCountry || hasProvince;
+}
 }
 
 static bool InstallDailyHotspotHooks(
@@ -2440,6 +3423,10 @@ static bool InstallDailyHotspotHooks(
         !g_optimizeAiTargetLookup &&
         !g_keepPuppetsWhenGreatPowers &&
         !g_blockPuppetsFromGreatPowers &&
+        !g_cancelWarsWithMissingCountries &&
+        !g_dateTrigger &&
+        !g_fireOnTime &&
+        !g_guardMissingModifiers &&
         g_greatNationsCountOverride <= 8 &&
         g_eventScanIntervalDays == 2 &&
         !g_disableMap3DSceneRender) {
@@ -2457,6 +3444,7 @@ static bool InstallDailyHotspotHooks(
     g_livingOnlyPrefetch = livingOnlyPrefetch;
     g_worldGlobal = imageBase + kWorldGlobalRva;
     g_countryManagerGlobal = imageBase + kCountryManagerGlobalRva;
+    g_gameImageBase = imageBase;
 
     bool installed = false;
     if (g_keepPuppetsWhenGreatPowers) {
@@ -2610,6 +3598,54 @@ static bool InstallDailyHotspotHooks(
                         kDailyTickCallRva);
         }
     }
+    if (g_cancelWarsWithMissingCountries) {
+        static const unsigned char warTickBytes[5] = {0xE8, 0x02, 0xE7, 0xFF, 0xFF};
+        uintptr_t originalWarTick = 0;
+        g_originalWarTick = reinterpret_cast<WarTickFn>(imageBase + kWarTickRva);
+        g_removeWarAttacker = reinterpret_cast<WarRemoveParticipantFn>(imageBase + kWarRemoveAttackerRva);
+        g_removeWarDefender = reinterpret_cast<WarRemoveParticipantFn>(imageBase + kWarRemoveDefenderRva);
+        if (PatchCall(imageBase, kWarTickCallRva, kWarTickRva, warTickBytes,
+                      reinterpret_cast<uintptr_t>(&WarTickCancelMissingCountriesThunk), &originalWarTick)) {
+            installed = true;
+            logFunction("cancel_wars_with_missing_countries: active (dead war participants are removed before the daily war tick; a war left with an empty side is cancelled by the native tick)");
+            WriteSkipLogLine("--- cancel_wars_with_missing_countries enabled; wars whose side only names annexed/never-existing countries are cancelled ---\r\n");
+        } else {
+            g_originalWarTick = nullptr;
+            g_removeWarAttacker = nullptr;
+            g_removeWarDefender = nullptr;
+            logFunction("cancel_wars_with_missing_countries: rejected by guarded CALL check at RVA 0x%06X; native behavior retained",
+                        kWarTickCallRva);
+        }
+    }
+    if (g_dateTrigger) {
+        if (InstallDateTrigger(imageBase)) {
+            installed = true;
+            logFunction("date trigger active at trigger factory RVA 0x%06X; date = MM/DD/YYYY is true from that day onward",
+                        kTriggerFactoryRva);
+            WriteSkipLogLine("--- date trigger enabled; use date = MM/DD/YYYY in potential/allow blocks ---\r\n");
+        } else {
+            logFunction("date trigger rejected by guarded trigger-factory check; native behavior retained");
+        }
+    }
+    if (g_fireOnTime) {
+        if (InstallEventFireOnTime(imageBase)) {
+            installed = true;
+            logFunction("fire_on_time active at candidate gates RVA 0x%06X/0x%06X; date/year/month events are scanned daily instead of waiting for the next month",
+                        kEventCountryGateRva, kEventProvinceGateRva);
+            WriteSkipLogLine("--- fire_on_time enabled; time-gated events become eligible as soon as their date/year/month condition is reached ---\r\n");
+        } else {
+            logFunction("fire_on_time rejected by guarded candidate-gate check; native monthly candidate rebuild retained");
+        }
+    }
+    if (g_guardMissingModifiers) {
+        if (InstallMissingModifierGuard(imageBase)) {
+            installed = true;
+            logFunction("guard_missing_modifiers active; unknown modifier sets show INVALID MODIFIERS and are ignored instead of crashing the tooltip");
+            WriteSkipLogLine("--- guard_missing_modifiers enabled; add/remove country/province modifier effects and has_*_modifier triggers with unknown sets are shown as INVALID MODIFIERS ---\r\n");
+        } else {
+            logFunction("guard_missing_modifiers rejected by vtable check; native tooltips retained");
+        }
+    }
     if (g_disableMap3DSceneRender) {
         // Ghidra: Render_MapFrame VA 0x006592F0 calls FUN_00999BB0 at
         // 0x006596B1. It sets an orthographic projection and submits renderer
@@ -2701,7 +3737,8 @@ static bool InstallDailyHotspotHooks(
            g_prefetchPopCulture || g_prefetchPopReligion ||
            g_prefetchCountryRelationsFromIni || g_optimizeAiTargetLookup ||
            g_keepPuppetsWhenGreatPowers || g_blockPuppetsFromGreatPowers ||
-           g_aiThreadCore > 0;
+           g_cancelWarsWithMissingCountries || g_aiThreadCore > 0 || g_dateTrigger ||
+           g_fireOnTime || g_guardMissingModifiers;
 }
 
 extern "C" __declspec(dllexport) int __cdecl V2Mod_Init(const V2ModAPI* api) {

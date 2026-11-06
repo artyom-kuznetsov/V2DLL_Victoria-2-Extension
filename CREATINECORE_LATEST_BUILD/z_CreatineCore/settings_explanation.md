@@ -369,6 +369,24 @@ Our own performance patch is now treated as a submod; go to `z_CreatineCore/dll_
 
 #### v2dll_country_daily_optimizer
 These options live in `v2dll_country_daily_optimizer.ini` inside the active mod folder, section `[CountryDailyOptimizer]`. Every patch checks the exact bytes of Victoria II 3.04 before installing; if anything does not match, it is not installed and the native behaviour stays. Always test on a copy of your save.
+#### Wars, ScriptExtensions and Events
+Add these settings to `v2dll_country_daily_optimizer.ini`:
+```ini
+[Wars]
+cancel_wars_with_missing_countries=1
+[ScriptExtensions]
+date_trigger=1
+guard_missing_modifiers=1
+[Events]
+fire_on_time=1
+```
+
+- `cancel_wars_with_missing_countries=1`: Before the daily war update, removes participants whose countries no longer exist from each side. If that leaves a side empty, the game's normal update cancels the war. This addresses wars stuck because an event targeted a non-existent or annexed country.
+- `date_trigger=1`: Adds `date = MM/DD/YYYY` support in script trigger blocks; it becomes true on that date and remains true afterward. For example, `date = 01/21/1837`.
+- `guard_missing_modifiers=1`: Guards tooltips for missing country/province modifier effects and `has_*_modifier` triggers. Missing modifier names display `INVALID MODIFIERS` instead of making the tooltip dereference a missing definition.
+- `fire_on_time=1`: Makes date-, year-, and month-dependent events eligible for scanning as soon as their time condition is reached, instead of waiting for the next monthly candidate rebuild. The full trigger is still checked before the event fires.
+
+All four are enabled by the values above. Their patches are guarded for Victoria II 3.04; if the expected game bytes do not match, the patch is skipped and native behavior remains.
 #### 3. skip_empty_country_daily_update
 Skips `Country_DailyUpdate` for countries that have no provinces. Can skip daily logic that landless or exiled countries still need. Off by default.
 #### 4. skip_empty_country_prepass
