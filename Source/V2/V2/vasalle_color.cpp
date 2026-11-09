@@ -116,12 +116,15 @@ static void* g_ccConsoleOriginal = 0;
 static unsigned char g_ccCommandEntry[0x4C] = {};
 static unsigned char g_activateUnitCommandEntry[0x4C] = {};
 static unsigned char g_deactivateUnitCommandEntry[0x4C] = {};
+static unsigned char g_createSubstateCommandEntry[0x4C] = {};
 static const char g_ccCommandName[] = "change_color";
 static const char g_activateUnitCommandName[] = "activate_unit";
 static const char g_deactivateUnitCommandName[] = "deactivate_unit";
+static const char g_createSubstateCommandName[] = "create_substate";
 static bool g_ccCommandInstalled = false;
 static bool g_ccColorCommandEnabled = false;
 static bool g_unitConsoleCommandsEnabled = false;
+static bool g_createSubstateConsoleEnabled = false;
 static volatile LONG g_ccRestoreSavedColors = 0;
 static const char g_ccSavedColorMarker[] = "ccore_color_v1";
 
@@ -312,6 +315,30 @@ static const char* VcCommandArg(const void* args, int index, int count)
     return VcRead<uint32_t>(item, 20) >= 16 ? VcRead<const char*>(item, 0) : item;
 }
 
+static bool VcCopyCountryTagArg(const void* args, int index, char out[4])
+{
+    if (!VcReadable(args, 12)) return false;
+    const uintptr_t begin = (uintptr_t)VcRead<void*>(args, 0);
+    const uintptr_t end = (uintptr_t)VcRead<void*>(args, 4);
+    if (!begin || end < begin || (end - begin) % 0x1C ||
+        (end - begin) / 0x1C != 2 || index < 0 || index >= 2 ||
+        !VcReadable((void*)begin, end - begin)) return false;
+    const char* item = (const char*)(begin + (size_t)index * 0x1C);
+    const int length = VcRead<int>(item, 0x10);
+    const uint32_t capacity = VcRead<uint32_t>(item, 0x14);
+    const char* data = capacity >= 16 ? VcRead<const char*>(item, 0) : item;
+    if (length != 3 || !data || !VcReadable(data, 3)) return false;
+    for (int i = 0; i < 3; ++i)
+    {
+        char c = data[i];
+        if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+        if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) return false;
+        out[i] = c;
+    }
+    out[3] = 0;
+    return true;
+}
+
 // FUN_00423B50 expects a 0x1C-byte response object and consumes its returned pointer.
 static void VcSetCountryColorResult(unsigned char* result, bool ok, const char* message)
 {
@@ -414,6 +441,23 @@ static unsigned char* __cdecl VcCountryColorCommand(unsigned char* result, const
     return result;
 }
 
+static unsigned char* __cdecl VcCreateSubstateCommand(unsigned char* result, const void* args)
+{
+    if (!result) return result;
+    char actorTag[4] = {};
+    char targetTag[4] = {};
+    if (!VcCopyCountryTagArg(args, 0, actorTag) ||
+        !VcCopyCountryTagArg(args, 1, targetTag))
+    {
+        VcSetCountryColorResult(result, false, "Usage: create_substate TAG1 TAG2");
+        return result;
+    }
+    const bool success = CreateSubstateFromConsole(actorTag, targetTag);
+    VcSetCountryColorResult(result, success,
+        success ? "Substate created" : "Could not create substate");
+    return result;
+}
+
 typedef int (__thiscall* VcConsoleLookupFn)(void*, const char*);
 static int __fastcall VcConsoleLookupHook(void* self, void*, const char* name)
 {
@@ -423,6 +467,8 @@ static int __fastcall VcConsoleLookupHook(void* self, void*, const char* name)
         return (int)g_activateUnitCommandEntry;
     if (name && g_unitConsoleCommandsEnabled && _stricmp(name, g_deactivateUnitCommandName) == 0)
         return (int)g_deactivateUnitCommandEntry;
+    if (name && g_createSubstateConsoleEnabled && _stricmp(name, g_createSubstateCommandName) == 0)
+        return (int)g_createSubstateCommandEntry;
     return reinterpret_cast<VcConsoleLookupFn>(g_ccConsoleOriginal)(self, name);
 }
 
@@ -733,13 +779,17 @@ static bool VcInstallConsoleLookupHook(bool quietFailure = false)
     memset(g_ccCommandEntry, 0, sizeof(g_ccCommandEntry));
     memset(g_activateUnitCommandEntry, 0, sizeof(g_activateUnitCommandEntry));
     memset(g_deactivateUnitCommandEntry, 0, sizeof(g_deactivateUnitCommandEntry));
+    memset(g_createSubstateCommandEntry, 0, sizeof(g_createSubstateCommandEntry));
     g_ccCommandEntry[0] = g_activateUnitCommandEntry[0] = g_deactivateUnitCommandEntry[0] = 1;
+    g_createSubstateCommandEntry[0] = 1;
     *(const char**)(g_ccCommandEntry + 4) = g_ccCommandName;
     *(void**)(g_ccCommandEntry + 0x1C) = (void*)&VcCountryColorCommand;
     *(const char**)(g_activateUnitCommandEntry + 4) = g_activateUnitCommandName;
     *(void**)(g_activateUnitCommandEntry + 0x1C) = (void*)&ActivateUnitConsoleCommand;
     *(const char**)(g_deactivateUnitCommandEntry + 4) = g_deactivateUnitCommandName;
     *(void**)(g_deactivateUnitCommandEntry + 0x1C) = (void*)&DeactivateUnitConsoleCommand;
+    *(const char**)(g_createSubstateCommandEntry + 4) = g_createSubstateCommandName;
+    *(void**)(g_createSubstateCommandEntry + 0x1C) = (void*)&VcCreateSubstateCommand;
     if (!StealToTrampoline(VC_RVA_CONSOLE_LOOKUP, sizeof(VC_CONSOLE_LOOKUP_SIG),
                            g_ccConsoleTrampoline, sizeof(g_ccConsoleTrampoline),
                            VC_CONSOLE_LOOKUP_SIG, (void*)&VcConsoleLookupHook,
@@ -756,6 +806,13 @@ bool InstallUnitConsoleCommands()
 {
     if (!VcInstallConsoleLookupHook(true)) return false;
     g_unitConsoleCommandsEnabled = true;
+    return true;
+}
+
+bool InstallCreateSubstateConsoleCommand()
+{
+    if (!VcInstallConsoleLookupHook(true)) return false;
+    g_createSubstateConsoleEnabled = true;
     return true;
 }
 
