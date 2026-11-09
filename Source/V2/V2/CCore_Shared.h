@@ -16,6 +16,9 @@ const char* V2_OwnDir();                              // folder z_CreatineCore\ 
 // --- defined in CCore_AssimilateBlock.cpp ---
 bool   InstallAssimilateBlock();
 bool   CoreLocalizeKeyToGameString(const char* key, void* outputGameString);
+bool   CoreLocalizeKeyToBuffer(const char* key, char* output, unsigned outputCapacity);
+bool   CoreFormatLocalizationToBuffer(const char* key, const char* token1, const char* value1, const char* token2, const char* value2, char* output, unsigned outputCapacity);
+bool   CoreLocalizeKeyWithTwoReplacementsToGameString(const char* key, const char* token1, const char* value1, const char* token2, const char* value2, void* outputGameString);
 void   CoreFreeGameString(void* gameString);
 bool   InstallEffectFactoryHook(bool quietFailure = false);       // shared router of the block-form script effects
 bool   InstallExtendedUnitRecruitmentRules();
@@ -39,6 +42,13 @@ void   IfElseOperatorBeforeFactory(void* self);
 
 // --- defined in CCore_UnitScriptEffects.cpp ---
 bool InstallUnitScriptEffects();
+bool InstallSubstateScriptEffects();
+bool CreateSubstateFromConsole(const char* actorTag, const char* targetTag);
+bool InstallCreateSubstateConsoleCommand();
+void __stdcall ProcessSubstateAfterCountryRecalculate(void* country);
+void __stdcall ProcessSubstateAfterGreatPowerRebuild();
+bool CaptureSubstateScriptEffect(void* self, void* edx, void* ctx, int keyId,
+                                tCoreEffectFactory originalFactory);
 bool SetCountryUnitEnabled(void* country, const char* unitName, bool enabled);
 bool InstallUnitConsoleCommands();
 unsigned char* __cdecl ActivateUnitConsoleCommand(unsigned char* result, const void* args);

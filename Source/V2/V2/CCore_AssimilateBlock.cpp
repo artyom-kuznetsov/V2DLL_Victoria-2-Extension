@@ -311,6 +311,11 @@ static bool AssimLocalizeKey(const char* key, char* output, unsigned outputCapac
     }
 }
 
+bool CoreLocalizeKeyToBuffer(const char* key, char* output, unsigned outputCapacity)
+{
+    return AssimLocalizeKey(key, output, outputCapacity);
+}
+
 bool CoreLocalizeKeyToGameString(const char* key, void* outputGameString)
 {
     if (!key || !outputGameString)
@@ -357,6 +362,126 @@ static void AssimFmtReplace(void* formatter, const char* name, const char* value
     AssimGameStringFree(&valueString);
 }
 
+static bool AssimFormatKeyWithReplacements(const char* key,
+    const char* token1, const char* value1, const char* token2, const char* value2,
+    char* output, unsigned outputCapacity)
+{
+    GameString keyString, gameOutput;
+    unsigned char formatter[0x60];
+    bool formatterStarted = false;
+    memset(&keyString, 0, sizeof(keyString));
+    memset(&gameOutput, 0, sizeof(gameOutput));
+    memset(formatter, 0, sizeof(formatter));
+    gameOutput.cap = 15;
+    if (output && outputCapacity)
+        output[0] = 0;
+    if (!key || !token1 || !value1 || !token2 || !value2 ||
+        !output || outputCapacity < 2 || !g_base)
+        return false;
+    __try
+    {
+        AssimGameStringSet(&keyString, key);
+        GameString* keyPtr = &keyString;
+        void* formatterPtr = formatter;
+        DWORD fromKey = g_base + RVA_FMT_FROM_KEY;
+        __asm
+        {
+            push keyPtr
+            push formatterPtr
+            mov ecx, keyPtr
+            mov edx, formatterPtr
+            call fromKey
+        }
+        formatterStarted = true;
+        AssimFmtReplace(formatter, token1, value1);
+        AssimFmtReplace(formatter, token2, value2);
+        void* locale = ((void*(__cdecl*)(void))(g_base + RVA_LOC_SINGLETON))();
+        if (!locale)
+        {
+            DWORD freeFmt = g_base + RVA_FMT_FREE;
+            __asm
+            {
+                push formatterPtr
+                call freeFmt
+            }
+            formatterStarted = false;
+            AssimGameStringFree(&keyString);
+            return false;
+        }
+        void* outputPtr = &gameOutput;
+        DWORD finish = g_base + RVA_FMT_FINISH;
+        __asm
+        {
+            mov eax, locale
+            movq xmm0, qword ptr [eax + 0x6c]
+            sub esp, 0x10
+            mov ecx, esp
+            movq qword ptr [ecx], xmm0
+            movq xmm0, qword ptr [eax + 0x74]
+            movq qword ptr [ecx + 8], xmm0
+            mov esi, outputPtr
+            mov ecx, formatterPtr
+            call finish
+        }
+        const char* localized = gameOutput.cap < 16 ? gameOutput.u.buf : gameOutput.u.ptr;
+        const bool copied = localized && gameOutput.size > 0 && gameOutput.size < outputCapacity;
+        if (copied)
+        {
+            memcpy(output, localized, gameOutput.size);
+            output[gameOutput.size] = 0;
+        }
+        DWORD freeFmt = g_base + RVA_FMT_FREE;
+        __asm
+            {
+                push formatterPtr
+                call freeFmt
+            }
+        formatterStarted = false;
+        AssimGameStringFree(&keyString);
+        AssimGameStringFree(&gameOutput);
+        return copied;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (formatterStarted && InterlockedCompareExchange(&g_assimTooltipLocError, 1, 0) == 0)
+            Log("AssimilateBlock: formatted localization failed for key '%s' (code=%08X)",
+                key, (unsigned)GetExceptionCode());
+        return false;
+    }
+}
+
+bool CoreFormatLocalizationToBuffer(const char* key, const char* token1,
+    const char* value1, const char* token2, const char* value2,
+    char* output, unsigned outputCapacity)
+{
+    return AssimFormatKeyWithReplacements(key, token1, value1, token2, value2,
+        output, outputCapacity);
+}
+
+bool CoreLocalizeKeyWithTwoReplacementsToGameString(const char* key,
+    const char* token1, const char* value1, const char* token2, const char* value2,
+    void* outputGameString)
+{
+    if (!outputGameString)
+        return false;
+    char formatted[4096] = {};
+    if (!AssimFormatKeyWithReplacements(key, token1, value1, token2, value2,
+            formatted, sizeof(formatted)))
+        return false;
+    GameString* output = (GameString*)outputGameString;
+    memset(output, 0, sizeof(*output));
+    output->cap = 15;
+    __try
+    {
+        AssimGameStringSet(output, formatted);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        memset(output, 0, sizeof(*output));
+        return false;
+    }
+}
 static const char* AssimTargetDescription(const AssimTarget* target, bool culture,
     char* output, unsigned outputCapacity)
 {
@@ -1121,6 +1246,9 @@ static void __fastcall EffectFactoryHook(void* self, void* edx, void* ctx, int k
     if (CaptureIfElseOperator(self, edx, ctx, keyId, g_origEffectFactory))
         return;
     IfElseOperatorBeforeFactory(self);
+
+    if (CaptureSubstateScriptEffect(self, edx, ctx, keyId, g_origEffectFactory))
+        return;
 
     if (CaptureUnitScriptEffect(self, edx, ctx, keyId, g_origEffectFactory))
         return;

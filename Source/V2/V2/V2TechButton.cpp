@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.41"
+#define MOD_VERSION "6.42"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -200,6 +200,8 @@ struct Settings
     bool fixProvinceFlags                         = true;
     // Country conditions country_religion and unit_enabled in trigger/potential/allow blocks.
     bool countryReligionTrigger                   = true;
+    // CREATE_SUBSTATE: registers the create_substate country-scope effect.
+    bool newCountryScopeEffects                   = true;
     // Activate/deactivate unit effects, tech/invention fixes and console commands.
     bool activateDeactivateUnit                   = true;
     // CHANGE_COLOR_CONSOLE: enables the change_color console command and its save/load color persistence.
@@ -4770,6 +4772,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "NEW_POP_MODIFIERS") == 0) { g_settings.newPopModifiers = v; return; }
     if (_stricmp(key, "FIX_PROVINCE_FLAGS") == 0)           { g_settings.fixProvinceFlags = v; return; }
     if (_stricmp(key, "NEW_COUNTRY_SCOPE_CONDITIONS") == 0) { g_settings.countryReligionTrigger = v; return; }
+    if (_stricmp(key, "CREATE_SUBSTATE") == 0) { g_settings.newCountryScopeEffects = v; return; }
     if (_stricmp(key, "ACTIVATE_DEACTIVATE_UNIT") == 0) { g_settings.activateDeactivateUnit = v; return; }
     if (_stricmp(key, "CHANGE_COLOR_CONSOLE") == 0) { g_settings.changeColorConsole = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
@@ -4999,6 +5002,7 @@ static void WriteDefaultSettings(const char* path)
         "FIX_PROVINCE_FLAGS=%d\n"
         "NEW_COUNTRY_SCOPE_CONDITIONS=%d\n"
         "ACTIVATE_DEACTIVATE_UNIT=%d\n"
+        "CREATE_SUBSTATE=%d\n"
         "NEW_POP_MODIFIERS = %d\n"
         "CHANGE_COLOR_CONSOLE=%d\n"
         "\n",
@@ -5014,6 +5018,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.fixProvinceFlags,
         (int)g_settings.countryReligionTrigger,
         (int)g_settings.activateDeactivateUnit,
+        (int)g_settings.newCountryScopeEffects,
         (int)g_settings.newPopModifiers,
         (int)g_settings.changeColorConsole);
 
@@ -15853,6 +15858,133 @@ static bool PatchE8(DWORD rva, const unsigned char* expect5, void* dest, const c
     *(DWORD*)(neu + 1) = (DWORD)(DWORD_PTR)dest - (g_base + rva + 5);
     return PatchBytes(rva, expect5, neu, 5, tag);
 }
+// The vanilla country status formatter checks the generic dependency predicate
+// before checking the substate-specific CF4 flag. Since substates also have CF5
+// set, this makes them display as dominions. Override only the UI call sites;
+// keep the shared predicate unchanged for simulation and diplomacy logic.
+namespace SubstateUiStatus
+{
+    static const DWORD kDependencyPredicate = 0x000A8300;
+    static const DWORD kDiplomacyCardSignatureRva = 0x00227E8F;
+    static const DWORD kDiplomacyCardFlagBranchRva = kDiplomacyCardSignatureRva + 36;
+    static const unsigned char kDiplomacyCardSignature[] = {
+        0x8A, 0x86, 0xF5, 0x0C, 0x00, 0x00, // mov al, [esi+CF5]
+        0x84, 0xC0,                         // test al, al
+        0x75, 0x0C,                         // skip comparison when CF5 is true
+        0x38, 0x86, 0xF4, 0x0C, 0x00, 0x00,// cmp [esi+CF4], al
+        0x0F, 0x84, 0x13, 0x04, 0x00, 0x00,// je no-subject status path
+        0x39, 0xBE, 0xD8, 0x07, 0x00, 0x00,// cmp [esi+7D8], edi
+        0x0F, 0x84, 0x7C, 0x02, 0x00, 0x00,// je alternate status path
+        0x84, 0xC0,                         // test CF5 again
+        0x75, 0x0C,                         // skip substate comparison (bug)
+        0x38, 0x86, 0xF4, 0x0C, 0x00, 0x00,// cmp CF4 with CF5
+        0x0F, 0x84, 0x6C, 0x02, 0x00, 0x00 // je substate status path
+    };
+    static const DWORD kPredicateCallSites[] = {
+        0x000ACC9D, 0x000ACED0, 0x00226F08, 0x002F68AB, 0x0034BD92
+    };
+    static DWORD g_originalPredicate = 0;
+
+    __declspec(naked) static void PredicateThunk()
+    {
+        __asm {
+            cmp byte ptr [eax + 0xCF4], 0
+            jne substate
+            jmp dword ptr [g_originalPredicate]
+        substate:
+            xor eax, eax
+            ret
+        }
+    }
+
+    static void MakeExpectedCall(DWORD site, unsigned char expected[5])
+    {
+        expected[0] = 0xE8;
+        const DWORD relative = kDependencyPredicate - (site + 5);
+        memcpy(expected + 1, &relative, sizeof(relative));
+    }
+
+    static bool Install()
+    {
+        const unsigned count = sizeof(kPredicateCallSites) / sizeof(kPredicateCallSites[0]);
+        unsigned char expected[sizeof(kPredicateCallSites) / sizeof(kPredicateCallSites[0])][5];
+        unsigned char patched[sizeof(kPredicateCallSites) / sizeof(kPredicateCallSites[0])][5];
+
+        // Validate every site before patching any of them.
+        for (unsigned i = 0; i < count; ++i)
+        {
+            MakeExpectedCall(kPredicateCallSites[i], expected[i]);
+            if (memcmp((const void*)(g_base + kPredicateCallSites[i]), expected[i], 5) != 0)
+            {
+                Log("SubstateUiStatus: signature mismatch at call site RVA %06X; all UI overrides left disabled",
+                    kPredicateCallSites[i]);
+                return false;
+            }
+        }
+        if (memcmp((const void*)(g_base + kDiplomacyCardSignatureRva),
+            kDiplomacyCardSignature, sizeof(kDiplomacyCardSignature)) != 0)
+        {
+            Log("SubstateUiStatus: diplomacy-card signature mismatch at RVA %06X; no UI overrides installed",
+                kDiplomacyCardSignatureRva);
+            return false;
+        }
+
+        g_originalPredicate = g_base + kDependencyPredicate;
+        unsigned installed = 0;
+        for (; installed < count; ++installed)
+        {
+            MakeExpectedCall(kPredicateCallSites[installed], patched[installed]);
+            const DWORD relative = (DWORD)(DWORD_PTR)&PredicateThunk -
+                (g_base + kPredicateCallSites[installed] + 5);
+            memcpy(patched[installed] + 1, &relative, sizeof(relative));
+            if (!PatchE8(kPredicateCallSites[installed], expected[installed],
+                (void*)&PredicateThunk, "SubstateUiStatus call-site"))
+                break;
+        }
+
+        if (installed != count)
+        {
+            while (installed > 0)
+            {
+                --installed;
+                PatchBytes(kPredicateCallSites[installed], patched[installed],
+                    expected[installed], 5, "SubstateUiStatus rollback");
+            }
+            g_originalPredicate = 0;
+            Log("SubstateUiStatus: installation failed; partial UI overrides rolled back");
+            return false;
+        }
+
+        // In the diplomacy country card the second JNZ skips the CF4 check
+        // whenever CF5 is set. NOP it so CF4==CF5 (including a substate's 1/1)
+        // reaches the substate status path, while an ordinary subject (0/1)
+        // continues to the dominion/satellite path.
+        static const unsigned char patchedBranch[2] = { 0x90, 0x90 };
+        if (!PatchBytes(kDiplomacyCardFlagBranchRva,
+            kDiplomacyCardSignature + 36, patchedBranch, sizeof(patchedBranch),
+            "SubstateUiStatus diplomacy-card branch"))
+        {
+            for (unsigned i = count; i > 0; --i)
+            {
+                const unsigned index = i - 1;
+                MakeExpectedCall(kPredicateCallSites[index], patched[index]);
+                const DWORD relative = (DWORD)(DWORD_PTR)&PredicateThunk -
+                    (g_base + kPredicateCallSites[index] + 5);
+                memcpy(patched[index] + 1, &relative, sizeof(relative));
+                PatchBytes(kPredicateCallSites[index], patched[index],
+                    expected[index], 5, "SubstateUiStatus rollback");
+            }
+            g_originalPredicate = 0;
+            Log("SubstateUiStatus: diplomacy-card branch patch failed; call-site overrides rolled back");
+            return false;
+        }
+
+        Log("SubstateUiStatus: substate label priority installed at %u UI call sites plus diplomacy-card branch; shared game predicate unchanged",
+            count);
+        return true;
+    }
+}
+
 static bool InstallEngineStability()
 {
     // FPU / D3D / TBB / heap / sleepers / timers / priority / pop quantize moved to
@@ -22915,6 +23047,13 @@ static bool Install()
 
     InstallGoodsConsumption();
 
+    // The country-scope effect has its own independent setting.
+    if (g_settings.newCountryScopeEffects)
+    {
+        if (InstallSubstateScriptEffects())
+            InstallCreateSubstateConsoleCommand();
+    }
+    SubstateUiStatus::Install();
     // The consolidated status intentionally excludes NEW_COUNTRY_SCOPE_CONDITIONS / unit_enabled.
     if (g_settings.activateDeactivateUnit)
     {

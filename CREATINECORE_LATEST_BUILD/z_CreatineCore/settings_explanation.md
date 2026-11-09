@@ -327,6 +327,13 @@ The console commands `activate_unit <unit_type>` and `deactivate_unit <unit_type
 Set `ACTIVATE_DEACTIVATE_UNIT=1` in `creatinecore_settings.ini` to enable the custom effects, technology/invention fixes, and console commands. With `0`, the game's vanilla `activate_unit` in technologies and inventions still works; custom `deactivate_unit` support and both console commands are disabled. `unit_enabled` is controlled independently by `NEW_COUNTRY_SCOPE_CONDITIONS`.
 
 Effect and tooltip localization keys include `ACTIVATE_UNIT_EFFECT`, `DEACTIVATE_UNIT_EFFECT`, and `UNIT_WILL_BE_DEACTIVATED_BY_SOURCE` (included in `creatinecore.csv`) (made by COUNTRY_ADJ)
+#### 14. CREATE_SUBSTATE
+Adds the country effect `create_substate = TAG`; the target country becomes an autonomous substate of the country executing the effect. Use the effect in event and decision effects.
+
+The console command `create_substate TAG1 TAG2` creates the same relation directly. `TAG1` is the overlord and `TAG2` is the country that becomes its substate.
+
+`CREATE_SUBSTATE=1` enables the effect and console command (default: `1`). Set it to `0` to disable both. The effect tooltip uses `CREATE_SUBSTATE_EFFECT` in `creatinecore.csv`.
+
 ### Great Powers
 These options live in `v2dll_country_daily_optimizer.ini` (see Stability and Performance).
 #### 1. great_nations_count_override
