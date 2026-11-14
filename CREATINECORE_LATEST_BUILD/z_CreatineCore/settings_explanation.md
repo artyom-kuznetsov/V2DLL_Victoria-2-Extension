@@ -334,6 +334,9 @@ The console command `create_substate TAG1 TAG2` creates the same relation direct
 
 `CREATE_SUBSTATE=1` enables the effect and console command (default: `1`). Set it to `0` to disable both. The effect tooltip uses `CREATE_SUBSTATE_EFFECT` in `creatinecore.csv`.
 
+#### 15. JOIN_WAR_EFFECT
+Registers the country-scope `join_war` effect, which can add the current country to an ongoing war. Set `JOIN_WAR_EFFECT=1` to enable it (default: `1`); set it to `0` to leave the effect unregistered. The setting is read at game startup. See the project README under Script Extensions for effect syntax and selector behavior. (made by COUNTRY_ADJ)
+
 ### Great Powers
 These options live in `v2dll_country_daily_optimizer.ini` (see Stability and Performance).
 #### 1. great_nations_count_override

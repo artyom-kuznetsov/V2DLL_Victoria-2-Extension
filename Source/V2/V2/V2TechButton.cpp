@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.42"
+#define MOD_VERSION "6.43"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -202,6 +202,8 @@ struct Settings
     bool countryReligionTrigger                   = true;
     // CREATE_SUBSTATE: registers the create_substate country-scope effect.
     bool newCountryScopeEffects                   = true;
+    // JOIN_WAR_EFFECT: registers the join_war script effect.
+    bool joinWarEffect                            = true;
     // Activate/deactivate unit effects, tech/invention fixes and console commands.
     bool activateDeactivateUnit                   = true;
     // CHANGE_COLOR_CONSOLE: enables the change_color console command and its save/load color persistence.
@@ -4773,6 +4775,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "FIX_PROVINCE_FLAGS") == 0)           { g_settings.fixProvinceFlags = v; return; }
     if (_stricmp(key, "NEW_COUNTRY_SCOPE_CONDITIONS") == 0) { g_settings.countryReligionTrigger = v; return; }
     if (_stricmp(key, "CREATE_SUBSTATE") == 0) { g_settings.newCountryScopeEffects = v; return; }
+    if (_stricmp(key, "JOIN_WAR_EFFECT") == 0) { g_settings.joinWarEffect = v; return; }
     if (_stricmp(key, "ACTIVATE_DEACTIVATE_UNIT") == 0) { g_settings.activateDeactivateUnit = v; return; }
     if (_stricmp(key, "CHANGE_COLOR_CONSOLE") == 0) { g_settings.changeColorConsole = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
@@ -5003,6 +5006,7 @@ static void WriteDefaultSettings(const char* path)
         "NEW_COUNTRY_SCOPE_CONDITIONS=%d\n"
         "ACTIVATE_DEACTIVATE_UNIT=%d\n"
         "CREATE_SUBSTATE=%d\n"
+        "JOIN_WAR_EFFECT=%d\n"
         "NEW_POP_MODIFIERS = %d\n"
         "CHANGE_COLOR_CONSOLE=%d\n"
         "\n",
@@ -5019,6 +5023,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.countryReligionTrigger,
         (int)g_settings.activateDeactivateUnit,
         (int)g_settings.newCountryScopeEffects,
+        (int)g_settings.joinWarEffect,
         (int)g_settings.newPopModifiers,
         (int)g_settings.changeColorConsole);
 
@@ -23046,6 +23051,16 @@ static bool Install()
         InstallPopBuildInfrastructureRule();
 
     InstallGoodsConsumption();
+
+    if (g_settings.joinWarEffect)
+    {
+        const bool joinWarOk = InstallJoinWarScriptEffect();
+        Log("JoinWar: setting=1 registered=%d", joinWarOk ? 1 : 0);
+    }
+    else
+    {
+        Log("JoinWar: setting=0; script effect not registered");
+    }
 
     // The country-scope effect has its own independent setting.
     if (g_settings.newCountryScopeEffects)
