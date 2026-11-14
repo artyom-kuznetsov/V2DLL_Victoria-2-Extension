@@ -28,3 +28,5 @@ UNIT_ENABLED_IS;Unit is enabled: ;x
 UNIT_ENABLED_NOT;Unit is NOT enabled: ;x
 UNIT_WILL_BE_DEACTIVATED_BY_SOURCE;§Y$UNIT$§! will no longer be available for recruitment after discovering §Y$SOURCE$§!;x
 CREATE_SUBSTATE_EFFECT;§Y$TARGET_COUNTRY$§W becomes an autonomous substate of §Y$COUNTRY$§W.\n;x
+JOIN_WAR_SIDE_LINE;Join the war on the side of $COUNTRY$;x
+JOIN_WAR_AGAINST_LINE;Join the war against $COUNTRY$;x

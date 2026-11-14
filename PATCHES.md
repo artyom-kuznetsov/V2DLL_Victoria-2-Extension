@@ -2,7 +2,7 @@
 
 Reference for every patch in CreatineCore (`z_CreatineCore\creatinecore.dll`, started by the `dinput8.dll` proxy, for Victoria 2 `v2game.exe`): what each one touches in memory, how it is applied, which `creatinecore_settings.ini` key controls it and what it does.
 
-* DLL version documented: **6.41** (`MOD_VERSION` in `Source/V2/V2/V2TechButton.cpp`).
+* DLL version documented: **6.43** (`MOD_VERSION` in `Source/V2/V2/V2TechButton.cpp`).
 * Source moved 2026-09-30 to `I:\Vic2_DLL\CreatineCore - Victoria 2 Extension` (git remote `CreatineCore---Victoria-2-Extension`); the old `I:\Vic2_DLL\balticsprott_CreatineCore` checkout no longer holds the source.
 * Target binary: `v2game.exe` (32-bit x86, preferred image base `0x400000`, ASLR on).
 * Verification: before this file was written, a script checked the cited bytes against the on-disk `v2game.exe` — all 22 byte-patch rows (address, length, *expect* bytes), 33 hook-site byte sequences, every redirected `call` / `jnz` target, the topbar vftable slots and every cited resume address (must be an instruction boundary). Behavioural descriptions come from the source comments and code, not from a runtime trace.
@@ -653,6 +653,14 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 * **Status display.** Country and diplomacy status displays identify the relation as a substate.
 * **Localization.** The effect tooltip uses `CREATE_SUBSTATE_EFFECT` in `CREATINECORE_LATEST_BUILD/localisation/creatinecore.csv`.
 * **Config.** `CREATE_SUBSTATE=1` (ini, Script Extensions, default on) enables the script effect and console command. At `0`, the effect key is not registered and the console command is unavailable.
+
+### 6a.12 `JOIN_WAR_EFFECT` — join existing wars from script effects (source `CCore_JoinWar.cpp`, `CCore_Shared.h`, `CCore_IfElseOperators.cpp`, `V2TechButton.cpp`)
+
+* **Effect scope.** Use `join_war` inside a country scope. The country in the active scope is the entrant. The `side` and `against` blocks are country-trigger selectors evaluated against participants in every ongoing war.
+* **War selection.** With both blocks, the entrant joins the side containing a `side` match in wars where the opposite side contains an `against` match. With only `side`, matching wars are joined on the side of that match. With only `against`, the entrant joins the opposite side from the matching country. A selector that matches both war orientations is skipped as ambiguous.
+* **Leader.** `leader = yes` requests war-leader status for the entrant. If omitted or set to `no`, the entrant does not replace the existing leader.
+* **Localization.** The tooltip emits one line per matched country using `JOIN_WAR_SIDE_LINE` and `JOIN_WAR_AGAINST_LINE` from `CREATINECORE_LATEST_BUILD/localisation/creatinecore.csv`; country names use the active government-specific localization when available.
+* **Config.** `JOIN_WAR_EFFECT=1` (ini, Script Extensions, default on) registers the effect. At `0`, the factory hook does not register the script effect.
 
 ## 7. Stability and performance
 

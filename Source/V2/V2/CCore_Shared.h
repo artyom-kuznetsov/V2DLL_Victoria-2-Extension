@@ -2,6 +2,7 @@
 // translation units of the DLL, and what those units export back.
 #pragma once
 #include <windows.h>
+typedef void(__fastcall* tCoreEffectFactory)(void* self, void* edx, void* ctx, int keyId);
 
 // --- defined in V2TechButton.cpp ---
 extern DWORD g_base;                                  // game image base
@@ -14,11 +15,14 @@ double ConsParseNumber(const char* s);
 const char* V2_OwnDir();                              // folder z_CreatineCore\ (holds creatinecore.dll), no trailing "\\"
 
 // --- defined in CCore_AssimilateBlock.cpp ---
+bool InstallJoinWarScriptEffect();
+bool CaptureJoinWarScriptEffect(void* self, void* edx, void* ctx, int keyId, tCoreEffectFactory originalFactory);
 bool   InstallAssimilateBlock();
 bool   CoreLocalizeKeyToGameString(const char* key, void* outputGameString);
 bool   CoreLocalizeKeyToBuffer(const char* key, char* output, unsigned outputCapacity);
 bool   CoreFormatLocalizationToBuffer(const char* key, const char* token1, const char* value1, const char* token2, const char* value2, char* output, unsigned outputCapacity);
 bool   CoreLocalizeKeyWithTwoReplacementsToGameString(const char* key, const char* token1, const char* value1, const char* token2, const char* value2, void* outputGameString);
+void*  CoreFindTooltipEventScope(uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5, uintptr_t a6, uintptr_t a7, uintptr_t a8, uintptr_t a9, uintptr_t a10);
 void   CoreFreeGameString(void* gameString);
 bool   InstallEffectFactoryHook(bool quietFailure = false);       // shared router of the block-form script effects
 bool   InstallExtendedUnitRecruitmentRules();
@@ -34,7 +38,7 @@ bool   InstallNewPopModifiers();
 bool   InstallDelayedEventFrom(bool applyFix);
 
 // --- defined in CCore_IfElseOperators.cpp ---
-typedef void(__fastcall* tCoreEffectFactory)(void* self, void* edx, void* ctx, int keyId);
+
 bool   InstallIfElseOperators();
 bool   CaptureIfElseOperator(void* self, void* edx, void* ctx, int keyId,
                                 tCoreEffectFactory originalFactory);

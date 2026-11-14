@@ -343,6 +343,22 @@ Effect and tooltip localization keys include `ACTIVATE_UNIT_EFFECT`, `DEACTIVATE
 Adds the country effect `create_substate = TAG`. The target country becomes an autonomous substate of the country executing the effect. Use it in event and decision effects.
 The console command `create_substate TAG1 TAG2` creates the same relation directly: `TAG1` is the overlord, and `TAG2` becomes its substate. (made by COUNTRY_ADJ).
 
+#### 15. JOIN_WAR_EFFECT
+Adds the country-scope effect `join_war` for joining ongoing wars. Use `side` to select a country or countries already fighting on the side the entrant should join, and `against` to select country or countries on the opposing side. Either selector may be used alone, or both may be combined to target a specific side in a specific war. Each selector accepts country trigger conditions.
+
+```txt
+PRU = {
+    join_war = {
+        side = { tag = ENG }
+        against = { tag = RUS }
+        leader = no
+    }
+}
+```
+
+With only `against = { tag = RUS }`, Prussia joins the opposing side in each ongoing war where Russia is a participant. `leader = yes` requests the entrant to become war leader; omitted or `no` leaves the existing leader in place. Tooltip lines use `JOIN_WAR_SIDE_LINE` and `JOIN_WAR_AGAINST_LINE` from `creatinecore.csv`.
+
+Set `JOIN_WAR_EFFECT=1` in `creatinecore_settings.ini` to register the effect (default: `1`). Set it to `0` to disable `join_war`. The setting is read at game startup.(made by COUNTRY_ADJ)
 
 ### Stability and Performance
 #### 1. PATCH_COMPRESS_FLAG_CACHE
