@@ -15,4 +15,11 @@ namespace cp::features {
 //     `rng_calls_end`), or at least the count the host sent.
 void install_sync_check(const Config& config);
 
+// Asks the next daily comparison to rebuild the global RNG from the host's vector (seed + draw count)
+// before the game compares and advances the day. The automatic rehost calls it on the host when it
+// starts the reloaded game and on every client when it reaches the lobby: after a save is loaded the
+// draw counter is a runtime global that is not part of the save, so the host and the clients can enter
+// the first day at different generator positions and the game reports an out-of-sync on day two.
+void request_sync_realign();
+
 }  // namespace cp::features

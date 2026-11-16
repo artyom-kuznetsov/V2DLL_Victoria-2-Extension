@@ -2,8 +2,12 @@
 
 #include <windows.h>
 
+#include <cctype>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <iterator>
+#include <string>
 
 #include "game/world.h"
 #include "hooks/memory.h"
@@ -42,9 +46,19 @@
 // check covers it). Outside that (AI frame jobs, UI) the draw comes from a private MT19937.
 //
 // The rule is wrong for host-only code that runs inside a command: the host would draw and count
-// where clients do not. Each site's first draw inside a command is logged, so the logs of a
-// multiplayer game show, per machine, which sites drew in lockstep; a site that appears only in the
-// host's log is such a case.
+// where clients do not. The 2026-11-13 multiplayer log shows exactly that: the host made 325
+// in-command draws in one day (00820D18=35 00821F32=17 008387C2=8 00838955=1 0083DE11=41
+// 00846408=11 0085599E=41 008569CF=40 0085CFBF=131) while the client made none, so the shared
+// generator moved on the host only and every following day started from a different position.
+// Those sites are AI code (AI frame jobs and the AI's own daily decisions); CCountry+0x208 is 0 on
+// the machines that do not run that country's AI, which is why only the host reaches them.
+//
+// Fix: the sites listed in `world_rng_private_sites` never touch the shared generator. Each one has
+// its own MT19937 stream seeded from the world date and the site index, so the value is
+// deterministic on every machine that runs the site (a save reload or a rehost starts the same
+// stream on the same day) and the host's AI draws no longer shift the draws the simulation uses.
+// Everything else keeps the lockstep/private rule above, and `sync_realign` still realigns the
+// shared generator at the start of every day.
 
 namespace cp::features {
 
@@ -59,7 +73,8 @@ uintptr_t g_rng_next = 0;
 uintptr_t g_mt_state = 0;
 uintptr_t g_site_returns[kSiteCount];  // address after each CALL: the return address of its draws
 bool g_lockstep_logged[kSiteCount];
-
+uint32_t g_site_draws[kSiteCount];     // in-command draws of the current day, per site
+bool g_enabled = false;
 // Private MT19937, seeded from the clock once.
 struct Mt {
     uint32_t state[624];
@@ -94,28 +109,61 @@ struct Mt {
     }
 };
 Mt g_private;
+// Host-only draw sites: one independent stream per site, reseeded from the world date at the first
+// draw of each day (see the comment at the top of the file).
+bool g_site_private[kSiteCount];
+Mt g_site_stream[kSiteCount];
+int32_t g_site_stream_day[kSiteCount];
+uint32_t g_site_private_draws[kSiteCount];  // private draws of the current day, per site
+
+void seed_site_stream(int site) {
+    const int32_t day = game::day(game::world());
+    if (g_site_stream_day[site] == day && g_site_stream[site].index != 625) {
+        return;
+    }
+    g_site_stream_day[site] = day;
+    // Date-based, so two machines that run the site draw the same values on the same day, and a save
+    // reload or a rehost restarts the stream at the same place instead of wherever the process was.
+    g_site_stream[site].seed(static_cast<uint32_t>(day) * 1103515245u + 12345u +
+                             static_cast<uint32_t>(site + 1) * 2654435761u);
+}
 
 bool in_command_execution() {
     uintptr_t mgr = game::session_manager(game::world());
     return mgr && *reinterpret_cast<const uint8_t*>(mgr + game::kSessionManagerExecuting) != 0;
 }
 
-void note_lockstep_draw(uintptr_t return_address) {
+int site_index(uintptr_t return_address) {
     for (int i = 0; i < kSiteCount; i++) {
         if (g_site_returns[i] == return_address) {
-            if (!g_lockstep_logged[i]) {
-                g_lockstep_logged[i] = true;
-                logf("sync_world_rng: site %08X drew inside a command on day %d (lockstep on this machine)",
-                     hooks::listing_va(kSiteRvas[i]), game::day(game::world()));
-            }
-            return;
+            return i;
         }
+    }
+    return -1;
+}
+
+void note_lockstep_draw(int site) {
+    if (site < 0) {
+        return;
+    }
+    g_site_draws[site]++;
+    if (!g_lockstep_logged[site]) {
+        g_lockstep_logged[site] = true;
+        logf("sync_world_rng: site %08X drew inside a command on day %d (lockstep on this machine)",
+             hooks::listing_va(kSiteRvas[site]), game::day(game::world()));
     }
 }
 
 uint32_t __cdecl draw(uintptr_t return_address) {
+    const int site = site_index(return_address);
+    if (site >= 0 && g_site_private[site]) {
+        // Host-only AI site: its own date-seeded stream, never the shared, counted generator.
+        seed_site_stream(site);
+        g_site_private_draws[site]++;
+        return g_site_stream[site].next();
+    }
     if (in_command_execution()) {
-        note_lockstep_draw(return_address);
+        note_lockstep_draw(site);
         game::rng_calls()++;
         uint32_t value;
         uintptr_t state = g_mt_state;
@@ -173,15 +221,141 @@ __declspec(naked) void draw_thunk() {
     }
 }
 
+// One line per day with how many in-command draws each site made. The host's and a client's logs
+// can be diffed directly: a site whose count differs (or that only appears on one machine) is the
+// code path that advances the shared generator on one machine but not on the other, and that is what
+// shifts the draws the simulation uses for the rest of the day. The counters are reset here, at the
+// same point of the day on every machine. The sites that use their own stream are reported apart:
+// they do not move the shared counter, so a count that differs there is informational only.
+void report_day(const char* date) {
+    char draws[1024];
+    size_t used = 0;
+    draws[0] = '\0';
+    uint32_t total = 0;
+    for (int i = 0; i < kSiteCount; i++) {
+        if (!g_site_draws[i]) {
+            continue;
+        }
+        total += g_site_draws[i];
+        if (used + 1 < sizeof(draws)) {
+            int written = std::snprintf(draws + used, sizeof(draws) - used, "%s%08X=%u",
+                                        used ? " " : "", hooks::listing_va(kSiteRvas[i]), g_site_draws[i]);
+            if (written > 0) {
+                used += static_cast<size_t>(written);
+            }
+        }
+        g_site_draws[i] = 0;
+    }
+    char private_draws[1024];
+    size_t private_used = 0;
+    private_draws[0] = '\0';
+    uint32_t private_total = 0;
+    for (int i = 0; i < kSiteCount; i++) {
+        if (!g_site_private_draws[i]) {
+            continue;
+        }
+        private_total += g_site_private_draws[i];
+        if (private_used + 1 < sizeof(private_draws)) {
+            int written = std::snprintf(private_draws + private_used, sizeof(private_draws) - private_used,
+                                        "%s%08X=%u", private_used ? " " : "",
+                                        hooks::listing_va(kSiteRvas[i]), g_site_private_draws[i]);
+            if (written > 0) {
+                private_used += static_cast<size_t>(written);
+            }
+        }
+        g_site_private_draws[i] = 0;
+    }
+    // The event manager's generator as the previous day left it: it is reseeded right after this, so a
+    // difference here means the day's event processing itself diverged.
+    uintptr_t event = game::read32(hooks::exe_addr(game::kEventManagerPtrRva));
+    hostjoin_logf("sync_world_rng: day %s rng=%u seed=%u in-command draws=%u private draws=%u "
+                  "event_mt=%08X/%u%s%s%s%s",
+                  date, game::rng_calls(), game::rng_seed(), total, private_total,
+                  event ? game::read32(event + game::kEventManagerRng) : 0,
+                  event ? game::read32(event + game::kEventManagerRng + game::kMtIndexOffset) : 0,
+                  used ? " " : "", draws,
+                  private_used ? " | private " : "", private_draws);
+}
+
+// Reads `world_rng_private_sites`: a list of hex RVAs (with or without 0x) separated by anything
+// that is not a hex digit. Accepts full VAs too (0x00820D18). Returns how many sites were marked.
+int parse_private_sites(const std::string& list) {
+    int marked = 0;
+    const char* p = list.c_str();
+    while (*p) {
+        while (*p && !std::isxdigit(static_cast<unsigned char>(*p))) {
+            ++p;
+        }
+        if (!*p) {
+            break;
+        }
+        char* end = nullptr;
+        const unsigned long value_long = std::strtoul(p, &end, 16);
+        if (end == p) {
+            ++p;
+            continue;
+        }
+        p = end;
+        const uint32_t value = static_cast<uint32_t>(value_long);
+        for (int i = 0; i < kSiteCount; i++) {
+            // Accept the RVA (420D18) and the VA the log prints (00820D18).
+            if (value == kSiteRvas[i] || value == kSiteRvas[i] + 0x400000) {
+                if (!g_site_private[i]) {
+                    g_site_private[i] = true;
+                    ++marked;
+                }
+                break;
+            }
+        }
+    }
+    return marked;
+}
+
 }  // namespace
+
+void world_rng_day_report(int32_t day) {
+    if (!g_enabled) {
+        return;
+    }
+    // Single player never compares the vector, and the per-day line would only be noise there.
+    uintptr_t world = game::world();
+    int players = 0;
+    for (uintptr_t p = world ? game::first_player(world) : 0; p; p = game::next_player(p)) {
+        if (game::player_id(p) != -1 && ++players > 1) {
+            break;
+        }
+    }
+    if (players < 2) {
+        for (int i = 0; i < kSiteCount; i++) {
+            g_site_draws[i] = 0;
+            g_site_private_draws[i] = 0;
+        }
+        return;
+    }
+    char date[32];
+    game::format_date(day, date, sizeof(date));
+    report_day(date);
+}
 
 void install_world_rng(const Config& config) {
     if (!config.sync_world_rng) {
         logf("sync_world_rng: disabled");
         return;
     }
+    g_enabled = true;
     g_rng_next = hooks::exe_addr(game::kRngNextRva);
     g_mt_state = hooks::exe_addr(game::kMtStateRva);
+
+    // Host-only AI sites get their own date-seeded stream so they do not advance the shared,
+    // counted generator (see the comment at the top of the file). `0`, `none` or an empty value
+    // disables the split and restores the old behaviour (every in-command draw is counted).
+    const std::string& private_list = config.world_rng_private_sites;
+    int private_sites = 0;
+    if (!private_list.empty() && private_list != "0" && private_list != "none" &&
+        private_list != "off") {
+        private_sites = parse_private_sites(private_list);
+    }
+
     int sites = 0;
     for (int i = 0; i < kSiteCount; i++) {
         uintptr_t site = hooks::exe_addr(kSiteRvas[i]);
@@ -195,6 +369,9 @@ void install_world_rng(const Config& config) {
     }
     logf("sync_world_rng: active on %d of %d world-RNG draw sites (lockstep draws go to the global generator, counted)",
          sites, kSiteCount);
+    logf("sync_world_rng: %d site(s) use their own date-seeded stream and do not move the shared "
+         "counter (world_rng_private_sites=%s)",
+         private_sites, private_list.empty() ? "<none>" : private_list.c_str());
 }
 
 }  // namespace cp::features

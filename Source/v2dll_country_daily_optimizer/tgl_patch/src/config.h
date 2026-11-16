@@ -31,8 +31,13 @@ struct Config {
     bool oos_test_button = false;       // multiplayer test aid: Force OOS button and Ctrl+Shift+O
     bool fix_rng_resync = false;        // multiplayer: on a sync mismatch, realign the RNG to the host's position,
                                         // not to the seed
+    bool event_seed_sync = false;       // multiplayer: seed the event manager from the world date instead of
+                                        // time(NULL), so a reloaded save rolls the same events everywhere
     bool sync_world_rng = false;        // multiplayer: lockstep draws from the world RNG come from the shared,
                                         // counted generator
+    std::string world_rng_private_sites;  // with sync_world_rng: hex RVAs of the draw sites that are only
+                                          // reached on the host (AI). They use their own date-seeded stream
+                                          // instead of advancing the shared, counted generator. Empty = none.
     int mp_host_wait_days = 0;          // multiplayer: host holds its ticks while a player is more than N days behind
                                         // (0 = off, not during a player's war)
     int background_sleep_ms = 1;        // per-frame sleep while the render device is lost (vanilla 100; 100 = leave it)

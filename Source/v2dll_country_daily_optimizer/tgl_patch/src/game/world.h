@@ -14,7 +14,11 @@ namespace cp::game {
 constexpr uint32_t kWorldPtrRva = 0xE588E8;           // DAT_012588E8: CWorld*
 constexpr uint32_t kCountryManagerPtrRva = 0xE587E4;  // DAT_012587E4: +0 count, +4 CCountry* array
 constexpr uint32_t kMtStateRva = 0xB0ECF0;            // g_mtState: the global MT19937, index at +0x9C0
+constexpr uint32_t kMtIndexOffset = 0x9C0;            // index of an MT19937 state
 constexpr uint32_t kRngCallsRva = 0xB20C14;           // g_rngCalls: draws on it since the seed
+constexpr uint32_t kRngSeedRva = 0xB20C1C;            // g_mtSeed: the seed the generator was started from
+constexpr uint32_t kEventManagerPtrRva = 0xF19B80;    // DAT_01319B80: the event manager singleton (0xA08)
+constexpr uint32_t kEventManagerRng = 0x40;           // its own MT19937 state, index at +0x9C0
 constexpr uint32_t kRngNextRva = 0x5B7610;            // Rng_Next: MT19937 step on the state in EAX
 constexpr uint32_t kOperatorNewRva = 0x6AE9AF;        // cdecl (size), malloc or throw
 constexpr uint32_t kOperatorDeleteRva = 0x6AE91B;     // cdecl (ptr), free
@@ -93,6 +97,7 @@ inline uint8_t read8(uintptr_t at) { return *reinterpret_cast<const uint8_t*>(at
 inline uintptr_t world() { return read32(hooks::exe_addr(kWorldPtrRva)); }
 inline uintptr_t country_manager() { return read32(hooks::exe_addr(kCountryManagerPtrRva)); }
 inline uint32_t& rng_calls() { return *reinterpret_cast<uint32_t*>(hooks::exe_addr(kRngCallsRva)); }
+inline uint32_t& rng_seed() { return *reinterpret_cast<uint32_t*>(hooks::exe_addr(kRngSeedRva)); }
 
 // Countries by index (index 0 is a placeholder); 0 / nullptr-safe when the manager is not built yet.
 inline size_t country_count() {
