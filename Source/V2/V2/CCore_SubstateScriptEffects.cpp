@@ -6,9 +6,10 @@
 // Parse create_substate with the native create_vassal effect, then preserve its
 // native relationship creation and change only the target country's subject type.
 static const int OFF_PARSER_KEY_TEXT = 0x24;
+static const int OFF_PARSER_VALUE_TEXT = 0x22C;
 static const int KW_CREATE_VASSAL_EFFECT = 0x585;
 static const int OFF_EFFECT_CHILD_TAIL = 0x0C;
-static const int OFF_VASSAL_EFFECT_TAG = 0x20; // CCreateVassalEffect initializes this to "---".
+static const int OFF_VASSAL_EFFECT_TAG = 0x20; // Inline target token; constructor initializes it to "---".
 static const int OFF_VASSAL_EFFECT_TARGET_INDEX = 0x24;
 static const int EFFECT_EXECUTE_SLOT = 11;
 static const int EFFECT_TOOLTIP_SLOT = 9;
@@ -27,16 +28,31 @@ static const DWORD RVA_CREATE_VASSAL_TOOLTIP = 0x004919E0;
 static const DWORD RVA_VASSAL_VTABLE = 0x00A01790;
 static const DWORD RVA_SUBSTATE_VTABLE = 0x00A03E74;
 static const int OFF_CTX_COUNTRY = 0x0C;
+static const int OFF_CTX_THIS = 0x24;
+static const int OFF_CTX_FROM_COUNTRY = 0x30;
+static const int OFF_CTX_FROM_PROVINCE = 0x34;
+static const int OFF_WORLD_PROVINCES = 0xACC;
+static const int OFF_PROVINCE_OWNER = 0x12C;
+static const DWORD RVA_WORLD_SLOT = 0x00E588E8;
+enum SubstateTargetMode { SUBSTATE_TARGET_TAG = 0, SUBSTATE_TARGET_THIS, SUBSTATE_TARGET_FROM };
 static const int OFF_COUNTRY_SUBSTATE = 0xCF4;
 static const int OFF_COUNTRY_OVERLORD = 0xCFC;
 static const DWORD RVA_COUNTRIES_VECTOR = 0xE587E4;
 static const DWORD RVA_COUNTRY_TAG_LOOKUP = 0x0015C6C0; // FUN_0055C6C0: __stdcall(manager, out, tag)
+static const DWORD RVA_COUNTRY_NAME_RESOLVER = 0x0015C8A0;
+static const unsigned char COUNTRY_NAME_RESOLVER_SIG[17] = {
+    0x55, 0x8B, 0xEC, 0x51, 0x56, 0x8B, 0xF0, 0x8B, 0x45,
+    0x0C, 0xC7, 0x45, 0xFC, 0x00, 0x00, 0x00, 0x00
+};
 static const unsigned char COUNTRY_TAG_LOOKUP_SIG[10] =
     { 0x55, 0x8B, 0xEC, 0x8B, 0x45, 0x10, 0x0F, 0xBE, 0x50, 0x01 };
 static const unsigned MAX_SUBSTATE_EFFECTS = 4096;
 
 typedef void(__fastcall* tSubstateEffectExecute)(void* self, void* edx,
     void* context, int scale);
+// The concrete CCreateVassalEffect::Tooltip override (FUN_008919E0) ends with
+// ret 0x28: output string plus nine stack arguments. Do not use the wider base
+// CEffect tooltip signature for this vtable slot.
 typedef void*(__thiscall* tSubstateEffectTooltip)(void* self, void* outString,
     uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5,
     uintptr_t a6, uintptr_t a7, uintptr_t a8, uintptr_t a9);
@@ -109,7 +125,8 @@ struct SubstateEffectMeta
     void* effect;
     tSubstateEffectExecute originalExecute;
     tSubstateEffectTooltip originalTooltip;
-    char targetTag[4];
+    char targetTag[5];
+    int targetMode;
     void* vtableWithRtti[EFFECT_VTABLE_SLOTS + 1];
 };
 
@@ -169,6 +186,29 @@ static bool ResolveCountryIndex(const char* tag, int* countryIndex)
 {
     return ResolveCountry(tag, countryIndex, 0);
 }
+static bool ReadSubstateParserTarget(void* parserContext, char target[5])
+{
+    if (!parserContext || !target)
+        return false;
+    memset(target, 0, 5);
+    __try
+    {
+        const char* text = (const char*)parserContext + OFF_PARSER_VALUE_TEXT;
+        for (int i = 0; i < 4; ++i)
+        {
+            target[i] = text[i];
+            if (!text[i])
+                break;
+        }
+        target[4] = 0;
+        return IsCountryTag(target) || _stricmp(target, "THIS") == 0 || _stricmp(target, "FROM") == 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        memset(target, 0, 5);
+        return false;
+    }
+}
 
 static void* CountryAtIndex(int countryIndex)
 {
@@ -192,6 +232,182 @@ static void* CountryAtIndex(int countryIndex)
     }
 }
 
+static int CountryFromProvinceIndex(int provinceIndex)
+{
+    if (!g_base || provinceIndex <= 0)
+        return -1;
+    __try
+    {
+        void* world = *(void**)(g_base + RVA_WORLD_SLOT);
+        if (!world)
+            return -1;
+        void** begin = *(void***)((char*)world + OFF_WORLD_PROVINCES);
+        void** end = *(void***)((char*)world + OFF_WORLD_PROVINCES + 4);
+        if (!begin || !end || end < begin || end - begin > 100000 || provinceIndex >= end - begin)
+            return -1;
+        void* province = begin[provinceIndex];
+        return province ? *(int*)((char*)province + OFF_PROVINCE_OWNER) : -1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+static bool ResolveSubstateTargetIndex(const SubstateEffectMeta* meta, void* context, int scopeCountryIndex, int* targetCountryIndex)
+{
+    if (!meta || !context || !targetCountryIndex)
+        return false;
+
+    int resolvedIndex = -1;
+    if (meta->targetMode == SUBSTATE_TARGET_TAG)
+    {
+        if (!ResolveCountryIndex(meta->targetTag, &resolvedIndex))
+            return false;
+    }
+    else
+    {
+        __try
+        {
+            if (meta->targetMode == SUBSTATE_TARGET_THIS)
+            {
+                void* parentContext = *(void**)((char*)context + OFF_CTX_THIS);
+                if (!parentContext)
+                    return false;
+                resolvedIndex = *(int*)((char*)parentContext + OFF_CTX_COUNTRY);
+            }
+            else if (meta->targetMode == SUBSTATE_TARGET_FROM)
+            {
+                resolvedIndex = *(int*)((char*)context + OFF_CTX_FROM_COUNTRY);
+                if (resolvedIndex <= 0)
+                    resolvedIndex = CountryFromProvinceIndex(*(int*)((char*)context + OFF_CTX_FROM_PROVINCE));
+            }
+            else
+                return false;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+    }
+
+    if (resolvedIndex <= 0 || resolvedIndex >= 8192 || resolvedIndex == scopeCountryIndex || !CountryAtIndex(resolvedIndex))
+        return false;
+    *targetCountryIndex = resolvedIndex;
+    return true;
+}
+
+static bool ResolveSubstateCountryName(int countryIndex, char* output, unsigned outputCapacity)
+{
+    if (!output || !outputCapacity || !g_base || countryIndex <= 0)
+        return false;
+    output[0] = 0;
+    void* country = CountryAtIndex(countryIndex);
+    if (!country)
+        return false;
+
+    uint32_t packedTag = 0;
+    __try
+    {
+        packedTag = *(uint32_t*)((char*)country + 0x1C);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    char tag[4] = {
+        (char)(packedTag & 0xFF),
+        (char)((packedTag >> 8) & 0xFF),
+        (char)((packedTag >> 16) & 0xFF),
+        0
+    };
+    for (int i = 0; i < 3; ++i)
+        if (!((tag[i] >= 'A' && tag[i] <= 'Z') || (tag[i] >= '0' && tag[i] <= '9') || tag[i] == '_'))
+            return false;
+
+    if (memcmp((const void*)(g_base + RVA_COUNTRY_NAME_RESOLVER),
+            COUNTRY_NAME_RESOLVER_SIG, sizeof(COUNTRY_NAME_RESOLVER_SIG)) == 0)
+    {
+        SubstateGameString localized = {};
+        localized.cap = 15;
+        const DWORD resolver = g_base + RVA_COUNTRY_NAME_RESOLVER;
+        const DWORD fallbackTag = packedTag;
+        const int index = countryIndex;
+        __try
+        {
+            __asm {
+                lea eax, localized
+                push index
+                push fallbackTag
+                call resolver
+                add esp, 8
+            }
+            const char* name = SubstateStringData(&localized);
+            if (name && name[0])
+                strncpy_s(output, outputCapacity, name, _TRUNCATE);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            output[0] = 0;
+        }
+        CoreFreeGameString(&localized);
+        if (output[0])
+            return true;
+    }
+
+    if (CoreLocalizeKeyToBuffer(tag, output, outputCapacity) && output[0])
+        return true;
+    strncpy_s(output, outputCapacity, tag, _TRUNCATE);
+    return output[0] != 0;
+}
+
+static int ScopeCountryIndex(void* scope)
+{
+    if (!scope)
+        return -1;
+    __try
+    {
+        return *(int*)((char*)scope + OFF_CTX_COUNTRY);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+static bool SetSubstateTooltipFromScope(const SubstateEffectMeta* meta, void* outString,
+    void* effectContext)
+{
+    if (!meta || !outString || !effectContext)
+        return false;
+    // CCreateVassalEffect's first context argument is a CContextEffect, not
+    // the canonical CEventScope returned by CoreFindTooltipEventScope. THIS
+    // resolution needs CContextEffect+0x24 to reach its parent context.
+    const int actorIndex = ScopeCountryIndex(effectContext);
+    int targetIndex = -1;
+    if (actorIndex <= 0 || !ResolveSubstateTargetIndex(meta, effectContext, actorIndex, &targetIndex))
+        return false;
+
+    char targetName[256] = {};
+    char actorName[256] = {};
+    if (!ResolveSubstateCountryName(targetIndex, targetName, sizeof(targetName)) ||
+        !ResolveSubstateCountryName(actorIndex, actorName, sizeof(actorName)))
+        return false;
+
+    SubstateGameString formatted = {};
+    formatted.cap = 15;
+    if (!CoreLocalizeKeyWithTwoReplacementsToGameString("CREATE_SUBSTATE_EFFECT",
+            "TARGET_COUNTRY", targetName, "COUNTRY", actorName, &formatted))
+    {
+        CoreFreeGameString(&formatted);
+        return false;
+    }
+    CoreFreeGameString(outString);
+    memcpy(outString, &formatted, sizeof(formatted));
+    memset(&formatted, 0, sizeof(formatted));
+    CoreFreeGameString(&formatted);
+    return true;
+}
 static void* CountryRelationPairAt(int countryIndex, int otherCountryIndex)
 {
     void* country = CountryAtIndex(countryIndex);
@@ -214,7 +430,6 @@ static void* CountryRelationPairAt(int countryIndex, int otherCountryIndex)
 
 typedef void(__thiscall* tRelationRefresh)(void* self);
 
-static const DWORD RVA_WORLD_SLOT = 0x00E588E8;
 static const unsigned MAX_SUBSTATE_PENDING_REPAIRS = 64;
 struct SubstatePendingRepair
 {
@@ -277,8 +492,7 @@ static bool ExecuteSubstateEffect(SubstateEffectMeta* meta, void* self,
     {
         const int scopeCountryIndex = *(int*)((char*)context + OFF_CTX_COUNTRY);
         int targetCountryIndex = -1;
-        const bool targetResolved = ResolveCountryIndex(meta->targetTag, &targetCountryIndex);
-        if (!targetResolved)
+        if (!ResolveSubstateTargetIndex(meta, context, scopeCountryIndex, &targetCountryIndex))
             return false;
         if (scopeCountryIndex < 0 || scopeCountryIndex >= 8192)
             return false;
@@ -393,6 +607,7 @@ bool CreateSubstateFromConsole(const char* actorTag, const char* targetTag)
         meta.effect = effect;
         meta.originalExecute = (tSubstateEffectExecute)(g_base + RVA_CREATE_VASSAL_EXECUTE);
         memcpy(meta.targetTag, targetTag, 4);
+        meta.targetMode = SUBSTATE_TARGET_TAG;
         success = ExecuteSubstateEffect(&meta, effect, 0, scope, 0);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -436,6 +651,9 @@ static void* __fastcall SubstateEffectTooltip(void* self, void*, void* outString
     void* result = meta->originalTooltip(self, outString,
         a1, a2, a3, a4, a5, a6, a7, a8, a9);
     if (!outString)
+        return result;
+
+    if (SetSubstateTooltipFromScope(meta, outString, (void*)a1))
         return result;
 
     // Reuse the native tooltip's resolved country names, then format the Core key.
@@ -523,6 +741,9 @@ bool CaptureSubstateScriptEffect(void* self, void* edx, void* ctx, int keyId,
     if (!self || !ctx || !originalFactory)
         return true;
 
+    char parserTarget[5] = {};
+    const bool hasParserTarget = ReadSubstateParserTarget(ctx, parserTarget);
+
     originalFactory(self, edx, ctx, KW_CREATE_VASSAL_EFFECT);
 
     __try
@@ -553,9 +774,22 @@ bool CaptureSubstateScriptEffect(void* self, void* edx, void* ctx, int keyId,
             return true;
         }
 
-        char tag[4] = {};
-        memcpy(tag, (char*)effect + OFF_VASSAL_EFFECT_TAG, sizeof(tag));
-        if (!IsCountryTag(tag) || g_substateEffectCount >= MAX_SUBSTATE_EFFECTS)
+        char tag[5] = {};
+        if (hasParserTarget)
+            memcpy(tag, parserTarget, sizeof(tag));
+        else
+        {
+            memcpy(tag, (char*)effect + OFF_VASSAL_EFFECT_TAG, 4);
+            tag[4] = 0;
+        }
+        int targetMode = -1;
+        if (IsCountryTag(tag))
+            targetMode = SUBSTATE_TARGET_TAG;
+        else if (_stricmp(tag, "THIS") == 0)
+            targetMode = SUBSTATE_TARGET_THIS;
+        else if (_stricmp(tag, "FROM") == 0)
+            targetMode = SUBSTATE_TARGET_FROM;
+        if (targetMode < 0 || g_substateEffectCount >= MAX_SUBSTATE_EFFECTS)
         {
             if (!g_substateEffectOverflowVtableReady)
             {
@@ -573,6 +807,7 @@ bool CaptureSubstateScriptEffect(void* self, void* edx, void* ctx, int keyId,
         SubstateEffectMeta* meta = &g_substateEffects[g_substateEffectCount++];
         memset(meta, 0, sizeof(*meta));
         meta->effect = effect;
+        meta->targetMode = targetMode;
         meta->originalExecute = (tSubstateEffectExecute)nativeVtable[EFFECT_EXECUTE_SLOT];
         meta->originalTooltip = (tSubstateEffectTooltip)nativeVtable[EFFECT_TOOLTIP_SLOT];
         memcpy(meta->targetTag, tag, sizeof(meta->targetTag));
