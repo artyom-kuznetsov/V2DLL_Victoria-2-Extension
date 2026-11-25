@@ -46,6 +46,7 @@ void   IfElseOperatorBeforeFactory(void* self);
 
 // --- defined in CCore_UnitScriptEffects.cpp ---
 bool InstallUnitScriptEffects();
+bool InstallInventionScriptEffects();
 bool InstallSubstateScriptEffects();
 bool CreateSubstateFromConsole(const char* actorTag, const char* targetTag);
 bool InstallCreateSubstateConsoleCommand();

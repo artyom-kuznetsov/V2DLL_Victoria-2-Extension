@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.43.5"
+#define MOD_VERSION "6.44"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -204,8 +204,10 @@ struct Settings
     bool newCountryScopeEffects                   = true;
     // JOIN_WAR_EFFECT: registers the join_war script effect.
     bool joinWarEffect                            = true;
-    // Activate/deactivate unit effects, tech/invention fixes and console commands.
+    // Activate/deactivate unit effects and their console commands.
     bool activateDeactivateUnit                   = true;
+    // Enables the activate_invention script effect.
+    bool activateInvention                        = true;
     // CHANGE_COLOR_CONSOLE: enables the change_color console command and its save/load color persistence.
     bool changeColorConsole                       = true;
     // FIX_MEMORY_MISS_CRASHES: dangling scope pointer of delayed events (CCore_DelayedEventFrom.cpp).
@@ -4777,6 +4779,7 @@ static void ApplySetting(const char* key, const char* value)
     if (_stricmp(key, "CREATE_SUBSTATE") == 0) { g_settings.newCountryScopeEffects = v; return; }
     if (_stricmp(key, "JOIN_WAR_EFFECT") == 0) { g_settings.joinWarEffect = v; return; }
     if (_stricmp(key, "ACTIVATE_DEACTIVATE_UNIT") == 0) { g_settings.activateDeactivateUnit = v; return; }
+    if (_stricmp(key, "ACTIVATE_INVENTION") == 0) { g_settings.activateInvention = v; return; }
     if (_stricmp(key, "CHANGE_COLOR_CONSOLE") == 0) { g_settings.changeColorConsole = v; return; }
     if (_stricmp(key, "ENABLE_MOVE_POP_BLOCK") == 0)            { g_settings.movePopBlock                = v; return; }
     if (_stricmp(key, "ENABLE_IF_ELSE_OPERATORS") == 0)       { g_settings.ifElseOperators          = v; return; }
@@ -5007,6 +5010,7 @@ static void WriteDefaultSettings(const char* path)
         "ACTIVATE_DEACTIVATE_UNIT=%d\n"
         "CREATE_SUBSTATE=%d\n"
         "JOIN_WAR_EFFECT=%d\n"
+        "ACTIVATE_INVENTION=%d\n"
         "NEW_POP_MODIFIERS = %d\n"
         "CHANGE_COLOR_CONSOLE=%d\n"
         "\n",
@@ -5024,6 +5028,7 @@ static void WriteDefaultSettings(const char* path)
         (int)g_settings.activateDeactivateUnit,
         (int)g_settings.newCountryScopeEffects,
         (int)g_settings.joinWarEffect,
+        (int)g_settings.activateInvention,
         (int)g_settings.newPopModifiers,
         (int)g_settings.changeColorConsole);
 
@@ -23081,6 +23086,16 @@ static bool Install()
     else
     {
         Log("ActivateDeactivateUnit: enabled=0 all_patches_installed=0");
+    }
+
+    if (g_settings.activateInvention)
+    {
+        const bool inventionEffectOk = InstallInventionScriptEffects();
+        Log("ActivateInventionEffect: enabled=1 registered=%d", inventionEffectOk ? 1 : 0);
+    }
+    else
+    {
+        Log("ActivateInventionEffect: enabled=0 registered=0");
     }
 
     if (g_settings.extendedUnitRecruitmentRules)

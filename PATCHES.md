@@ -644,7 +644,7 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 * **Technologies and inventions.** Vanilla `activate_unit` continues to work. The technology-effect hook applies `deactivate_unit` as well, including on the technology/invention application path. Unit recruitment tooltips account for pending deactivation effects and show the source technology or invention instead of treating the unit as simply locked by a technology.
 * **Console.** `activate_unit <unit_type>` and `deactivate_unit <unit_type>` apply the same state changes to the current country. The unit identifier is the unit type from `common/units`.
 * **Localization.** Effect and recruitment-tooltip text uses `ACTIVATE_UNIT_EFFECT`, `DEACTIVATE_UNIT_EFFECT`, and `UNIT_WILL_BE_DEACTIVATED_BY_SOURCE` in `CREATINECORE_LATEST_BUILD/localisation/creatinecore.csv`.
-* **Config.** `ACTIVATE_DEACTIVATE_UNIT=1` (ini, Script Extensions, default on) enables custom effects, the technology/invention fixes and both console commands. At `0`, vanilla `activate_unit` in technologies/inventions remains; the custom `deactivate_unit` fix and console commands are disabled. `unit_enabled` remains controlled only by `NEW_COUNTRY_SCOPE_CONDITIONS`.
+* **Config.** `ACTIVATE_DEACTIVATE_UNIT=1` (ini, Script Extensions, default on) enables the custom unit effects, unit technology/invention fixes and both unit console commands. The separate `ACTIVATE_INVENTION` setting controls the `activate_invention` effect. At `0`, vanilla `activate_unit` in technologies/inventions remains; the custom `deactivate_unit` fix and console commands are disabled. `unit_enabled` remains controlled only by `NEW_COUNTRY_SCOPE_CONDITIONS`.
 
 ### 6a.11 `CREATE_SUBSTATE` — script effect and console command (source `CCore_AssimilateBlock.cpp`, `CCore_SubstateScriptEffects.cpp`, `V2TechButton.cpp`, `vasalle_color.cpp`)
 
@@ -661,6 +661,13 @@ An AI country founds naval bases in at most `ai_naval_base_max_provinces_per_sta
 * **Leader.** `leader = yes` requests war-leader status for the entrant. If omitted or set to `no`, the entrant does not replace the existing leader.
 * **Localization.** The tooltip emits one line per matched country using `JOIN_WAR_SIDE_LINE` and `JOIN_WAR_AGAINST_LINE` from `CREATINECORE_LATEST_BUILD/localisation/creatinecore.csv`; country names use the active government-specific localization when available.
 * **Config.** `JOIN_WAR_EFFECT=1` (ini, Script Extensions, default on) registers the effect. At `0`, the factory hook does not register the script effect.
+
+### 6a.13 `ACTIVATE_INVENTION` — activate a named invention from script effects (source `CCore_UnitScriptEffects.cpp`, `CCore_Shared.h`, `V2TechButton.cpp`)
+
+* **Script effect.** `activate_invention = <invention_id>` is available in event and decision effects. It grants the identified invention to the country in the active scope; use an identifier defined in an `inventions/` script file.
+* **Lookup and grant.** The effect resolves the invention through the game's invention database and uses the native country acquisition path, matching the `invention <id>` console command.
+* **Localization.** The tooltip uses `ACTIVATE_INVENTION_EFFECT` with the `$NAME$` token from `CREATINECORE_LATEST_BUILD/localisation/creatinecore.csv`.
+* **Config.** `ACTIVATE_INVENTION=1` (ini, Script Extensions, default on) enables the effect. At `0`, `activate_invention` is not captured. This setting is independent of `ACTIVATE_DEACTIVATE_UNIT`.
 
 ## 7. Stability and performance
 

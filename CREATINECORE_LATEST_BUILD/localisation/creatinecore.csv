@@ -23,6 +23,7 @@ ASSIMILATE_CULTURE_EFFECT;Change §Y$AMOUNT$§! of the POPs to $CULTURE$ culture;x
 ASSIMILATE_RELIGION_EFFECT;Convert §Y$AMOUNT$§! of the POPs to the $RELIGION$ faith;x
 DISABLE_UNIT_TECH;Disables construction of;x
 ACTIVATE_UNIT_EFFECT;Will allow construction of $UNIT$;x
+ACTIVATE_INVENTION_EFFECT;Activate invention: §Y$NAME$§!;x
 DEACTIVATE_UNIT_EFFECT;Will disallow construction of $UNIT$;x
 UNIT_ENABLED_IS;Unit is enabled: ;x
 UNIT_ENABLED_NOT;Unit is NOT enabled: ;x
