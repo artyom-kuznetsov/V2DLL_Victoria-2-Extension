@@ -336,7 +336,7 @@ Adds the country effects `activate_unit = <unit_type>` and `deactivate_unit = <u
 
 The console commands `activate_unit <unit_type>` and `deactivate_unit <unit_type>` activate or deactivate that unit for the current country.
 
-Set `ACTIVATE_DEACTIVATE_UNIT=1` in `creatinecore_settings.ini` to enable the custom effects, technology/invention fixes, and console commands. With `0`, the game's vanilla `activate_unit` in technologies and inventions still works; custom `deactivate_unit` support and both console commands are disabled. `unit_enabled` is controlled independently by `NEW_COUNTRY_SCOPE_CONDITIONS`.
+Set `ACTIVATE_DEACTIVATE_UNIT=1` in `creatinecore_settings.ini` to enable the custom unit effects, unit technology/invention fixes, and unit console commands. The separate `ACTIVATE_INVENTION` setting controls `activate_invention`. With `0`, the game's vanilla `activate_unit` in technologies and inventions still works; custom `deactivate_unit` support and both console commands are disabled. `unit_enabled` is controlled independently by `NEW_COUNTRY_SCOPE_CONDITIONS`.
 
 Effect and tooltip localization keys include `ACTIVATE_UNIT_EFFECT`, `DEACTIVATE_UNIT_EFFECT`, and `UNIT_WILL_BE_DEACTIVATED_BY_SOURCE` (included in `creatinecore.csv`) (made by COUNTRY_ADJ).
 #### 14. CREATE_SUBSTATE
@@ -359,6 +359,15 @@ PRU = {
 With only `against = { tag = RUS }`, Prussia joins the opposing side in each ongoing war where Russia is a participant. `leader = yes` requests the entrant to become war leader; omitted or `no` leaves the existing leader in place. Tooltip lines use `JOIN_WAR_SIDE_LINE` and `JOIN_WAR_AGAINST_LINE` from `creatinecore.csv`.
 
 Set `JOIN_WAR_EFFECT=1` in `creatinecore_settings.ini` to register the effect (default: `1`). Set it to `0` to disable `join_war`. The setting is read at game startup.(made by COUNTRY_ADJ)
+
+#### 16. ACTIVATE_INVENTION
+Adds the country-scope effect `activate_invention = <invention_id>` for events and decisions. It unlocks the specified invention for the country executing the effect. Use the identifier defined in an `inventions/` script file.
+
+```txt
+activate_invention = quantum_theory
+```
+
+Set `ACTIVATE_INVENTION=1` in `creatinecore_settings.ini` to enable the effect (default: `1`); set it to `0` to disable it. This setting is independent of `ACTIVATE_DEACTIVATE_UNIT` and is read at game startup. The tooltip uses `ACTIVATE_INVENTION_EFFECT` with the `$NAME$` token (included in `creatinecore.csv`). (made by COUNTRY_ADJ)
 
 ### Stability and Performance
 #### 1. PATCH_COMPRESS_FLAG_CACHE

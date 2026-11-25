@@ -16,6 +16,12 @@ static const DWORD RVA_COUNTRIES_VECTOR = 0xE587E4;
 static const DWORD RVA_WORLD_PTR = 0xE588E8;
 static const int OFF_WORLD_PLAYER_INDEX = 0xB60;
 static const DWORD RVA_CURRENT_NAME_MAP = 0xE5FDD8; // DAT_0125fdd8, PE ImageBase 0x00400000
+static const DWORD RVA_INVENTION_DATABASE = 0xE5EADC; // DAT_0125EADC
+static const DWORD RVA_INVENTION_LOOKUP = 0x001661B0; // FUN_005661B0
+static const DWORD RVA_GRANT_INVENTION = 0x00102090; // FUN_00502090
+static const DWORD RVA_GAME_ALLOC = 0x006AE9AF; // FUN_00AAE9AF
+static const DWORD RVA_INVENTION_DATABASE_CTOR = 0x00176FE0; // FUN_00576FE0
+static const DWORD RVA_INVENTION_DATABASE_REGISTER = 0x0017AB10; // FUN_0057AB10
 static const DWORD RVA_NATIVE_UNIT_LOOKUP = 0x001C2AD0; // FUN_005C2AD0, PE ImageBase 0x00400000
 static const DWORD RVA_UNIT_EFFECT_CINVENTION_VTABLE = 0x00A000C0;
 static const DWORD RVA_UNIT_EFFECT_CTECHNOLOGY_VTABLE = 0x00A00A84;
@@ -58,6 +64,7 @@ struct UnitScriptEffectMeta
     void* effect;
     void* ownerInvention;
     bool activate;
+    bool invention;
     char unitName[64];
     void* originalTooltip;
     void* vtableWithRtti[EFFECT_VTABLE_SLOTS + 1];
@@ -68,6 +75,7 @@ static unsigned g_unitEffectCount = 0;
 __declspec(align(16)) static void* g_overflowVtable[EFFECT_VTABLE_SLOTS + 1];
 static bool g_overflowVtableReady = false;
 static bool g_unitScriptEffectsEnabled = false;
+static bool g_inventionScriptEffectsEnabled = false;
 
 static void UnitEffectGameStringSet(UnitEffectGameString* value, const char* text)
 {
@@ -103,7 +111,7 @@ static void UnitEffectFormatReplace(void* formatter, const char* name, const cha
     UnitEffectGameStringFree(&value);
 }
 
-static bool UnitEffectLocalize(const char* key, const char* unitName,
+static bool UnitEffectLocalize(const char* key, const char* tokenName, const char* unitName,
     char* output, unsigned outputCapacity)
 {
     UnitEffectGameString keyString, formatted;
@@ -115,7 +123,7 @@ static bool UnitEffectLocalize(const char* key, const char* unitName,
     memset(&formatted, 0, sizeof(formatted));
     memset(formatter, 0, sizeof(formatter));
     formatted.capacity = 15;
-    if (!output || outputCapacity < 2 || !key || !unitName || !g_base)
+    if (!output || outputCapacity < 2 || !key || !tokenName || !unitName || !g_base)
         return false;
     output[0] = 0;
     __try
@@ -183,7 +191,7 @@ static bool UnitEffectLocalize(const char* key, const char* unitName,
         }
         if (!label[0])
             strncpy_s(label, sizeof(label), unitName, _TRUNCATE);
-        UnitEffectFormatReplace(formatter, "UNIT", label);
+        UnitEffectFormatReplace(formatter, tokenName, label);
 
         if (!locale)
         {
@@ -258,9 +266,18 @@ static void* __fastcall UnitScriptEffectTooltip(void* self, void*, void* out,
 
     __try
     {
-        char line[256];
+        char line[512];
+        if (meta->invention)
+        {
+            if (!UnitEffectLocalize("ACTIVATE_INVENTION_EFFECT", "NAME",
+                    meta->unitName, line, sizeof(line)))
+                return result;
+            ((tUnitEffectStringAssign)(g_base + RVA_STD_STRING_ASSIGN))(
+                out, line, (unsigned)strlen(line));
+            return result;
+        }
         const char* key = meta->activate ? "ACTIVATE_UNIT_EFFECT" : "DEACTIVATE_UNIT_EFFECT";
-        if (!UnitEffectLocalize(key, meta->unitName, line, sizeof(line)))
+        if (!UnitEffectLocalize(key, "UNIT", meta->unitName, line, sizeof(line)))
             return result;
         UnitEffectGameString* text = (UnitEffectGameString*)out;
         const char* oldText = text->capacity < 16 ? text->data.buf : text->data.ptr;
@@ -287,7 +304,6 @@ static void* __fastcall UnitScriptEffectTooltip(void* self, void*, void* out,
     }
     return result;
 }
-
 static UnitScriptEffectMeta* FindUnitEffect(void* effect)
 {
     for (unsigned i = 0; i < g_unitEffectCount; ++i)
@@ -602,6 +618,61 @@ unsigned char* __cdecl DeactivateUnitConsoleCommand(unsigned char* result, const
     return UnitConsoleCommand(result, args, false);
 }
 
+static void* GetInventionDatabase()
+{
+    if (!g_base)
+        return 0;
+    void** global = (void**)(g_base + RVA_INVENTION_DATABASE);
+    if (*global)
+        return *global;
+    typedef void*(__cdecl* tGameAlloc)(unsigned);
+    typedef void*(__stdcall* tInventionDatabaseInit)(void*);
+    typedef void(__stdcall* tInventionDatabaseRegister)(void*);
+    void* database = ((tGameAlloc)(g_base + RVA_GAME_ALLOC))(0x9C);
+    if (!database)
+        return 0;
+    database = ((tInventionDatabaseInit)(g_base + RVA_INVENTION_DATABASE_CTOR))(database);
+    ((tInventionDatabaseRegister)(g_base + RVA_INVENTION_DATABASE_REGISTER))(database);
+    return *global;
+}
+static bool GrantCountryInvention(void* country, const char* inventionName)
+{
+    if (!country || !inventionName || !*inventionName || !g_base)
+        return false;
+    void* database = GetInventionDatabase();
+    if (!database)
+        return false;
+    UnitEffectGameString key;
+    memset(&key, 0, sizeof(key));
+    UnitEffectGameStringSet(&key, inventionName);
+    void* keyPtr = &key;
+    void* invention = 0;
+    DWORD lookup = g_base + RVA_INVENTION_LOOKUP;
+    __try
+    {
+        // FUN_005661B0 receives its global invention database in EAX and
+        // the game's string object as its sole stack argument.
+        __asm
+        {
+            mov eax, database
+            add eax, 0x74
+            push keyPtr
+            call lookup
+            mov invention, eax
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        UnitEffectGameStringFree(&key);
+        return false;
+    }
+    UnitEffectGameStringFree(&key);
+    if (!invention)
+        return false;
+    typedef void(__stdcall* tGrantInvention)(void*, void*, char);
+    ((tGrantInvention)(g_base + RVA_GRANT_INVENTION))(country, invention, 0);
+    return true;
+}
 static void __fastcall UnitScriptEffectExecute(void* self, void*, void* context, int)
 {
     UnitScriptEffectMeta* meta = FindUnitEffect(self);
@@ -621,6 +692,14 @@ static void __fastcall UnitScriptEffectExecute(void* self, void*, void* context,
             countryIndex >= countriesEnd - countries || !countries[countryIndex])
             return;
         char* country = countries[countryIndex];
+        if (meta->invention)
+        {
+            if (GrantCountryInvention(country, meta->unitName))
+                Log("ActivateInventionEffect: applied country_index=%d invention=%s", countryIndex, meta->unitName);
+            else
+                Log("ActivateInventionEffect: failed country_index=%d invention=%s", countryIndex, meta->unitName);
+            return;
+        }
         if (!SetCountryUnitEnabled(country, meta->unitName, meta->activate))
             return;
 }
@@ -631,11 +710,12 @@ static void __fastcall UnitScriptEffectExecute(void* self, void*, void* context,
 
 static void __fastcall UnitScriptEffectNoop(void*, void*, void*, int) {}
 
-static bool IsUnitScriptEffectKey(void* ctx, bool* activate)
+static bool IsUnitScriptEffectKey(void* ctx, bool* activate, bool* invention)
 {
-    if (!ctx || !activate)
+    if (!ctx || !activate || !invention)
         return false;
     const char* key = (const char*)ctx + OFF_PARSER_KEY_TEXT;
+    *invention = false;
     if (_stricmp(key, "activate_unit") == 0)
     {
         *activate = true;
@@ -646,16 +726,22 @@ static bool IsUnitScriptEffectKey(void* ctx, bool* activate)
         *activate = false;
         return true;
     }
+    if (_stricmp(key, "activate_invention") == 0)
+    {
+        *activate = true;
+        *invention = true;
+        return true;
+    }
     return false;
 }
-
 bool CaptureUnitScriptEffect(void* self, void* edx, void* ctx, int keyId,
     tCoreEffectFactory originalFactory)
 {
-    if (!g_unitScriptEffectsEnabled)
-        return false;
     bool activate = false;
-    if (!IsUnitScriptEffectKey(ctx, &activate))
+    bool invention = false;
+    if (!IsUnitScriptEffectKey(ctx, &activate, &invention))
+        return false;
+    if (invention ? !g_inventionScriptEffectsEnabled : !g_unitScriptEffectsEnabled)
         return false;
     if (!self || !ctx || !originalFactory)
         return true;
@@ -693,8 +779,9 @@ bool CaptureUnitScriptEffect(void* self, void* edx, void* ctx, int keyId,
     memset(meta, 0, sizeof(*meta));
     meta->effect = effect;
     unsigned ownerCandidates = 0;
-    meta->ownerInvention = FindCurrentInventionOnParserStack(&ownerCandidates);
+    meta->ownerInvention = invention ? 0 : FindCurrentInventionOnParserStack(&ownerCandidates);
     meta->activate = activate;
+    meta->invention = invention;
     if (!ReadGameString(effect, OFF_FLAG_EFFECT_NAME, meta->unitName, sizeof(meta->unitName)))
     {
 meta->unitName[0] = 0;
@@ -716,7 +803,7 @@ meta->unitName[0] = 0;
                 (void**)(g_base + RVA_UNIT_EFFECT_CINVENTION_VTABLE))
                 selfOwnerGuess = embeddedOwner;
         }
-        if (meta->unitName[0])
+        if (!invention && meta->unitName[0])
         {
             void* nameMap = *(void**)(g_base + RVA_CURRENT_NAME_MAP);
             parsedUnitDefinition = NativeUnitLookup(nameMap, meta->unitName);
@@ -767,5 +854,12 @@ bool InstallUnitScriptEffects()
         return false;
     const bool installed = InstallEffectFactoryHook(true);
     g_unitScriptEffectsEnabled = installed;
+    return installed;
+}
+
+bool InstallInventionScriptEffects()
+{
+    const bool installed = InstallEffectFactoryHook(true);
+    g_inventionScriptEffectsEnabled = installed;
     return installed;
 }
