@@ -41,7 +41,7 @@
 // "у кого-то старая DLL" — сравнить эту строку в логах перед сетевой
 // игрой.
 // CLAUDE МЕНЯЙ ВЕРСИЮ ПРИ КАЖДОЙ ПРАВКЕ ФАЙЛА
-#define MOD_VERSION "6.44"
+#define MOD_VERSION "6.44.5"
 
 // Настройки ниже читаются из z_CreatineCore\creatinecore_settings.ini при
 // каждом запуске игры. Если файла ещё нет, он создаётся со
@@ -18399,7 +18399,7 @@ __declspec(naked) static void TechMaintParseThunk()
         add esp, 8
         pop edx
         pop ecx
-        test eax, eax
+        test al, al
         jnz primary_done
         mov eax, dword ptr [esp + 8]
         cmp eax, 0x62D
@@ -18454,24 +18454,14 @@ __declspec(naked) static void TechMaintResetThunk()
     }
 }
 
-// call FUN_0056F850(технология, строка, a3, a4) (stdcall, ret 0x10) -> eax = строка
-__declspec(naked) static void TechMaintTipThunk()
+// FUN_0056F850 принимает четыре аргумента и очищает 0x10 байт стека.
+// Типизированный stdcall passthrough сохраняет нативный ABI и результат до добавления строк Core.
+typedef void* (__stdcall* tTechMaintTooltipOriginal)(void*, void*, void*, void*);
+static void* __stdcall TechMaintTipWrapper(void* tech, void* out, void* arg3, void* arg4)
 {
-    __asm {
-        push dword ptr [esp + 0x10]
-        push dword ptr [esp + 0x10]
-        push dword ptr [esp + 0x10]
-        push dword ptr [esp + 0x10]
-        call dword ptr [g_tmTipOrig]
-        push eax
-        mov ecx, dword ptr [esp + 8]
-        push eax
-        push ecx
-        call TechMaintTooltip
-        add esp, 8
-        pop eax
-        ret 0x10
-    }
+    void* result = ((tTechMaintTooltipOriginal)g_tmTipOrig)(tech, out, arg3, arg4);
+    TechMaintTooltip(tech, out);
+    return result;
 }
 
 // Места чтения [блок+0xA60][+0x128]; страна в ebx / esi / eax.
@@ -18525,7 +18515,7 @@ static bool InstallTechFactoryMaintenance()
     if (TechMaintRedirectCall(RVA_TM_PARSE_CALL, RVA_TM_PARSE_FN, (void*)&TechMaintParseThunk, "разбор ключа")) ++ok;
     if (TechMaintRedirectCall(RVA_TM_AGGR_CALL, RVA_TM_AGGR_FN, (void*)&TechMaintAggrThunk, "суммирование")) ++ok;
     if (TechMaintRedirectCall(RVA_TM_RESET_CALL, RVA_TM_RESET_FN, (void*)&TechMaintResetThunk, "сброс суммы")) ++ok;
-    if (TechMaintRedirectCall(RVA_TM_TIP_CALL, RVA_TM_TIP_FN, (void*)&TechMaintTipThunk, "подсказка")) ++ok;
+    if (TechMaintRedirectCall(RVA_TM_TIP_CALL, RVA_TM_TIP_FN, (void*)&TechMaintTipWrapper, "подсказка")) ++ok;
 
     // Чтение множителя содержания: пара "mov eax,[reg+0xA60]; mov eax,[eax+0x128]" (12 байт) либо одиночное
     // "mov eax,[edi+0x128]" (6 байт, edi уже загружен); resume - первые байты следующей команды.
